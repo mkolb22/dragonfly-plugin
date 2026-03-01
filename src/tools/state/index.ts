@@ -11,8 +11,7 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { requireState } from "../../utils/guards.js";
 import { config } from "../../core/config.js";
 import { StateStore } from "./store.js";
-import { migrate, exportToYaml } from "./migrate.js";
-import type { HealthZone, CheckpointType, StoryStatus } from "./types.js";
+import type { CheckpointType, StoryStatus } from "./types.js";
 
 const dispatcher = createDispatcher();
 const getStore = createLazyLoader(() => new StateStore(config().stateDbPath));
@@ -20,52 +19,12 @@ const getStore = createLazyLoader(() => new StateStore(config().stateDbPath));
 // Tool definitions
 export const tools: Tool[] = [
   {
-    name: "dragonfly_health_update",
-    description:
-      "Update context health status. Replaces writing to koan/health/status.yaml. Called by hooks to track context usage.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        context_usage_percent: {
-          type: "number",
-          description: "Current context usage percentage (0-100)",
-        },
-        zone: {
-          type: "string",
-          enum: ["green", "yellow", "red"],
-          description: "Health zone based on context usage",
-        },
-      },
-      required: ["context_usage_percent", "zone"],
-    },
-  },
-  {
     name: "dragonfly_health_get",
     description:
       "Get current context health status. Replaces reading koan/health/status.yaml.",
     inputSchema: {
       type: "object",
       properties: {},
-    },
-  },
-  {
-    name: "dragonfly_event_log",
-    description:
-      "Log an operational event. Replaces writing to koan/events/processed/*.yaml. Used by hooks for session exits, context thresholds, concept completions.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        type: {
-          type: "string",
-          description:
-            "Event type (e.g., 'session_exit', 'context_threshold', 'concept_complete', 'error')",
-        },
-        data: {
-          type: "object",
-          description: "Event payload as JSON object",
-        },
-      },
-      required: ["type"],
     },
   },
   {
@@ -266,57 +225,10 @@ export const tools: Tool[] = [
       },
     },
   },
-  {
-    name: "dragonfly_migrate",
-    description:
-      "Migrate legacy YAML state files to SQLite, or export SQLite state back to YAML for debugging. One-time utility for transitioning from YAML-based koan/ state to SQLite.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        action: {
-          type: "string",
-          enum: ["migrate", "export", "status"],
-          description: "Action: 'migrate' YAML→SQLite, 'export' SQLite→YAML for debugging, 'status' check migration state",
-        },
-        koan_dir: {
-          type: "string",
-          description: "Path to koan/ directory containing YAML state files (default: auto-detected from config)",
-        },
-        dry_run: {
-          type: "boolean",
-          description: "Preview what would be migrated without making changes (default: false)",
-        },
-        no_archive: {
-          type: "boolean",
-          description: "Skip archiving migrated YAML files (default: false)",
-        },
-        output_dir: {
-          type: "string",
-          description: "Output directory for YAML export (default: koan/.export/)",
-        },
-      },
-      required: ["action"],
-    },
-  },
 ];
 
 // Register handlers
 dispatcher
-  .registerQuick(
-    "dragonfly_health_update",
-    requireState(async (args) => {
-      const contextUsagePercent = a.number(args, "context_usage_percent", 0);
-      const zone = a.string(args, "zone", "green") as HealthZone;
-
-      if (!["green", "yellow", "red"].includes(zone)) {
-        return errorResponse("zone must be 'green', 'yellow', or 'red'");
-      }
-
-      const store = getStore();
-      const record = store.updateHealth(contextUsagePercent, zone);
-      return successResponse(record);
-    }),
-  )
   .registerQuick(
     "dragonfly_health_get",
     requireState(async () => {
@@ -332,18 +244,6 @@ dispatcher
         });
       }
 
-      return successResponse(record);
-    }),
-  )
-  .registerQuick(
-    "dragonfly_event_log",
-    requireState(async (args) => {
-      const type = a.string(args, "type");
-      if (!type) return errorResponse("type is required");
-      const data = a.object<Record<string, unknown>>(args, "data") ?? {};
-
-      const store = getStore();
-      const record = store.logEvent(type, data);
       return successResponse(record);
     }),
   )
@@ -530,59 +430,6 @@ dispatcher
         count: stories.length,
         stories,
       });
-    }),
-  )
-  .register(
-    "dragonfly_migrate",
-    requireState(async (args) => {
-      const action = a.string(args, "action");
-      if (!action) return errorResponse("action is required");
-
-      const cfg = config();
-      const stateDbPath = cfg.stateDbPath;
-
-      // Derive koan dir from stateDbPath: koan/state/state.db → koan/
-      const defaultKoanDir = stateDbPath
-        ? stateDbPath.replace(/[/\\]state[/\\]state\.db$/, "")
-        : "";
-
-      if (action === "status") {
-        const store = getStore();
-        const health = store.getHealth();
-        const checkpoints = store.listCheckpoints({ limit: 1 });
-        return successResponse({
-          stateDbPath,
-          hasHealth: !!health,
-          checkpointCount: checkpoints.length > 0 ? "1+" : "0",
-          koanDir: defaultKoanDir,
-        });
-      }
-
-      if (action === "migrate") {
-        const koanDir = a.string(args, "koan_dir", defaultKoanDir);
-        if (!koanDir) return errorResponse("koan_dir is required (could not auto-detect)");
-        const dryRun = a.boolean(args, "dry_run", false);
-        const noArchive = a.boolean(args, "no_archive", false);
-
-        const result = migrate(stateDbPath, koanDir, { dryRun, noArchive });
-        return successResponse({
-          ...result,
-          dryRun,
-          message: dryRun
-            ? "Dry run complete — no changes made"
-            : `Migration complete: ${result.health.migrated + result.events.migrated + result.checkpoints.migrated} items migrated`,
-        });
-      }
-
-      if (action === "export") {
-        const outputDir = a.string(args, "output_dir", defaultKoanDir ? defaultKoanDir + "/.export" : "");
-        if (!outputDir) return errorResponse("output_dir is required (could not auto-detect)");
-
-        const result = exportToYaml(stateDbPath, outputDir);
-        return successResponse(result);
-      }
-
-      return errorResponse(`Unknown action: ${action}. Use 'migrate', 'export', or 'status'.`);
     }),
   );
 

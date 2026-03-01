@@ -1,7 +1,6 @@
 /**
  * Analytics Module
- * 7 MCP tools for cost analysis, benchmarks, drift detection, learning,
- * observability, timeline, and validation.
+ * 2 MCP tools for workflow timeline visualization and configuration validation.
  */
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
@@ -11,96 +10,12 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { requireAnalytics } from "../../utils/guards.js";
 import { config } from "../../core/config.js";
 import { AnalyticsStore } from "./store.js";
-import { computeCostAnalytics, computeBenchmarks } from "./aggregators.js";
-import { computeLearningState, getEligiblePatterns, generateSkill } from "./learner.js";
-import { compareDirectories } from "./drift.js";
-import { loadPromptLogs, filterLogs, analyzePromptLogs } from "./observe.js";
 import type { Concept, Model, ProvenanceFilter, TimelineEntry, TimelineView } from "./types.js";
 
 const dispatcher = createDispatcher();
 const getStore = createLazyLoader(() => new AnalyticsStore(config().stateDbPath));
 
 export const tools: Tool[] = [
-  {
-    name: "dragonfly_costs_analyze",
-    description:
-      "Cost breakdown by concept, model, flow, and date. Analyzes provenance events to show where spend is going.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        from: { type: "string", description: "Start date (ISO 8601)" },
-        to: { type: "string", description: "End date (ISO 8601)" },
-        concept: { type: "string", description: "Filter by concept" },
-        model: { type: "string", description: "Filter by model (haiku, sonnet, opus)" },
-        flow_id: { type: "string", description: "Filter by flow/workflow ID" },
-      },
-    },
-  },
-  {
-    name: "dragonfly_bench_metrics",
-    description:
-      "Performance benchmarks: duration, quality, failures, model usage, and trends. Aggregates provenance data into comprehensive metrics.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        concept: { type: "string", description: "Filter by concept" },
-        since: { type: "string", description: "Date to start from (ISO 8601)" },
-        stories: {
-          type: "number",
-          description: "Number of recent stories for trend analysis (default: 0, no trends)",
-        },
-      },
-    },
-  },
-  {
-    name: "dragonfly_drift_detect",
-    description:
-      "Detect configuration drift between .zen/templates/ and .claude/. Shows modified, missing, and added files.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        template_dir: {
-          type: "string",
-          description: "Template directory (default: .zen/templates/)",
-        },
-        installed_dir: {
-          type: "string",
-          description: "Installed directory (default: .claude/)",
-        },
-      },
-    },
-  },
-  {
-    name: "dragonfly_learn_analyze",
-    description:
-      "Extract recurring workflow patterns from provenance data. Computes success rates, calibration effectiveness, and generates skill templates for eligible patterns.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        save: {
-          type: "boolean",
-          description: "Save learned patterns to DB (default: false, dry run)",
-        },
-        generate_skills: {
-          type: "boolean",
-          description: "Generate skill templates for eligible patterns (default: false)",
-        },
-      },
-    },
-  },
-  {
-    name: "dragonfly_observe_analyze",
-    description:
-      "Prompt/token usage analytics from observability logs. Shows usage by concept, model, and session.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        from: { type: "string", description: "Start date filter (ISO 8601)" },
-        to: { type: "string", description: "End date filter (ISO 8601)" },
-        concept: { type: "string", description: "Filter by concept" },
-      },
-    },
-  },
   {
     name: "dragonfly_timeline_view",
     description:
@@ -139,112 +54,6 @@ export const tools: Tool[] = [
 // ─── Handlers ──────────────────────────────────────────────────
 
 dispatcher
-  .register(
-    "dragonfly_costs_analyze",
-    requireAnalytics(async (args) => {
-      const store = getStore();
-      const filter = buildFilter(args);
-      const actions = store.loadProvenance(filter);
-
-      if (actions.length === 0) {
-        return successResponse({ message: "No provenance actions found", filter });
-      }
-
-      return successResponse(computeCostAnalytics(actions));
-    }),
-  )
-  .register(
-    "dragonfly_bench_metrics",
-    requireAnalytics(async (args) => {
-      const store = getStore();
-      const filter: ProvenanceFilter = {};
-
-      const concept = a.stringOptional(args, "concept");
-      if (concept) filter.concepts = [concept as Concept];
-
-      const since = a.stringOptional(args, "since");
-      if (since) filter.dateRange = { from: new Date(since) };
-
-      const actions = store.loadProvenance(filter);
-
-      if (actions.length === 0) {
-        return successResponse({ message: "No provenance actions found", filter });
-      }
-
-      const stories = a.number(args, "stories", 0);
-      return successResponse(computeBenchmarks(actions, { stories }));
-    }),
-  )
-  .register(
-    "dragonfly_drift_detect",
-    requireAnalytics(async (args) => {
-      const projectRoot = config().projectRoot;
-      const templateDir = a.string(args, "template_dir", `${projectRoot}/.zen/templates`);
-      const installedDir = a.string(args, "installed_dir", `${projectRoot}/.claude`);
-
-      const report = compareDirectories(templateDir, installedDir);
-
-      const summary = {
-        modified: report.modified.length,
-        missing: report.missing.length,
-        added: report.added.length,
-        in_sync: report.modified.length === 0 && report.missing.length === 0,
-      };
-
-      return successResponse({ summary, report });
-    }),
-  )
-  .register(
-    "dragonfly_learn_analyze",
-    requireAnalytics(async (args) => {
-      const store = getStore();
-      const actions = store.loadProvenance();
-
-      if (actions.length === 0) {
-        return successResponse({ message: "No provenance actions found" });
-      }
-
-      const state = computeLearningState(actions);
-      const save = a.boolean(args, "save", false);
-      const generateSkills = a.boolean(args, "generate_skills", false);
-
-      if (save) {
-        store.saveLearningState(state);
-      }
-
-      const eligible = getEligiblePatterns(state.patterns);
-      const skills = generateSkills ? eligible.map(generateSkill) : [];
-
-      return successResponse({
-        patterns: state.patterns,
-        calibrations: state.calibrations,
-        eligible_for_skills: eligible.length,
-        skills: skills.length > 0 ? skills : undefined,
-        saved: save,
-      });
-    }),
-  )
-  .register(
-    "dragonfly_observe_analyze",
-    requireAnalytics(async (args) => {
-      const projectRoot = config().projectRoot;
-      let entries = loadPromptLogs(projectRoot);
-
-      const from = a.stringOptional(args, "from");
-      const to = a.stringOptional(args, "to");
-      const concept = a.stringOptional(args, "concept");
-
-      if (from || to || concept) {
-        entries = filterLogs(entries, { from, to, concept });
-      }
-
-      if (entries.length === 0) {
-        return successResponse({ message: "No prompt logs found" });
-      }
-
-      return successResponse(analyzePromptLogs(entries));
-    }),
-  )
   .register(
     "dragonfly_timeline_view",
     requireAnalytics(async (args) => {

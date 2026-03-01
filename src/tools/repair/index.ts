@@ -169,14 +169,6 @@ export const tools: Tool[] = [
       required: ["errorType"],
     },
   },
-  {
-    name: "list_repair_strategies",
-    description: "List available repair strategies and when to use them",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
 ];
 
 const dispatcher = createDispatcher();
@@ -504,16 +496,6 @@ ${targetFiles.length > 0 ? `### Files to Check\n${targetFiles.map((f) => `- ${f}
         strategy: r.strategy,
         suggestion: r.suggestion.slice(0, 500),
         hasFixedCode: !!r.fixedCode,
-      })),
-    });
-  })
-  .registerQuick("list_repair_strategies", async () => {
-    return successResponse({
-      strategies: Object.entries(REPAIR_STRATEGIES).map(([key, value]) => ({
-        id: key,
-        name: value.name,
-        description: value.description,
-        useCases: value.prompt.split("\n").slice(1, 5).join(" "),
       })),
     });
   });

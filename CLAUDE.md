@@ -1,6 +1,6 @@
 # Dragonfly Plugin
 
-Sonnet-optimized MCP plugin: 84 tools across 13 modules. Fully standalone — no `.zen/` submodule.
+Sonnet-optimized MCP plugin: 66 tools across 13 modules. Fully standalone — no `.zen/` submodule.
 
 ## Quick Reference
 
@@ -12,21 +12,21 @@ Sonnet-optimized MCP plugin: 84 tools across 13 modules. Fully standalone — no
 | Data directory | `data/` (gitignored, created on first run) |
 | Templates | `templates/` (bundled, committed to repo) |
 
-## Modules (84 tools)
+## Modules (66 tools)
 
 | Module | Tools | Feature Flag |
 |--------|-------|-------------|
-| AST | 8 | always on |
-| Semantic | 4 | always on |
-| Memory | 7 | `DRAGONFLY_MEMORY_ENABLED` |
-| Framework | 11 | `DRAGONFLY_FRAMEWORK_ENABLED` |
-| State | 11 | `DRAGONFLY_STATE_ENABLED` |
+| AST | 7 | always on |
+| Semantic | 3 | always on |
+| Memory | 4 | `DRAGONFLY_MEMORY_ENABLED` |
+| Framework | 8 | `DRAGONFLY_FRAMEWORK_ENABLED` |
+| State | 8 | `DRAGONFLY_STATE_ENABLED` |
 | Evolve | 4 | `DRAGONFLY_EVOLVE_ENABLED` |
 | Spec | 6 | `DRAGONFLY_SPEC_ENABLED` |
-| Testing | 7 | always on |
-| Repair | 6 | `DRAGONFLY_REPAIR_ENABLED` |
+| Testing | 6 | always on |
+| Repair | 5 | `DRAGONFLY_REPAIR_ENABLED` |
 | Knowledge Graph | 7 | `DRAGONFLY_KG_ENABLED` |
-| Analytics | 7 | `DRAGONFLY_ANALYTICS_ENABLED` |
+| Analytics | 2 | `DRAGONFLY_ANALYTICS_ENABLED` |
 | Pipeline | 2 | `DRAGONFLY_PIPELINE_ENABLED` |
 | Bridge | 4 | `DRAGONFLY_BRIDGE_ENABLED` |
 

@@ -186,29 +186,6 @@ export const tools: Tool[] = [
       required: ["file"],
     },
   },
-  {
-    name: "search_by_signature",
-    description: "Search for functions/methods by their signature pattern",
-    inputSchema: {
-      type: "object",
-      properties: {
-        params: {
-          type: "array",
-          items: { type: "string" },
-          description: "Parameter types to match (e.g., ['string', 'number'])",
-        },
-        returnType: {
-          type: "string",
-          description: "Return type to match",
-        },
-        limit: {
-          type: "number",
-          description: "Maximum results (default: 10)",
-          default: 10,
-        },
-      },
-    },
-  },
 ];
 
 const dispatcher = createDispatcher();
@@ -269,14 +246,6 @@ dispatcher
       depth: a.number(args, "depth", 1),
     });
     return successResponse(symbols);
-  })
-  .registerQuick("search_by_signature", async (args) => {
-    const matches = getStore().searchBySignature({
-      params: a.array<string>(args, "params"),
-      returnType: a.stringOptional(args, "returnType"),
-      limit: a.number(args, "limit", 10),
-    });
-    return successResponse(matches);
   });
 
 export const astModule = createModule(tools, dispatcher);

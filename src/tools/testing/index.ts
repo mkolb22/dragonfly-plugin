@@ -18,7 +18,7 @@ import {
   type TestFramework,
 } from "./generator.js";
 import { runTests, getTestCommand } from "../../utils/execution.js";
-import { analyzeCoverage, findUntestedFiles, suggestTestsForCode } from "./analyzer.js";
+import { analyzeCoverage, findUntestedFiles } from "./analyzer.js";
 
 export const tools: Tool[] = [
   {
@@ -148,28 +148,6 @@ export const tools: Tool[] = [
           description: "Working directory for file search (default: project root)",
         },
       },
-    },
-  },
-  {
-    name: "suggest_tests",
-    description: "Analyze code and suggest what types of tests should be written",
-    inputSchema: {
-      type: "object",
-      properties: {
-        code: {
-          type: "string",
-          description: "Code to analyze",
-        },
-        file: {
-          type: "string",
-          description: "File path to analyze (alternative to code)",
-        },
-        language: {
-          type: "string",
-          description: "Programming language",
-        },
-      },
-      required: ["language"],
     },
   },
   {
@@ -410,40 +388,6 @@ describe('${entryPoint} Integration Tests', () => {
         untestedFiles.length > 0
           ? `${untestedFiles.length} source files don't have tests. Consider adding test files for the most critical ones first.`
           : "All source files appear to have corresponding test files.",
-    });
-  })
-  .register("suggest_tests", async (args) => {
-    const projectRoot = config().projectRoot;
-    let code = a.stringOptional(args, "code");
-    const file = a.stringOptional(args, "file");
-    const language = a.string(args, "language");
-
-    if (!code && file) {
-      const fullPath = path.isAbsolute(file) ? file : path.join(projectRoot, file);
-      if (fs.existsSync(fullPath)) {
-        code = fs.readFileSync(fullPath, "utf-8");
-      }
-    }
-
-    if (!code) {
-      return errorResponse("Either code or file must be provided");
-    }
-
-    const suggestions = suggestTestsForCode(code, language);
-    const analysis = analyzeForTests(code, language);
-
-    return successResponse({
-      codeAnalysis: {
-        functions: analysis.functions.map((f) => f.name),
-        classes: analysis.classes.map((c) => c.name),
-      },
-      testSuggestions: suggestions,
-      priorityOrder: suggestions
-        .sort((a, b) => {
-          const priorityOrder = { high: 0, medium: 1, low: 2 };
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        })
-        .map((s) => s.type),
     });
   })
   .registerQuick("get_test_command", async (args) => {

@@ -99,14 +99,6 @@ export const tools: Tool[] = [
       required: ["code"],
     },
   },
-  {
-    name: "get_embedding_stats",
-    description: "Get statistics about the embedding index",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
 ];
 
 const dispatcher = createDispatcher();
@@ -163,10 +155,6 @@ dispatcher
     }
 
     return successResponse(finalResults.slice(0, limit));
-  })
-  .registerQuick("get_embedding_stats", async () => {
-    const stats = getStore().getVectorStats();
-    return successResponse(stats);
   });
 
 export const semanticModule = createModule(tools, dispatcher);

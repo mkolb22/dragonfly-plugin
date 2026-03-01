@@ -16,9 +16,7 @@ import type {
   StoreInput,
   RecallInput,
   EvolveInput,
-  LinkInput,
   ForgetInput,
-  GraphInput,
   MemoryType,
   RelationshipType,
 } from "./types.js";
@@ -125,29 +123,6 @@ export const tools: Tool[] = [
     },
   },
   {
-    name: "memory_link",
-    description: "Create a manual link between two memories",
-    inputSchema: {
-      type: "object",
-      properties: {
-        source_id: {
-          type: "string",
-          description: "Source memory ID",
-        },
-        target_id: {
-          type: "string",
-          description: "Target memory ID",
-        },
-        relationship: {
-          type: "string",
-          enum: ["supports", "contradicts", "extends", "supersedes", "related"],
-          description: "Type of relationship",
-        },
-      },
-      required: ["source_id", "target_id", "relationship"],
-    },
-  },
-  {
     name: "memory_forget",
     description: "Archive a memory (soft delete, excluded from recall)",
     inputSchema: {
@@ -163,44 +138,6 @@ export const tools: Tool[] = [
         },
       },
       required: ["memory_id", "reason"],
-    },
-  },
-  {
-    name: "memory_graph",
-    description: "Explore the memory graph from a seed memory or query",
-    inputSchema: {
-      type: "object",
-      properties: {
-        memory_id: {
-          type: "string",
-          description: "Center memory ID (alternative to query)",
-        },
-        query: {
-          type: "string",
-          description: "Semantic query to find center (alternative to memory_id)",
-        },
-        depth: {
-          type: "number",
-          description: "Traversal depth (default: 2)",
-        },
-        limit: {
-          type: "number",
-          description: "Maximum nodes (default: 20)",
-        },
-      },
-    },
-  },
-  {
-    name: "memory_stats",
-    description: "Get memory system health metrics and optionally trigger decay",
-    inputSchema: {
-      type: "object",
-      properties: {
-        run_decay: {
-          type: "boolean",
-          description: "Run decay on old low-confidence memories",
-        },
-      },
     },
   },
 ];
@@ -315,28 +252,6 @@ dispatcher
       ...(note ? { note } : {}),
     });
   }))
-  .registerQuick("memory_link", requireMemory(async (args) => {
-    const sourceId = a.string(args, "source_id");
-    const targetId = a.string(args, "target_id");
-    const relationship = a.string(args, "relationship") as RelationshipType;
-
-    if (!sourceId || !targetId || !relationship) {
-      return errorResponse("source_id, target_id, and relationship are required");
-    }
-
-    const linkId = getStore().createLink(sourceId, targetId, relationship, 1.0, false);
-
-    if (!linkId) {
-      return errorResponse("Link already exists or memories not found");
-    }
-
-    return successResponse({
-      linkId,
-      sourceId,
-      targetId,
-      relationship,
-    });
-  }))
   .registerQuick("memory_forget", requireMemory(async (args) => {
     const memoryId = a.string(args, "memory_id");
     const reason = a.string(args, "reason");
@@ -351,62 +266,6 @@ dispatcher
       archived: true,
       memoryId,
       reason,
-    });
-  }))
-  .register("memory_graph", requireMemory(async (args) => {
-    const memoryId = a.stringOptional(args, "memory_id");
-    const query = a.stringOptional(args, "query");
-    const depth = Math.min(a.number(args, "depth", 2), 5);
-    const limit = Math.min(a.number(args, "limit", 20), 50);
-
-    let seedIds: string[] = [];
-
-    if (memoryId) {
-      seedIds = [memoryId];
-    } else if (query) {
-      const embedding = await getEmbedder().embed(query);
-      const results = getStore().searchByEmbedding(embedding, { limit: 3 });
-      seedIds = results.map(r => r.memory.id);
-    } else {
-      return errorResponse("Either memory_id or query is required");
-    }
-
-    const nodes = getStore().traverseGraph(seedIds, depth, limit);
-
-    return successResponse({
-      nodeCount: nodes.length,
-      nodes: nodes.map(n => ({
-        id: n.memory.id,
-        type: n.memory.type,
-        content: n.memory.content.slice(0, 200),
-        confidence: n.memory.confidence,
-        depth: n.depth,
-        links: n.links.map(l => ({
-          targetId: l.sourceId === n.memory.id ? l.targetId : l.sourceId,
-          relationship: l.relationship,
-          strength: l.strength,
-        })),
-      })),
-    });
-  }))
-  .registerQuick("memory_stats", requireMemory(async (args) => {
-    const cfg = config();
-    const runDecay = a.boolean(args, "run_decay", false);
-
-    let decayResult = null;
-    if (runDecay) {
-      decayResult = getStore().runDecay(
-        cfg.memoryDecayGraceDays,
-        cfg.memoryDecayBaseRate,
-        cfg.memoryDecayThreshold
-      );
-    }
-
-    const stats = getStore().getMemoryStats();
-
-    return successResponse({
-      ...stats,
-      decayResult,
     });
   }));
 

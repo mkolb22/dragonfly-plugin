@@ -12,10 +12,10 @@ import { successResponse, errorResponse, args as a } from "../../utils/responses
 import { createDispatcher, createModule } from "../../core/dispatcher.js";
 import { requireFramework } from "../../utils/guards.js";
 import { config } from "../../core/config.js";
-import { getContentLoader, resetContentLoader } from "./content-loader.js";
+import { getContentLoader } from "./content-loader.js";
 import { planWorkflow } from "./workflow-planner.js";
 import { getSessionManager, setSessionStore } from "./session.js";
-import { getSyncEvaluator, resetSyncEvaluator } from "./sync-evaluator.js";
+import { getSyncEvaluator } from "./sync-evaluator.js";
 import { StateStore } from "../state/store.js";
 import type {
   ConceptResult,
@@ -23,7 +23,6 @@ import type {
   AgentPromptResult,
   SkillsResult,
   AdvanceResult,
-  FrameworkStatus,
 } from "./types.js";
 
 const dispatcher = createDispatcher();
@@ -258,29 +257,6 @@ export const tools: Tool[] = [
     },
   },
   {
-    name: "dragonfly_evaluate_sync",
-    description:
-      "Evaluate synchronization rules for an event. Returns matching rules with actions and unevaluated where conditions. Does NOT evaluate conditions — returns them for Claude to check.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        concept: {
-          type: "string",
-          description: "Concept that triggered the event (e.g., 'story', 'architecture')",
-        },
-        action: {
-          type: "string",
-          description: "Action that occurred (e.g., 'create', 'design', 'generate')",
-        },
-        status: {
-          type: "string",
-          description: "Status of the event (e.g., 'completed', 'failed', 'starting')",
-        },
-      },
-      required: ["concept", "action", "status"],
-    },
-  },
-  {
     name: "dragonfly_get_workflow_state",
     description:
       "Get the current state of a workflow session including step statuses, timing, and summary. Defaults to the current active session if no ID provided.",
@@ -292,24 +268,6 @@ export const tools: Tool[] = [
           description: "Workflow session ID. Defaults to current/most recent active session.",
         },
       },
-    },
-  },
-  {
-    name: "dragonfly_framework_status",
-    description:
-      "Get framework module status: content counts by category, available items, and load timestamp.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "dragonfly_reload_framework",
-    description:
-      "Reload framework content (concepts, commands, agents, skills) and sync rules from disk. Use after deploying new templates via install.sh.",
-    inputSchema: {
-      type: "object",
-      properties: {},
     },
   },
 ];
@@ -648,21 +606,6 @@ dispatcher
     }),
   )
   .registerQuick(
-    "dragonfly_evaluate_sync",
-    requireFramework(async (args) => {
-      const concept = a.string(args, "concept");
-      if (!concept) return errorResponse("concept is required");
-      const action = a.string(args, "action");
-      if (!action) return errorResponse("action is required");
-      const status = a.string(args, "status");
-      if (!status) return errorResponse("status is required");
-
-      const evaluator = getSyncEvaluator();
-      const result = evaluator.evaluate(concept, action, status);
-      return successResponse(result);
-    }),
-  )
-  .registerQuick(
     "dragonfly_get_workflow_state",
     requireFramework(async (args) => {
       const workflowId = a.stringOptional(args, "workflow_id");
@@ -681,55 +624,6 @@ dispatcher
       }
 
       return successResponse(manager.getStateSnapshot(session));
-    }),
-  )
-  .registerQuick(
-    "dragonfly_framework_status",
-    requireFramework(async () => {
-      const loader = getContentLoader();
-      const baseStatus = loader.getStatus();
-
-      // Add orchestration stats
-      const manager = getSessionManager();
-      const evaluator = getSyncEvaluator();
-      const stats = manager.getStats();
-
-      const status: FrameworkStatus = {
-        ...baseStatus,
-        orchestration: {
-          activeSessions: stats.activeSessions,
-          totalSessions: stats.totalSessions,
-          syncRulesLoaded: evaluator.getRuleCount(),
-        },
-      };
-
-      return successResponse(status);
-    }),
-  )
-  .registerQuick(
-    "dragonfly_reload_framework",
-    requireFramework(async () => {
-      // Reset all cached singletons so they re-read from disk
-      resetContentLoader();
-      resetSyncEvaluator();
-
-      // Expire stale workflow sessions (>1 hour old)
-      const manager = getSessionManager();
-      const expiredCount = manager.expireStale(3600000);
-
-      // Force re-initialization by accessing them
-      const loader = getContentLoader();
-      const evaluator = getSyncEvaluator();
-      const loaderStatus = loader.getStatus();
-
-      return successResponse({
-        reloaded: true,
-        contentRoot: loaderStatus.contentRoot,
-        counts: loaderStatus.counts,
-        syncRulesLoaded: evaluator.getRuleCount(),
-        loadedAt: loaderStatus.loadedAt,
-        staleSessionsExpired: expiredCount,
-      });
     }),
   );
 
