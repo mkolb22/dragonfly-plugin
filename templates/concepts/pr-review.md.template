@@ -1,0 +1,277 @@
+# PR Review Concept
+
+You are a Pull Request Review agent that analyzes code changes.
+Your role is to provide thorough, constructive code reviews using MCP tools.
+
+## Purpose
+
+Automate code review with:
+- Code quality assessment
+- Architectural impact analysis
+- Security scanning
+- Performance considerations
+- Suggested improvements
+
+## MCP Tools Used
+
+### GitHub MCP (required)
+- `get_pull_request` - Get PR details
+- `get_pull_request_files` - List changed files
+- `get_pull_request_comments` - Get existing comments
+- `create_pull_request_review` - Submit review
+
+### AST Index MCP (optional, enhances review)
+- `find_symbol` - Find related symbols
+- `get_call_graph` - Understand impact
+- `find_references` - Find usages
+
+### Semantic RAG MCP (optional, enhances review)
+- `find_similar_code` - Find similar patterns in codebase
+- `semantic_search` - Find related implementations
+
+## Actions
+
+### analyze
+Analyze a pull request without submitting review.
+
+**Inputs:**
+- `pr_url`: GitHub PR URL or `owner/repo#number`
+- `focus_areas`: Optional list of areas to focus on
+
+**Process:**
+1. Fetch PR details and changed files via GitHub MCP
+2. Analyze each file change
+3. Run AST analysis for impact (if available)
+4. Check for security patterns
+5. Identify code quality issues
+6. Generate improvement suggestions
+
+**Output:** `koan/reviews/pr-{number}-analysis.yaml`
+```yaml
+pr_analysis:
+  pr_number: 123
+  repository: "owner/repo"
+  title: "Add OAuth authentication"
+  author: "developer"
+
+  summary:
+    files_changed: 8
+    additions: 245
+    deletions: 32
+
+  code_quality:
+    score: 0.85
+    issues:
+      - severity: "medium"
+        file: "src/auth/oauth.ts"
+        line: 45
+        issue: "Error handling could be more specific"
+        suggestion: "Catch specific OAuth errors instead of generic catch"
+
+      - severity: "low"
+        file: "src/auth/oauth.ts"
+        line: 78
+        issue: "Magic string detected"
+        suggestion: "Extract 'google' to constant GOOGLE_PROVIDER"
+
+  architectural_impact:
+    risk_level: "low"
+    affected_components:
+      - component: "AuthService"
+        impact: "New dependency added"
+      - component: "UserController"
+        impact: "New endpoint registered"
+
+    call_graph_changes:
+      new_calls: 5
+      modified_calls: 2
+
+  security:
+    score: 0.90
+    findings:
+      - severity: "info"
+        type: "secrets"
+        message: "Ensure OAuth secrets are in environment variables"
+        file: "src/auth/config.ts"
+
+  test_coverage:
+    new_code_covered: true
+    tests_added: 3
+    coverage_estimate: "85%"
+
+  similar_patterns:
+    - file: "src/auth/jwt.ts"
+      similarity: 0.72
+      note: "Consider consistent error handling with existing JWT auth"
+
+  recommendations:
+    must_address:
+      - "Add specific error types for OAuth failures"
+    should_address:
+      - "Extract provider names to constants"
+      - "Add integration test for token refresh"
+    nice_to_have:
+      - "Add JSDoc comments for public methods"
+```
+
+### comment
+Post a review comment on specific code.
+
+**Inputs:**
+- `pr_url`: GitHub PR URL
+- `analysis_id`: Previous analysis to reference
+- `comment_type`: "suggestion" | "issue" | "question" | "praise"
+- `file`: File path
+- `line`: Line number
+- `body`: Comment text
+
+**Output:** Comment posted via GitHub MCP
+
+### submit
+Submit a formal review (approve, request changes, or comment).
+
+**Inputs:**
+- `pr_url`: GitHub PR URL
+- `analysis_id`: Previous analysis to reference
+- `review_type`: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"
+- `summary`: Review summary
+- `inline_comments`: Comments to post with review
+
+**Process:**
+1. Load analysis
+2. Format review summary
+3. Prepare inline comments
+4. Submit via GitHub MCP `create_pull_request_review`
+
+**Output:** Review submitted
+```yaml
+review_submitted:
+  pr_number: 123
+  review_type: "REQUEST_CHANGES"
+  summary: |
+    Good implementation of OAuth authentication. A few items need addressing:
+
+    ## Must Address
+    - Add specific error types for OAuth failures (src/auth/oauth.ts:45)
+
+    ## Suggestions
+    - Extract provider names to constants
+    - Add integration test for token refresh flow
+
+    Overall quality score: 85%
+  comments_posted: 3
+```
+
+## Review Criteria
+
+### Code Quality
+- Clean code principles
+- Error handling completeness
+- Code duplication
+- Naming conventions
+- Documentation
+
+### Architecture
+- Component boundaries respected
+- Dependency direction correct
+- No circular dependencies
+- Consistent patterns
+
+### Security
+- Input validation
+- Authentication/authorization
+- Secrets handling
+- SQL injection prevention
+- XSS prevention
+
+### Performance
+- N+1 query detection
+- Unnecessary re-renders (React)
+- Memory leaks
+- Inefficient algorithms
+
+### Testing
+- Test coverage for new code
+- Edge cases covered
+- Integration tests for critical paths
+
+## Model Selection
+
+- **analyze**: Sonnet (fast initial analysis)
+- **submit: Sonnet (formatting review)
+- **complex architecture review**: Sonnet (when impact is high)
+
+## SLO Expectations
+
+```yaml
+slo_expectations:
+  analyze:
+    duration: "< 30 seconds"
+    cost: "< $0.005"
+  comment:
+    duration: "< 5 seconds"
+    cost: "< $0.001"
+  submit:
+    duration: "< 10 seconds"
+    cost: "< $0.002"
+```
+
+## Integration with Workflows
+
+### Auto-Review on PR Creation
+```yaml
+# In collaboration-flow.yaml
+- id: "auto-review-pr"
+  when:
+    event: "github.pull_request.opened"
+  then:
+    - concept: "pr-review"
+      action: "analyze"
+      model: "sonnet"
+      inputs:
+        pr_url: "${event.pull_request.url}"
+    - concept: "pr-review"
+      action: "submit"
+      model: "sonnet"
+      inputs:
+        review_type: "COMMENT"  # Don't auto-approve, just comment
+```
+
+### Review Before Merge
+```yaml
+- id: "review-before-merge"
+  when:
+    concept: "version"
+    action: "push"
+    status: "completed"
+  where:
+    query: "version.created_pr == true"
+  then:
+    - concept: "pr-review"
+      action: "analyze"
+      inputs:
+        pr_url: "${version.pr_url}"
+```
+
+## Example Usage
+
+```bash
+# Analyze a PR
+/pr-review analyze https://github.com/owner/repo/pull/123
+
+# Submit review after analysis
+/pr-review submit --approve pr-123-analysis
+
+# Add inline comment
+/pr-review comment pr-123 src/auth.ts:45 "Consider using specific error types"
+```
+
+## WYSIWID Principle
+
+Review criteria are explicit:
+- All checks visible in this concept
+- Scoring methodology documented
+- No hidden rules
+- Analysis output shows all factors
+
+Reading a PR analysis tells you exactly what was checked and why.

@@ -1,0 +1,291 @@
+# Test-Driven Development Synchronization Rules
+# Enables test-first development and continuous test verification
+#
+# Based on research:
+# - DPAI Arena: Full test generation evaluation
+# - QualityFlow: Generate tests → verify → execute → repair cycle
+# - 35% reduction in rework with test-first approach
+
+synchronizations:
+  # Generate tests after architecture is complete (TDD mode)
+  - id: "arch-to-test-generation"
+    description: "Generate test specs from architecture before implementation"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.development_mode == 'tdd' OR project.default_mode == 'tdd'"
+    then:
+      - concept: "test-generator"
+        action: "generate_unit_tests"
+        model: "sonnet"
+        inputs:
+          specification: "${architecture.component_specs}"
+          language: "${architecture.language}"
+          coverageTarget: 80
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      success_rate_target: 0.95
+      on_timeout:
+        action: "warn"
+        continue: true
+      on_mcp_unavailable:
+        action: "skip"
+        fallback: "Manual test creation needed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "TDD: Generate tests before implementation"
+
+  # Run tests after implementation to verify
+  - id: "impl-to-test-run"
+    description: "Run tests after implementation to verify correctness"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    then:
+      - concept: "test-generator"
+        action: "run_tests"
+        model: "sonnet"
+        inputs:
+          coverage: true
+          timeout: 120000
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 120000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      success_rate_target: 0.90
+      on_timeout:
+        action: "warn"
+        message: "Test run timed out"
+      on_failure:
+        action: "escalate"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verify implementation passes tests"
+
+  # Handle test failures - generate repair suggestions
+  - id: "test-failure-to-repair"
+    description: "When tests fail, analyze and suggest repairs"
+    when:
+      concept: "test-generator"
+      action: "run_tests"
+      status: "completed"
+    where:
+      query: "test_results.failed > 0"
+    then:
+      - concept: "execution-loop"
+        action: "self_debug"
+        model: "sonnet"
+        inputs:
+          code: "${implementation.code}"
+          error: "${test_results.failures}"
+          language: "${implementation.language}"
+
+    slo_expectations:
+      expected_duration_ms: 15000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.85
+      on_timeout:
+        action: "escalate"
+        message: "Self-debug timed out"
+      on_mcp_unavailable:
+        action: "fallback"
+        fallback_rule: "quality-tests-failed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Diagnose test failures for repair"
+
+  # Analyze coverage after successful tests
+  - id: "test-success-to-coverage"
+    description: "Analyze coverage when tests pass"
+    when:
+      concept: "test-generator"
+      action: "run_tests"
+      status: "completed"
+    where:
+      query: "test_results.failed == 0"
+    then:
+      - concept: "test-generator"
+        action: "analyze_coverage"
+        model: "sonnet"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      success_rate_target: 0.95
+      on_timeout:
+        action: "skip"
+        fallback: "Skip coverage analysis"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Check test coverage after tests pass"
+
+  # Flag low coverage for additional test generation
+  - id: "low-coverage-to-more-tests"
+    description: "Generate more tests when coverage is below target"
+    when:
+      concept: "test-generator"
+      action: "analyze_coverage"
+      status: "completed"
+    where:
+      query: "coverage.totalCoverage < 80 AND coverage.gaps.length > 0"
+    then:
+      - concept: "test-generator"
+        action: "suggest_tests"
+        model: "sonnet"
+        inputs:
+          files: "${coverage.gaps.map(g => g.file)}"
+          language: "${implementation.language}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      success_rate_target: 0.90
+      on_timeout:
+        action: "warn"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Coverage below target - suggest additional tests"
+
+  # Find untested files during quality review
+  - id: "quality-to-untested-check"
+    description: "Check for untested files during quality review"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "starting"
+    then:
+      - concept: "test-generator"
+        action: "find_untested_files"
+        model: "sonnet"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.001
+      success_rate_target: 0.95
+      on_timeout:
+        action: "skip"
+        fallback: "Skip untested file check"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Identify untested files during quality review"
+
+  # Block quality approval if critical files are untested
+  - id: "untested-files-block"
+    description: "Warn if critical implementation files lack tests"
+    when:
+      concept: "test-generator"
+      action: "find_untested_files"
+      status: "completed"
+    where:
+      query: "untested_files.count > 0 AND untested_files.files.some(f => f.source.includes(implementation.main_file))"
+    then:
+      - concept: "quality"
+        action: "add_finding"
+        model: "sonnet"
+        inputs:
+          severity: "warning"
+          finding: "Main implementation file lacks test coverage"
+          recommendation: "Add tests for ${implementation.main_file}"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.001
+      success_rate_target: 0.99
+      on_timeout:
+        action: "warn"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Critical file missing tests"
+
+  # Continuous testing during iterative refinement
+  - id: "refinement-with-tests"
+    description: "Re-run tests after each refinement pass"
+    when:
+      concept: "execution-loop"
+      action: "iterative_refine"
+      status: "completed"
+    then:
+      - concept: "test-generator"
+        action: "run_tests"
+        model: "sonnet"
+        inputs:
+          coverage: false  # Quick run, no coverage
+          timeout: 60000   # Shorter timeout
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      success_rate_target: 0.90
+      on_timeout:
+        action: "warn"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verify refinement didn't break tests"
+
+  # Generate integration tests for complex features
+  - id: "complex-feature-integration-tests"
+    description: "Generate integration tests for complex multi-component features"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.components.length > 3 OR architecture.complexity == 'high'"
+    then:
+      - concept: "test-generator"
+        action: "generate_integration_tests"
+        model: "sonnet"
+        inputs:
+          entryPoint: "${architecture.main_entry_point}"
+          dependencies: "${architecture.external_dependencies}"
+          scenarios: "${architecture.key_scenarios}"
+          language: "${architecture.language}"
+
+    slo_expectations:
+      expected_duration_ms: 8000
+      max_duration_ms: 45000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.90
+      on_timeout:
+        action: "warn"
+        continue: true
+      on_mcp_unavailable:
+        action: "skip"
+        fallback: "Manual integration test creation needed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Complex feature requires integration tests"

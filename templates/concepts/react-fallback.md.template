@@ -1,0 +1,286 @@
+# 🔄 ReAct Fallback Concept
+
+## Model Assignment
+
+**Model**: Sonnet 4.5 (adaptive reasoning)
+**Cost per Action**: ~$0.002
+**Never Calls**: Other concepts directly (works through sync rules)
+
+## Activation Sequence
+
+When invoked, I execute the ReAct fallback concept:
+
+1. ✅ Load ReAct fallback concept template
+2. ✅ Activate Sonnet 4.5 model (adaptive reasoning)
+3. ✅ Analyze blocked synchronization state
+4. ✅ Execute Reason-Act-Observe loop
+5. ✅ Save state file in koan/fallback/
+
+---
+
+## Purpose
+
+The ReAct Fallback concept handles edge cases where pure declarative synchronization rules fail or get blocked. It uses the Reason-Act-Observe pattern to adaptively resolve issues that cannot be handled by static rules.
+
+## Core Principle: Hybrid Approach
+
+**Default**: Declarative synchronization (89% success rate)
+**Fallback**: ReAct loop for unpredictable situations (remaining 11%)
+
+Research shows:
+- Declarative wins for structured workflows (89% vs 78%)
+- BUT edge cases need imperative handling
+- Hybrid approach combines strengths of both
+
+## When to Trigger
+
+ReAct fallback is triggered when:
+- Sync rule evaluation fails after max retries
+- Sync rule cannot find matching condition
+- Circular dependency detected
+- External dependency unavailable
+- Ambiguous state that rules cannot handle
+- User explicitly requests exploration mode
+
+## ReAct Pattern
+
+```
+LOOP (max 5 iterations):
+  1. THOUGHT: Analyze why sync failed
+  2. ACTION: Take corrective action
+  3. OBSERVATION: Check if issue resolved
+  4. IF resolved: BREAK
+  5. IF max iterations: Send to DLQ
+
+OUTCOME:
+  - Success: Resume declarative workflow
+  - Partial: Document workaround, continue
+  - Failed: Add to dead letter queue
+```
+
+## Actions
+
+### handle_blocked(sync_id, context)
+
+Handles a blocked synchronization using ReAct loop.
+
+**Inputs**:
+- `sync_id`: ID of the blocked sync rule
+- `context`: Current workflow state, error details, previous attempts
+
+**Process**:
+1. **THOUGHT**: Analyze the blocking condition
+   - Read sync rule definition
+   - Read current workflow state
+   - Identify why condition not met
+   - Consider alternative paths
+
+2. **ACTION**: Take corrective action
+   - Fix missing files/dependencies
+   - Update workflow state
+   - Retry with different parameters
+   - Invoke alternative sync path
+
+3. **OBSERVATION**: Verify action result
+   - Check if blocking condition resolved
+   - Measure progress toward goal
+   - Detect new issues introduced
+
+4. **DECIDE**: Next step
+   - Continue loop if not resolved
+   - Exit if resolved
+   - Escalate if max iterations reached
+
+**Output Format** (YAML with Progressive Disclosure):
+
+```yaml
+# === SUMMARY (first 5 lines - quick scanning) ===
+fallback_id: "fb-001"
+status: "resolved"
+iterations: 3
+resolution: "Found missing dependency at alternative path"
+
+# === FULL DETAILS (load only if needed) ===
+details:
+  sync_id: "code-analysis.context:completed -> architecture.design"
+  blocked_reason: "Missing file: src/config/settings.ts"
+
+  iterations:
+    - iteration: 1
+      thought: "Expected settings file at src/config/settings.ts not found"
+      action: "Search for settings files in codebase"
+      observation: "Found settings.config.ts at root level"
+      result: "partial_progress"
+
+    - iteration: 2
+      thought: "Settings file exists but at different location"
+      action: "Update sync context to use settings.config.ts"
+      observation: "Sync rule now has valid file reference"
+      result: "partial_progress"
+
+    - iteration: 3
+      thought: "File reference fixed, can now execute sync"
+      action: "Trigger sync rule with updated context"
+      observation: "Sync executed successfully"
+      result: "resolved"
+
+  resolution:
+    status: "resolved"
+    action_taken: "Updated file reference in sync context"
+    workaround: "Use root-level settings.config.ts instead of src/config/settings.ts"
+
+  next_step:
+    action: "resume_workflow"
+    sync_to_execute: "architecture.design"
+
+  metadata:
+    created_at: "2026-01-30T16:00:00Z"
+    concept: "react-fallback"
+    model: "sonnet"
+    cost: 0.000145
+```
+
+## State Location
+
+Fallback executions are saved to: `koan/fallback/fb-{id}.yaml`
+
+## Integration with Synchronizations
+
+The ReAct fallback concept is triggered by:
+- Sync evaluation failure (via `sync-blocked` event)
+- Maximum retry exhaustion
+- Explicit user request (`/react` command)
+
+The ReAct fallback concept triggers (via synchronizations):
+- Resume workflow when resolved
+- DLQ entry when unresolvable
+- User notification when manual intervention needed
+
+## Example Scenarios
+
+### Scenario 1: Missing Dependency
+
+```
+Sync Rule: code-analysis:completed -> architecture.design
+Block: File not found at expected path
+
+ReAct Loop:
+  T1: Expected file missing
+  A1: Search for similar files
+  O1: Found at different path
+
+  T2: Path mismatch in sync rule
+  A2: Update context with actual path
+  O2: Context updated
+
+  T3: Ready to proceed
+  A3: Execute sync with updated context
+  O3: SUCCESS - Resume workflow
+```
+
+### Scenario 2: Circular Dependency
+
+```
+Sync Rule: A:completed -> B:start
+          B:completed -> A:update
+Block: Circular dependency detected
+
+ReAct Loop:
+  T1: Circular dependency between A and B
+  A1: Analyze dependency graph
+  O1: Both waiting on each other
+
+  T2: Need to break cycle
+  A2: Check if either can proceed without the other
+  O2: B can start with partial A state
+
+  T3: Start B with available data
+  A3: Mark A as "partial_complete", trigger B
+  O3: SUCCESS - Cycle broken
+```
+
+### Scenario 3: External Service Unavailable
+
+```
+Sync Rule: quality.test:completed -> version.commit
+Block: MCP test server unavailable
+
+ReAct Loop:
+  T1: MCP server not responding
+  A1: Check fallback options in error-policy
+  O1: Manual test path available
+
+  T2: Can fallback to manual testing
+  A2: Execute tests using bash instead of MCP
+  O2: Tests ran successfully
+
+  T3: Tests passed without MCP
+  A3: Proceed to version.commit
+  O3: SUCCESS - Fallback worked
+```
+
+## Cost Optimization
+
+**Why Sonnet?**
+- Adaptive reasoning required for edge cases
+- No fixed pattern to follow (unlike implementation)
+- Must analyze complex state and make decisions
+- Fast enough for interactive debugging (2-3 seconds)
+- Cheaper than Opus for non-critical reasoning
+
+**When NOT to use this concept:**
+- For normal workflow (use declarative sync rules)
+- When pattern is known (add new sync rule instead)
+- For trivial errors (use error-policy retry)
+
+## Decision Tree
+
+```
+Sync Failed?
+├─ Is error transient? → error-policy (retry)
+├─ Is error permanent? → error-policy (escalate)
+├─ Is error degraded? → error-policy (fallback)
+└─ Is state ambiguous? → react-fallback (this concept)
+```
+
+## Never Do This
+
+- ❌ Use for normal workflow (defeats purpose of declarative)
+- ❌ Call other concepts directly
+- ❌ Make architecture decisions (not the right concept)
+- ❌ Perform git operations
+- ❌ Infinite loops (max 5 iterations)
+
+## Always Do This
+
+- ✅ Use Sonnet model exclusively
+- ✅ Document the resolution for future learning
+- ✅ Save state to koan/fallback/
+- ✅ Resume declarative workflow when resolved
+- ✅ Use dead letter queue for truly unresolvable issues
+- ✅ Track all iterations with thought/action/observation
+
+## Success Metrics
+
+Track these to measure fallback effectiveness:
+- Resolution rate (target: >70%)
+- Iterations to resolution (target: <3)
+- Cost per resolution (target: <$0.002)
+- Recurrence rate (same issue again? = need new sync rule)
+
+## Learning Loop
+
+After successful resolution:
+1. Extract the pattern that caused blocking
+2. Consider if a new sync rule should be added
+3. Document the workaround in global memory
+4. Update error-policy if applicable
+
+**Goal**: Reduce fallback frequency over time by learning.
+
+---
+
+**Model Assignment**: Sonnet
+**Cost Tier**: Low ($0.000145)
+**Purpose**: Adaptive edge case resolution
+**Integration**: Triggered by sync-blocked, triggers workflow resume or DLQ

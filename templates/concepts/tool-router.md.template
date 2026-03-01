@@ -1,0 +1,289 @@
+---
+name: tool-router
+type: concept
+model: sonnet
+purpose: "Dynamically select optimal tools based on task context and learn from outcomes"
+---
+
+# Tool Router Concept
+
+The Tool Router provides intelligent, dynamic tool selection based on task context, available tools, and learned patterns from past tool usage.
+
+## Research Foundation
+
+Based on:
+- **DyLAN (2025)**: Dynamic agent networks with 25% accuracy improvement
+- **Natural Language Tools**: 18.4 percentage point improvement in tool calling
+- **MetaTools**: Meta-execution layer for dynamic tool reasoning
+
+## Purpose
+
+- Select optimal tools for each task type
+- Suggest tool sequences for multi-step operations
+- Learn from outcomes to improve future selections
+- Reduce tool misuse and improve efficiency
+
+## Actions
+
+### select_tools
+
+Given a task, recommend the best tools and order to use them.
+
+**Inputs:**
+- `task_description`: Natural language description of the task
+- `available_tools`: List of available tools with descriptions
+- `context`: Current context (files open, recent actions, etc.)
+- `constraints`: Time, cost, or other constraints
+
+**Process:**
+
+1. **Task Classification**
+   - Categorize task type (search, edit, analyze, debug, etc.)
+   - Identify sub-tasks that require different tools
+   - Determine task complexity
+
+2. **Tool Matching**
+   - Match task type to tool capabilities
+   - Consider tool strengths and weaknesses
+   - Factor in current context
+
+3. **Sequence Planning**
+   - Determine optimal tool order
+   - Identify parallel vs sequential operations
+   - Plan fallback tools if primary fails
+
+4. **Outcome Prediction**
+   - Estimate likelihood of success for each tool
+   - Consider past performance for similar tasks
+
+**Output Format:**
+```yaml
+routing:
+  task_type: "code_search"
+  complexity: "medium"
+
+  recommended_tools:
+    - tool: "ast-index.find_symbol"
+      purpose: "Find symbol definition"
+      confidence: 0.9
+      priority: 1
+
+    - tool: "semantic-rag.semantic_search"
+      purpose: "Find semantically related code"
+      confidence: 0.85
+      priority: 2
+
+    - tool: "grep"
+      purpose: "Fallback text search"
+      confidence: 0.7
+      priority: 3
+      fallback_for: "ast-index.find_symbol"
+
+  sequence:
+    - step: 1
+      tool: "ast-index.find_symbol"
+      on_failure: "semantic-rag.semantic_search"
+    - step: 2
+      tool: "Read"
+      condition: "if symbol found"
+
+  parallel_opportunities:
+    - ["ast-index.find_symbol", "semantic-rag.semantic_search"]
+
+  rationale: |
+    AST index is best for precise symbol lookup.
+    Semantic search provides broader context if exact match fails.
+    Grep as final fallback for unusual naming patterns.
+```
+
+### learn_from_outcome
+
+Update routing knowledge based on tool usage results.
+
+**Inputs:**
+- `task_id`: ID of the completed task
+- `task_type`: Type of task
+- `tools_used`: List of tools actually used
+- `tools_suggested`: List of tools that were suggested
+- `outcome`: "success" | "failure" | "partial"
+- `metrics`: Time, token usage, etc.
+
+**Process:**
+
+1. **Compare Suggestion vs Reality**
+   - Which suggested tools were used?
+   - Were additional tools needed?
+   - Which tools failed?
+
+2. **Extract Patterns**
+   - Task characteristics that led to success/failure
+   - Tool combinations that work well together
+   - Warning signs for tool mismatches
+
+3. **Update Routing Rules**
+   - Adjust confidence scores
+   - Add new tool associations
+   - Record failure patterns
+
+**Output Format:**
+```yaml
+learning:
+  task_id: "task-042"
+  task_type: "code_search"
+  outcome: "success"
+
+  observations:
+    - "AST index succeeded on first try"
+    - "Semantic search not needed"
+
+  adjustments:
+    - tool: "ast-index.find_symbol"
+      task_type: "code_search"
+      confidence_delta: +0.02
+      new_confidence: 0.92
+
+    - tool: "semantic-rag.semantic_search"
+      task_type: "code_search"
+      note: "Not needed when symbol name is known"
+
+  patterns_learned:
+    - pattern: "known_symbol_name"
+      best_tool: "ast-index.find_symbol"
+      confidence: 0.95
+```
+
+### get_tool_stats
+
+Get statistics about tool usage and effectiveness.
+
+**Inputs:**
+- `tool_name`: Specific tool (optional, all if not specified)
+- `task_type`: Filter by task type (optional)
+- `timeframe`: Time range (default: last 7 days)
+
+**Output Format:**
+```yaml
+stats:
+  timeframe: "7d"
+  tools:
+    - name: "ast-index.find_symbol"
+      uses: 45
+      success_rate: 0.91
+      avg_time_ms: 120
+      best_for: ["code_search", "symbol_lookup"]
+
+    - name: "semantic-rag.semantic_search"
+      uses: 32
+      success_rate: 0.84
+      avg_time_ms: 450
+      best_for: ["concept_search", "related_code"]
+
+    - name: "grep"
+      uses: 18
+      success_rate: 0.72
+      avg_time_ms: 80
+      best_for: ["text_search", "regex_patterns"]
+      often_fallback_for: ["ast-index.find_symbol"]
+```
+
+### suggest_tool_for_error
+
+When an error occurs, suggest better tool options.
+
+**Inputs:**
+- `failed_tool`: Tool that failed
+- `error_message`: Error that occurred
+- `task_context`: What was being attempted
+
+**Output Format:**
+```yaml
+suggestion:
+  failed_tool: "ast-index.find_symbol"
+  error: "Symbol not found in index"
+
+  alternatives:
+    - tool: "semantic-rag.semantic_search"
+      rationale: "May find symbol by semantic meaning"
+      confidence: 0.7
+
+    - tool: "grep"
+      rationale: "Text search might find non-indexed files"
+      confidence: 0.6
+
+  root_cause_hypothesis:
+    - "Symbol might be in unindexed file"
+    - "Symbol name might be dynamically generated"
+
+  recommended_action: "Try semantic search with function description"
+```
+
+## Routing Rules Database
+
+Tool routing is learned and stored:
+
+```yaml
+# koan/routing/rules.yaml
+routing_rules:
+  - task_pattern: "find.*function|method|class"
+    tools:
+      - name: "ast-index.find_symbol"
+        confidence: 0.92
+      - name: "semantic-rag.semantic_search"
+        confidence: 0.80
+    learned_at: "2025-12-07"
+    success_count: 45
+    failure_count: 4
+
+  - task_pattern: "search.*similar|related"
+    tools:
+      - name: "semantic-rag.semantic_search"
+        confidence: 0.88
+      - name: "semantic-rag.find_similar_code"
+        confidence: 0.85
+    learned_at: "2025-12-07"
+    success_count: 32
+    failure_count: 5
+
+  - task_pattern: "debug|error|exception"
+    tools:
+      - name: "exploration.branch_explore"
+        confidence: 0.75
+```
+
+## Integration
+
+### With Workflow System
+- Routes tools before each concept action
+- Tracks tool usage across workflow phases
+- Optimizes tool sequences over time
+
+### With Execution Loop
+- Suggests repair tools when execution fails
+- Learns which tools work for specific error types
+
+### With Learning System
+- Stores routing patterns in memory
+- Retrieves relevant patterns for new tasks
+- Continuous improvement from outcomes
+
+## Configuration
+
+```yaml
+# .claude/config.yaml
+tool_routing:
+  enabled: true
+  min_confidence: 0.6        # Don't suggest below this
+  learn_from_outcomes: true  # Update rules based on results
+  parallel_threshold: 0.8    # Suggest parallel if both above this
+  fallback_depth: 2          # How many fallback tools to suggest
+```
+
+## Metrics
+
+Track routing effectiveness:
+- Suggestion accuracy (suggested tool was used and succeeded)
+- First-try success rate (primary suggestion worked)
+- Fallback frequency (how often fallbacks needed)
+- Learning velocity (improvement over time)
+
+Stored in: `koan/metrics/tool-routing.yaml`

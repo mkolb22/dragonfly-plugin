@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://zen.wysiwid.dev/schemas/config.json",
+  "title": "Zen Configuration",
+  "description": "Schema for Zen WYSIWID config.yaml",
+  "type": "object",
+  "required": ["models", "storage", "synchronizations"],
+  "properties": {
+    "models": {
+      "type": "object",
+      "required": ["concepts", "costs"],
+      "properties": {
+        "concepts": {
+          "type": "object",
+          "description": "Model assignments for each concept",
+          "properties": {
+            "story": { "$ref": "#/definitions/modelName" },
+            "architecture": { "$ref": "#/definitions/modelName" },
+            "implementation": { "$ref": "#/definitions/modelName" },
+            "quality": { "$ref": "#/definitions/modelName" },
+            "version": { "$ref": "#/definitions/modelName" },
+            "context": { "$ref": "#/definitions/modelName" },
+            "security": { "$ref": "#/definitions/modelName" },
+            "documentation": { "$ref": "#/definitions/modelName" },
+            "verification": { "$ref": "#/definitions/modelName" },
+            "code-analysis": { "$ref": "#/definitions/modelName" }
+          },
+          "additionalProperties": { "$ref": "#/definitions/modelName" }
+        },
+        "costs": {
+          "type": "object",
+          "description": "Cost per 1K tokens for each model",
+          "properties": {
+            "haiku": { "$ref": "#/definitions/modelCost" },
+            "sonnet": { "$ref": "#/definitions/modelCost" },
+            "opus": { "$ref": "#/definitions/modelCost" }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["base_path", "directories"],
+      "properties": {
+        "base_path": { "type": "string", "default": "koan" },
+        "directories": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "synchronizations": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "rules_path": { "type": "string", "default": ".claude/synchronizations" },
+        "auto_trigger": { "type": "boolean", "default": true }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "track_costs": { "type": "boolean", "default": true },
+        "flow_token_format": { "type": "string" },
+        "action_id_format": { "type": "string" }
+      }
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "budget_tokens": { "type": "integer", "minimum": 10000 },
+        "warning_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "critical_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "auto_snapshot": { "type": "boolean" },
+        "snapshot_triggers": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "min_test_coverage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "require_security_check": { "type": "boolean" },
+        "block_on_vulnerabilities": { "type": "boolean" },
+        "allow_low_severity_issues": { "type": "boolean" },
+        "max_complexity": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "git": {
+      "type": "object",
+      "properties": {
+        "default_branch": { "type": "string" },
+        "branch_format": { "type": "string" },
+        "commit_format": { "type": "string", "enum": ["conventional", "simple"] },
+        "require_tests": { "type": "boolean" },
+        "auto_push": { "type": "boolean" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "level": { "type": "string", "enum": ["debug", "info", "warn", "error"] }
+      }
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "created_at": { "type": "string", "format": "date" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "method": { "type": "string", "enum": ["task-tool", "direct"] },
+        "timeout": { "type": "integer", "minimum": 1 },
+        "retry_on_failure": { "type": "boolean" },
+        "max_retries": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "optimization": {
+      "type": "object",
+      "properties": {
+        "strategy": { "type": "string" },
+        "use_opus_for": { "type": "array", "items": { "type": "string" } },
+        "use_sonnet_for": { "type": "array", "items": { "type": "string" } },
+        "cost_budget": { "type": "number", "minimum": 0 },
+        "budget_enabled": { "type": "boolean" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "check_owasp_top_10": { "type": "boolean" },
+        "block_on_critical": { "type": "boolean" },
+        "scan_dependencies": { "type": "boolean" },
+        "audit_git_hooks": { "type": "boolean" }
+      }
+    }
+  },
+  "definitions": {
+    "modelName": {
+      "type": "string",
+      "enum": ["haiku", "sonnet", "opus"],
+      "description": "Claude model name"
+    },
+    "modelCost": {
+      "type": "object",
+      "required": ["input", "output"],
+      "properties": {
+        "input": { "type": "number", "minimum": 0 },
+        "output": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

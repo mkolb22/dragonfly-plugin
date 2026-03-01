@@ -1,0 +1,24 @@
+# Zen Procedural Memory - Debugging
+# Stores debugging approaches, known issues, and solutions
+
+type: procedural
+category: debugging
+created_at: "${TIMESTAMP}"
+last_updated: "${TIMESTAMP}"
+
+# Debugging memories
+memories: []
+
+# Example memory format:
+# - id: "mem-006"
+#   content: "Auth failures: check token expiry first"
+#   confidence: high
+#   source: "Discovered during debugging session 2025-01-05"
+#   tags: [auth, debugging, tokens]
+#   created_at: "2025-01-05T16:00:00Z"
+#   symptoms:
+#     - "401 Unauthorized errors"
+#     - "User suddenly logged out"
+#   solution: "Check JWT exp claim, refresh token if expired"
+#   related_files:
+#     - src/auth/token.ts

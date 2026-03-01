@@ -1,0 +1,595 @@
+# Adaptive Learning System
+# Phase 6B: Automatically apply learnings from retrospectives to future work
+#
+# WYSIWID: This file defines HOW learnings are applied.
+# Reading this tells you exactly what adaptations will occur.
+
+version: "1.0.0"
+description: "Apply retrospective learnings to future prompts and workflows"
+
+# Global SLO defaults for adaptive learning operations
+slo_defaults:
+  expected_duration_ms: 500
+  max_duration_ms: 3000
+  expected_cost_usd: 0.0005
+  max_cost_usd: 0.002
+  expected_context_tokens: 500
+  success_rate_target: 0.95
+  on_timeout:
+    action: "skip"
+    fallback: "Continue without learning injection"
+  on_cost_exceeded:
+    action: "proceed"
+    message: "Learning operations are low-cost"
+
+synchronizations:
+  # ============================================================================
+  # LEARNING RETRIEVAL
+  # ============================================================================
+  # Before major phases, retrieve relevant learnings from past retrospectives
+
+  # ----------------------------------------------------------------------------
+  # Inject learnings before Story capture
+  # ----------------------------------------------------------------------------
+  - id: "inject-learnings-to-story"
+    description: "Retrieve relevant learnings before capturing requirements"
+    when:
+      event: "workflow.start"
+      workflow_type: ["full-feature-flow", "refactor-flow"]
+    then:
+      - action: "learning.retrieve"
+        model: "sonnet"
+        inputs:
+          context: "${task.description}"
+          categories: ["story-capture", "requirements", "scope-creep"]
+          max_learnings: 3
+        inject_to:
+          concept: "story"
+          field: "context.learnings"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      expected_context_tokens: 300
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without story learnings"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Injecting relevant learnings for story capture"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Inject learnings before Architecture
+  # ----------------------------------------------------------------------------
+  - id: "inject-learnings-to-architecture"
+    description: "Retrieve architecture learnings before design"
+    when:
+      concept: "code-analysis"
+      action: "context"
+      status: "completed"
+    then:
+      - action: "learning.retrieve"
+        model: "sonnet"
+        inputs:
+          context: "${story.description}"
+          categories: ["architecture", "design-decisions", "patterns"]
+          technology_filter: "${code_analysis.detected_technologies}"
+          max_learnings: 5
+        inject_to:
+          concept: "architecture"
+          field: "context.learnings"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      expected_context_tokens: 400
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without architecture learnings"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Injecting architecture learnings before design"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Inject learnings before Implementation
+  # ----------------------------------------------------------------------------
+  - id: "inject-learnings-to-implementation"
+    description: "Retrieve implementation learnings before coding"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    then:
+      - action: "learning.retrieve"
+        model: "sonnet"
+        inputs:
+          context: "${architecture.approach}"
+          categories: ["implementation", "coding-patterns", "testing"]
+          technology_filter: "${architecture.technologies}"
+          max_learnings: 3
+        inject_to:
+          concept: "implementation"
+          field: "context.learnings"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      expected_context_tokens: 400
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without implementation learnings"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Injecting implementation learnings before coding"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Inject learnings before Quality Review
+  # ----------------------------------------------------------------------------
+  - id: "inject-learnings-to-quality"
+    description: "Retrieve quality learnings before review"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    then:
+      - action: "learning.retrieve"
+        model: "sonnet"
+        inputs:
+          context: "${implementation.summary}"
+          categories: ["code-review", "testing", "quality"]
+          max_learnings: 3
+        inject_to:
+          concept: "quality"
+          field: "context.learnings"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      expected_context_tokens: 400
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without quality learnings"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Injecting quality learnings before review"
+      category: "learning"
+
+  # ============================================================================
+  # LEARNING STORAGE
+  # ============================================================================
+  # After retrospectives, store learnings for future use
+
+  # ----------------------------------------------------------------------------
+  # Store successful pattern
+  # ----------------------------------------------------------------------------
+  - id: "store-success-learning"
+    description: "When retrospective identifies successful patterns, store them"
+    when:
+      concept: "retrospective"
+      action: "analyze"
+      status: "completed"
+    where:
+      query: "retrospective.outcome == 'success' AND retrospective.learnings.length > 0"
+    then:
+      - action: "learning.store"
+        model: "sonnet"
+        inputs:
+          learnings: "${retrospective.learnings}"
+          outcome: "success"
+          context:
+            task_type: "${classification.type}"
+            technologies: "${architecture.technologies}"
+            complexity: "${story.complexity}"
+          confidence: 0.8  # High confidence for successful outcomes
+        target: "koan/learnings/successes/${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 800
+      on_timeout:
+        action: "skip"
+        fallback: "Success learning storage deferred"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Storing successful pattern for future use"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Store failure prevention
+  # ----------------------------------------------------------------------------
+  - id: "store-failure-learning"
+    description: "When retrospective identifies failures, store prevention learnings"
+    when:
+      concept: "retrospective"
+      action: "analyze"
+      status: "completed"
+    where:
+      query: "retrospective.outcome == 'failure' OR retrospective.outcome == 'partial'"
+    then:
+      - action: "learning.store"
+        model: "sonnet"
+        inputs:
+          learnings: "${retrospective.learnings}"
+          outcome: "${retrospective.outcome}"
+          failure_type: "${retrospective.failure_analysis.type}"
+          prevention:
+            root_cause: "${retrospective.failure_analysis.root_cause}"
+            prevention_steps: "${retrospective.failure_analysis.prevention}"
+          context:
+            task_type: "${classification.type}"
+            technologies: "${architecture.technologies}"
+          confidence: 0.9  # Very high confidence for failure prevention
+        target: "koan/learnings/failures/${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 1500
+      max_duration_ms: 8000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Failure learning storage deferred"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Storing failure prevention learning"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Propagate to global memory
+  # ----------------------------------------------------------------------------
+  - id: "propagate-learning-to-global"
+    description: "High-confidence learnings propagate to global memory"
+    when:
+      action: "learning.store"
+      status: "completed"
+    where:
+      query: "learning.confidence >= 0.85 AND learning.applicable_globally == true"
+    then:
+      - action: "global-memory.store"
+        model: "sonnet"
+        inputs:
+          category: "${learning.category}"
+          content: "${learning.content}"
+          source_project: "${project.name}"
+          source_task: "${story.id}"
+          confidence: "${learning.confidence}"
+          tags: "${learning.technologies}"
+        target: "~/.zen/global-memory/learnings/${category}/${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 600
+      on_timeout:
+        action: "skip"
+        fallback: "Global propagation deferred"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Propagating high-confidence learning to global memory"
+      category: "learning"
+
+  # ============================================================================
+  # ADAPTIVE PROMPT MODIFICATION
+  # ============================================================================
+  # Dynamically modify prompts based on learnings
+
+  # ----------------------------------------------------------------------------
+  # Apply learnings to prompts
+  # ----------------------------------------------------------------------------
+  - id: "apply-learnings-to-prompt"
+    description: "When learnings are retrieved, inject into concept prompts"
+    when:
+      action: "learning.retrieve"
+      status: "completed"
+    where:
+      query: "learnings.length > 0"
+    then:
+      - action: "prompt.augment"
+        model: "sonnet"
+        inputs:
+          target_concept: "${inject_to.concept}"
+          augmentation_type: "context_injection"
+          content: |
+            ## Relevant Learnings from Past Work
+
+            The following learnings from previous tasks may be relevant:
+
+            ${learnings.map(l => `
+            ### ${l.title}
+            - **Context**: ${l.original_context}
+            - **Learning**: ${l.content}
+            - **Confidence**: ${l.confidence}
+            - **Applied to**: ${l.applicable_to}
+            `).join('\n')}
+
+            Consider these learnings when proceeding with this task.
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      expected_context_tokens: 500
+      on_timeout:
+        action: "skip"
+        fallback: "Continue without prompt augmentation"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Applying retrieved learnings to prompt"
+      category: "optimization"
+
+  # ============================================================================
+  # LEARNING EFFECTIVENESS TRACKING
+  # ============================================================================
+  # Track whether applied learnings helped
+
+  # ----------------------------------------------------------------------------
+  # Track learning application
+  # ----------------------------------------------------------------------------
+  - id: "track-learning-application"
+    description: "Track when learnings are applied"
+    when:
+      action: "prompt.augment"
+      augmentation_type: "context_injection"
+      status: "completed"
+    then:
+      - action: "log.append"
+        target: "koan/learnings/application-log.yaml"
+        data:
+          timestamp: "${now}"
+          flow_id: "${flow.id}"
+          learnings_applied: "${learnings.map(l => l.id)}"
+          target_concept: "${inject_to.concept}"
+          task_type: "${classification.type}"
+
+    slo_expectations:
+      expected_duration_ms: 200
+      max_duration_ms: 1000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0005
+      expected_context_tokens: 200
+      on_timeout:
+        action: "skip"
+        fallback: "Log entry skipped"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Tracking learning application for effectiveness measurement"
+      category: "intelligence"
+
+  # ----------------------------------------------------------------------------
+  # Evaluate learning effectiveness
+  # ----------------------------------------------------------------------------
+  - id: "evaluate-learning-effectiveness"
+    description: "After workflow, evaluate if learnings helped"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    where:
+      query: "flow.learnings_applied.length > 0"
+    then:
+      - action: "learning.evaluate"
+        model: "sonnet"
+        inputs:
+          learnings_applied: "${flow.learnings_applied}"
+          workflow_outcome: "${flow.outcome}"
+          slo_performance:
+            duration_vs_expected: "${flow.duration / estimate.expected_duration}"
+            cost_vs_expected: "${flow.cost / estimate.expected_cost}"
+            quality_score: "${quality.score}"
+        updates:
+          # Increase confidence for learnings that helped
+          on_positive: "learning.confidence += 0.05"
+          # Decrease confidence for learnings that didn't help
+          on_negative: "learning.confidence -= 0.1"
+          # Remove learnings with very low confidence
+          on_confidence_below_0.3: "learning.archive"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Effectiveness evaluation deferred"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Evaluating learning effectiveness for confidence adjustment"
+      category: "intelligence"
+
+# ============================================================================
+# LEARNING RETRIEVAL LOGIC
+# ============================================================================
+# How learnings are matched and ranked
+
+learning_retrieval:
+  # Semantic matching
+  matching:
+    - method: "category_match"
+      weight: 0.3
+      description: "Match by learning category"
+
+    - method: "technology_match"
+      weight: 0.25
+      description: "Match by technology stack"
+
+    - method: "semantic_similarity"
+      weight: 0.25
+      description: "Semantic similarity to current task"
+
+    - method: "task_type_match"
+      weight: 0.2
+      description: "Match by task classification"
+
+  # Ranking factors
+  ranking:
+    - factor: "confidence"
+      weight: 0.4
+      description: "Higher confidence = higher rank"
+
+    - factor: "recency"
+      weight: 0.2
+      description: "More recent learnings preferred"
+
+    - factor: "application_success_rate"
+      weight: 0.3
+      description: "Learnings that helped before"
+
+    - factor: "relevance_score"
+      weight: 0.1
+      description: "From semantic matching"
+
+  # Filtering
+  filters:
+    min_confidence: 0.4
+    max_age_days: 180
+    exclude_archived: true
+
+# ============================================================================
+# LEARNING CATEGORIES
+# ============================================================================
+
+categories:
+  story-capture:
+    description: "Learnings about requirements gathering"
+    applies_to: ["story.create", "story.clarify"]
+
+  requirements:
+    description: "Specific requirement patterns"
+    applies_to: ["story.create"]
+
+  scope-creep:
+    description: "Avoiding scope expansion"
+    applies_to: ["story.create", "architecture.design"]
+
+  architecture:
+    description: "Design patterns and decisions"
+    applies_to: ["architecture.design", "architecture.revise"]
+
+  design-decisions:
+    description: "Trade-off analysis learnings"
+    applies_to: ["architecture.design"]
+
+  patterns:
+    description: "Reusable code patterns"
+    applies_to: ["architecture.design", "implementation.generate"]
+
+  implementation:
+    description: "Coding best practices"
+    applies_to: ["implementation.generate", "implementation.refactor"]
+
+  coding-patterns:
+    description: "Language-specific patterns"
+    applies_to: ["implementation.generate"]
+
+  testing:
+    description: "Test strategies and patterns"
+    applies_to: ["implementation.generate", "quality.test"]
+
+  code-review:
+    description: "Review criteria and common issues"
+    applies_to: ["quality.review"]
+
+  quality:
+    description: "Quality assurance learnings"
+    applies_to: ["quality.review", "quality.test"]
+
+  performance:
+    description: "Performance optimization learnings"
+    applies_to: ["implementation.generate"]
+
+  security:
+    description: "Security-related learnings"
+    applies_to: ["architecture.design", "quality.review"]
+
+# ============================================================================
+# SUMMARY
+# ============================================================================
+#
+# Adaptive Learning Flow:
+#
+#   Past Work                    Current Work
+#   ---------                    ------------
+#   Retrospective                Workflow Start
+#        |                            |
+#        v                            v
+#   Store Learnings ────────► Retrieve Learnings
+#        |                            |
+#        v                            v
+#   Global Memory              Inject into Prompts
+#                                     |
+#                                     v
+#                              Better Outcomes
+#                                     |
+#                                     v
+#                              Track Effectiveness
+#                                     |
+#                                     v
+#                              Update Confidence
+#
+# This creates a feedback loop where:
+# 1. Retrospectives generate learnings
+# 2. Learnings are stored with confidence scores
+# 3. Future tasks retrieve relevant learnings
+# 4. Learnings are injected into prompts
+# 5. Outcomes track if learnings helped
+# 6. Confidence scores adjust based on effectiveness
+#
+# Over time, the system learns which insights are valuable
+# and automatically applies them to relevant tasks.
+#
+# Categories:
+#   - learning: Storage and retrieval of learnings
+#   - optimization: Applying learnings to improve workflow
+#   - intelligence: Self-improvement and effectiveness tracking

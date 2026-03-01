@@ -1,0 +1,21 @@
+# Zen Semantic Memory - Patterns
+# Stores common code patterns and design patterns used in the project
+
+type: semantic
+category: patterns
+created_at: "${TIMESTAMP}"
+last_updated: "${TIMESTAMP}"
+
+# Pattern memories
+memories: []
+
+# Example memory format:
+# - id: "mem-003"
+#   content: "Error handling uses Result<T, E> pattern"
+#   confidence: medium
+#   source: "Observed in codebase analysis"
+#   tags: [error-handling, patterns, typescript]
+#   created_at: "2025-01-05T12:00:00Z"
+#   examples:
+#     - file: src/utils/result.ts
+#       description: "Result type definition"

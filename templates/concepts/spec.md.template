@@ -1,0 +1,71 @@
+---
+name: spec
+type: concept
+model: sonnet
+state_location: "koan/state/state.db (specs table)"
+execution: task-tool
+cost_tier: low
+purpose: "Define structured specifications and generate type-safe code generation prompts"
+---
+
+# Spec Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/spec-concept.md`.
+
+**Model Assignment**: Sonnet 4.5 (specification analysis and prompt generation)
+**Cost per Action**: ~$0.005
+**State Location**: `koan/state/state.db` (specs table)
+**Never Calls**: No other concepts (pure spec→prompt transformation)
+
+## Quick Reference
+
+### Actions
+- `save(name, data)` - Save or update a specification
+- `get(id)` - Retrieve a spec by ID, name, or latest
+- `list(filters)` - List specs with status/language filters
+- `generate(id)` - Transform spec into a code generation prompt
+
+### State Format
+```json
+{
+  "id": "spec-...",
+  "name": "string-utils",
+  "data": {
+    "name": "string-utils",
+    "description": "String utility functions",
+    "target_language": "go",
+    "types": [...],
+    "functions": [...],
+    "properties": [...]
+  },
+  "status": "draft",
+  "generatedCode": null,
+  "createdAt": "ISO-8601",
+  "updatedAt": "ISO-8601"
+}
+```
+
+### Spec Status Flow
+```
+draft → ready → generating → generated → verified
+```
+
+### Supported Languages
+- Go, Swift, Rust, TypeScript, Python
+
+### Integration
+- **Triggered by**: User via `/spec` command
+- **Produces**: Structured prompts for code generation
+- **Can feed into**: Implementation concept for code generation
+
+## Full Documentation
+
+See `.claude/agents/spec-concept.md` for:
+- Specification authoring guidelines
+- Contract definition patterns (pre/post conditions)
+- Property-based testing integration
+- Multi-language type mapping
+
+---
+
+**See also**: [Agent Definition](.claude/agents/spec-concept.md)

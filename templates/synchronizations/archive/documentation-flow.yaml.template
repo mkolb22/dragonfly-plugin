@@ -1,0 +1,560 @@
+# Documentation Flow Synchronizations
+# Triggers documentation generation at every workflow phase
+#
+# WYSIWID Principle: This YAML IS the documentation workflow logic
+# Read this file to understand exactly when documentation is generated
+
+version: "1.0.0"
+
+# Global SLO defaults for documentation generation
+slo_defaults:
+  expected_duration_ms: 3000
+  max_duration_ms: 15000
+  expected_cost_usd: 0.0003
+  max_cost_usd: 0.001
+  expected_context_tokens: 1500
+  success_rate_target: 0.95
+  on_timeout:
+    action: "skip"
+    message: "Documentation generation timed out - can be regenerated manually"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1: Story → Requirements Documentation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Generates user-facing requirements docs immediately after
+  # story is captured, ensuring requirements are documented
+  # before any technical work begins.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "story-to-requirements-docs"
+    description: "Generate requirements documentation when story is ready"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "story.status == 'ready' AND story.acceptance_criteria.length > 0"
+    then:
+      - concept: "documentation"
+        action: "generate_requirements"
+        model: "sonnet"
+        parallel: true  # Runs in parallel with architecture
+        inputs:
+          story_id: "${story.id}"
+          title: "${story.title}"
+          description: "${story.description}"
+          acceptance_criteria: "${story.acceptance_criteria}"
+          context: "${story.context}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.0003
+      max_cost_usd: 0.001
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "skip"  # Don't block workflow for docs
+        fallback: "Generate docs manually later"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Story ready - generating requirements documentation"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2: Architecture → ADRs and Diagrams
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Generates Architecture Decision Records (ADRs) and
+  # technical diagrams (component, sequence, data flow)
+  # capturing the reasoning behind technical decisions.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-to-architecture-docs"
+    description: "Generate ADRs and diagrams when architecture is complete"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.status == 'completed' AND architecture.decisions.length > 0"
+    then:
+      - concept: "documentation"
+        action: "generate_architecture"
+        model: "sonnet"
+        parallel: true  # Runs in parallel with implementation
+        inputs:
+          arch_id: "${architecture.id}"
+          story_id: "${story.id}"
+          approaches_evaluated: "${architecture.approaches_evaluated}"
+          selected_approach: "${architecture.selected_approach}"
+          technical_design: "${architecture.technical_design}"
+          risks: "${architecture.risks}"
+          security_considerations: "${architecture.security_considerations}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "skip"
+        fallback: "Generate ADRs manually later"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture complete - generating ADRs and diagrams"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 3: Implementation → API Documentation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Generates API reference documentation, inline code
+  # comments (JSDoc/TSDoc), usage examples, and updates
+  # README with new feature information.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-to-api-docs"
+    description: "Generate API documentation when implementation is complete"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.status == 'completed' AND implementation.files_created.length > 0"
+    then:
+      - concept: "documentation"
+        action: "generate_api"
+        model: "sonnet"
+        parallel: true  # Runs in parallel with quality review/test
+        inputs:
+          impl_id: "${implementation.id}"
+          arch_id: "${architecture.id}"
+          story_id: "${story.id}"
+          files_created: "${implementation.files_created}"
+          files_modified: "${implementation.files_modified}"
+          technical_spec: "${architecture.technical_spec}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "skip"
+        fallback: "Generate API docs manually later"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation complete - generating API documentation"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 4: Quality → Test Documentation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Generates test documentation including test summaries,
+  # coverage reports, and test case descriptions.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-to-test-docs"
+    description: "Generate test documentation when tests complete"
+    when:
+      concept: "quality"
+      action: "test"
+      status: "completed"
+    where:
+      query: "test.status == 'passed' AND test.coverage > 0"
+    then:
+      - concept: "documentation"
+        action: "generate_tests"
+        model: "sonnet"
+        inputs:
+          test_id: "${test.id}"
+          impl_id: "${implementation.id}"
+          story_id: "${story.id}"
+          test_results: "${test.results}"
+          coverage: "${test.coverage}"
+          test_suites: "${test.test_suites}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.0003
+      max_cost_usd: 0.001
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "skip"
+        fallback: "Generate test docs manually later"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Tests complete - generating test documentation"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 5: Pre-Commit → Documentation Validation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Validates all documentation is complete before
+  # allowing version commit. Ensures no feature ships
+  # without complete documentation.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "pre-commit-doc-validation"
+    description: "Validate documentation completeness before commit"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      # RACE CONDITION FIX: Ensure ALL parallel docs are ready before validation
+      # Review may complete before parallel doc generation finishes
+      query: "review.status == 'approved'"
+
+    # Dependency tracking to prevent race condition
+    # Validation must wait for all documentation to be generated
+    depends_on:
+      required:
+        - id: "story-to-requirements-docs"
+          status: "completed|skipped"
+          timeout_ms: 15000
+        - id: "arch-to-architecture-docs"
+          status: "completed|skipped"
+          timeout_ms: 20000
+        - id: "impl-to-api-docs"
+          status: "completed|skipped"
+          timeout_ms: 20000
+      optional:
+        - id: "quality-to-test-docs"
+          status: "completed|skipped"
+          timeout_ms: 15000
+          note: "May not exist if tests not run yet"
+
+      on_dependency_timeout:
+        action: "proceed_with_available"
+        log_missing: true
+        message: "Some documentation may be incomplete - validation will flag missing docs"
+
+    then:
+      - concept: "documentation"
+        action: "validate"
+        model: "sonnet"
+        inputs:
+          flow_id: "${flow.id}"
+          story_id: "${story.id}"
+          arch_id: "${architecture.id}"
+          impl_id: "${implementation.id}"
+          test_id: "${test.id}"
+          # Pass dependency status for accurate validation
+          doc_status:
+            requirements: "${depends_on.story-to-requirements-docs.status}"
+            architecture: "${depends_on.arch-to-architecture-docs.status}"
+            api: "${depends_on.impl-to-api-docs.status}"
+            tests: "${depends_on.quality-to-test-docs.status || 'pending'}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.0005
+      success_rate_target: 0.99
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Quality approved - validating documentation completeness (with dependency wait)"
+      dependencies_checked: true
+      category: "validation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Post-Commit: Update Documentation Index
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Updates the documentation index and navigation after
+  # all documentation is generated and validated.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "post-commit-doc-index"
+    description: "Update documentation index after commit"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    then:
+      - concept: "documentation"
+        action: "update_index"
+        model: "sonnet"
+        inputs:
+          flow_id: "${flow.id}"
+          docs_generated:
+            - "${req_doc.path}"
+            - "${arch_doc.path}"
+            - "${api_doc.path}"
+            - "${test_doc.path}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.0005
+      success_rate_target: 0.99
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Commit complete - updating documentation index"
+      category: "maintenance"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Post-Commit: Auto-Generate Changelog Entry
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Automatically generates a structured changelog entry
+  # from the completed feature workflow, capturing:
+  # - Story summary and type
+  # - Files changed with categories
+  # - Breaking changes if any
+  # - Links to related docs
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "commit-to-changelog"
+    description: "Auto-generate changelog entry after successful commit"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    where:
+      query: "commit.status == 'success' AND story.id != null"
+    then:
+      - concept: "documentation"
+        action: "generate_changelog_entry"
+        model: "sonnet"
+        inputs:
+          commit_sha: "${commit.sha}"
+          commit_message: "${commit.message}"
+          story_id: "${story.id}"
+          story_title: "${story.title}"
+          story_type: "${story.type}"  # feature, fix, refactor, docs, etc.
+          files_created: "${implementation.files_created}"
+          files_modified: "${implementation.files_modified}"
+          breaking_changes: "${architecture.breaking_changes || []}"
+          deprecations: "${architecture.deprecations || []}"
+          security_implications: "${architecture.security_considerations}"
+          flow_id: "${flow.id}"
+          total_cost: "${flow.total_cost}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.0005
+      success_rate_target: 0.99
+
+      on_timeout:
+        action: "skip"
+        fallback: "Changelog entry can be added manually"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Commit successful - auto-generating changelog entry"
+      category: "core"
+
+  # Append to CHANGELOG.md if entry was generated
+  - id: "changelog-entry-to-file"
+    description: "Append generated changelog entry to CHANGELOG.md"
+    when:
+      concept: "documentation"
+      action: "generate_changelog_entry"
+      status: "completed"
+    where:
+      query: "changelog_entry.content != null"
+    then:
+      - concept: "documentation"
+        action: "append_changelog"
+        model: "sonnet"
+        inputs:
+          entry: "${changelog_entry.content}"
+          version: "${project.version}"
+          date: "${commit.date}"
+          changelog_path: "CHANGELOG.md"
+          format: "keep-a-changelog"  # https://keepachangelog.com
+          sections:
+            - "Added"
+            - "Changed"
+            - "Deprecated"
+            - "Removed"
+            - "Fixed"
+            - "Security"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0003
+      success_rate_target: 0.99
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Changelog entry generated - appending to CHANGELOG.md"
+      category: "core"
+
+  # Changelog consolidation (event-driven)
+  # Triggers when changelog entries accumulate past threshold, not on a fixed schedule
+  - id: "changelog-consolidation"
+    description: "Consolidate changelog entries when threshold reached"
+    when:
+      concept: "documentation"
+      action: "append_changelog"
+      status: "completed"
+    where:
+      # Event-driven: trigger when entry count >= 5 OR any high-priority entry
+      query: "changelog.pending_entries.count >= 5 OR changelog.pending_entries.any(e => e.priority == 'high')"
+    then:
+      - concept: "documentation"
+        action: "consolidate_changelog"
+        model: "sonnet"
+        inputs:
+          pending_entries: "${changelog.pending_entries}"
+          consolidation_strategy: "group_by_type"
+          remove_duplicates: true
+          format: "keep-a-changelog"
+          trigger_reason: "${changelog.pending_entries.count >= 5 ? 'entry_threshold' : 'high_priority_entry'}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      expected_context_tokens: 3000
+      on_timeout:
+        action: "skip"
+        fallback: "Skip consolidation - will trigger again on next entry"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Changelog threshold reached - consolidating entries"
+      category: "maintenance"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Error Recovery: Documentation Validation Failed
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "doc-validation-failed"
+    description: "When documentation validation fails, ask user how to proceed"
+    when:
+      concept: "documentation"
+      action: "validate"
+      status: "completed"
+    where:
+      query: "validation.status == 'failed' AND validation.missing.length > 0"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Documentation validation failed. Missing: ${validation.missing}. How should we proceed?"
+            header: "Missing Docs"
+            multiSelect: false
+            options:
+              - label: "Generate missing docs"
+                description: "Automatically generate the missing documentation"
+              - label: "Skip and commit anyway"
+                description: "Proceed without complete documentation (not recommended)"
+              - label: "Cancel commit"
+                description: "Stop and review what's missing"
+
+        on_answer:
+          "Generate missing docs":
+            - concept: "documentation"
+              action: "generate_missing"
+              model: "sonnet"
+              inputs:
+                missing: "${validation.missing}"
+                flow_id: "${flow.id}"
+
+          "Skip and commit anyway":
+            - action: "set_flag"
+              flag: "documentation.skip_validation"
+              value: true
+            - concept: "version"
+              action: "commit"
+              model: "sonnet"
+              inputs:
+                skip_doc_validation: true
+
+          "Cancel commit":
+            - action: "notify"
+              message: "Commit cancelled. Review missing documentation: ${validation.missing}"
+
+    slo_expectations:
+      expected_duration_ms: 30000
+      max_duration_ms: 120000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "escalate"
+        message: "User decision timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Documentation validation failed - user decision required"
+      decision_point: true
+      user_interaction: "ask_user_question"
+      category: "recovery"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Documentation Flow Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Complete documentation flow:
+#
+#   Story ──────────────────┬──> Requirements Docs
+#                           │
+#   Architecture ───────────┼──> ADRs + Diagrams
+#                           │
+#   Implementation ─────────┼──> API Docs + Examples
+#                           │
+#   Quality (Tests) ────────┼──> Test Documentation
+#                           │
+#   Quality (Review) ───────┴──> Validation
+#                                    │
+#                                    v
+#   Version ──────────────────> Update Index
+#                                    │
+#                                    └──> Changelog Entry ──> CHANGELOG.md
+#
+# Documentation Types Generated:
+#   - Feature specifications (docs/features/)
+#   - Requirements summaries (docs/requirements/)
+#   - ADRs (docs/adr/)
+#   - Component diagrams (docs/architecture/components/)
+#   - Sequence diagrams (docs/architecture/sequences/)
+#   - Data flow docs (docs/architecture/data-flow/)
+#   - API reference (docs/api/)
+#   - Usage examples (docs/examples/)
+#   - Test documentation (docs/testing/)
+#   - Coverage badges (docs/badges/)
+#   - README updates
+#   - CHANGELOG.md entries (auto-generated)
+#
+# Cost per Feature:
+#   - Requirements: $0.0003
+#   - Architecture: $0.0005
+#   - API:          $0.0005
+#   - Tests:        $0.0003
+#   - Validation:   $0.0002
+#   - Index:        $0.0002
+#   - Changelog:    $0.0003
+#   - Total:        ~$0.0023
+#
+# Files Generated per Feature: 8-12 documents + changelog entry

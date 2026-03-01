@@ -1,0 +1,48 @@
+# Zen Semantic Memory Index
+# Provides fast lookup for stored memories
+
+version: 1
+created_at: "${TIMESTAMP}"
+last_updated: "${TIMESTAMP}"
+
+stats:
+  total_memories: 0
+  by_type:
+    semantic: 0
+    procedural: 0
+    episodic: 0
+  by_category:
+    architecture: 0
+    conventions: 0
+    patterns: 0
+    workflows: 0
+    debugging: 0
+    preferences: 0
+
+# Recent additions for quick access
+recent_additions: []
+# Example:
+# - id: "mem-001"
+#   summary: "API uses cursor pagination"
+#   added: "2025-01-06T10:00:00Z"
+
+# Tag index for fast retrieval
+tags: {}
+# Example:
+# auth: [mem-001, mem-015]
+# api: [mem-002, mem-008]
+
+# Category to file mapping
+category_files:
+  architecture: "semantic/architecture.yaml"
+  conventions: "semantic/conventions.yaml"
+  patterns: "semantic/patterns.yaml"
+  workflows: "procedural/workflows.yaml"
+  debugging: "procedural/debugging.yaml"
+  preferences: "semantic/preferences.yaml"
+
+# Memory maintenance
+maintenance:
+  last_consolidation: null
+  last_cleanup: null
+  memories_to_review: []

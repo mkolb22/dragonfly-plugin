@@ -1,0 +1,53 @@
+# Zen Directory Context Anchor
+# Tracks current working context to prevent path confusion after compaction
+#
+# IMMUTABLE: Updated by hooks, read by Claude for grounding
+# This file helps Claude verify it's operating in the expected location
+
+anchor_id: "anchor-directory"
+type: "directory"
+immutable: true
+created_at: "${TIMESTAMP}"
+last_updated: "${TIMESTAMP}"
+
+# Current working context
+working_directory: "${PROJECT_ROOT}"
+project_name: "${PROJECT_NAME}"
+
+# Git context
+git:
+  repository: "${PROJECT_ROOT}"
+  branch: "main"
+  status: "unknown"
+  last_commit: null
+
+# Active session info
+session:
+  started_at: "${TIMESTAMP}"
+  last_verified: "${TIMESTAMP}"
+
+# Files being actively modified this session
+active_files: []
+# Example:
+# - path: "src/auth.ts"
+#   action: "modifying"
+#   since: "2025-12-05T10:00:00Z"
+
+# Recent commands executed (last 10)
+recent_commands: []
+# Example:
+# - command: "npm test"
+#   timestamp: "2025-12-05T10:05:00Z"
+#   status: "success"
+
+# Verification checklist - Claude should confirm these
+verification:
+  directory_exists: true
+  git_repo: true
+  koan_initialized: true
+
+# Recovery instructions
+recovery:
+  if_directory_wrong: "Run 'pwd' to verify current directory, then update this file"
+  if_git_detached: "Run 'git status' to check branch state"
+  if_files_missing: "Check recent_commands for what might have changed"

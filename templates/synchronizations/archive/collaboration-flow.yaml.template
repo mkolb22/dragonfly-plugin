@@ -1,0 +1,521 @@
+# Collaboration Flow - Team Knowledge Sync
+# Phase 6C: Enable team-scale learning and collaboration
+#
+# WYSIWID: This file defines HOW knowledge flows between team members.
+# Reading this tells you exactly what collaboration happens and when.
+
+version: "1.0.0"
+description: "Team collaboration, PR reviews, and cross-project knowledge sharing"
+
+# Global SLO defaults for collaboration (mostly lightweight operations)
+slo_defaults:
+  expected_duration_ms: 5000
+  max_duration_ms: 30000
+  expected_cost_usd: 0.005
+  max_cost_usd: 0.02
+  expected_context_tokens: 2000
+  success_rate_target: 0.95
+  on_timeout:
+    action: "skip"
+    message: "Collaboration operation timed out - can be retried manually"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+# ============================================================================
+# PR REVIEW AUTOMATION
+# ============================================================================
+
+synchronizations:
+  # ----------------------------------------------------------------------------
+  # Auto-analyze PRs created by Zen workflows
+  # ----------------------------------------------------------------------------
+  - id: "auto-analyze-zen-pr"
+    description: "Automatically analyze PRs created by Zen version concept"
+    when:
+      concept: "version"
+      action: "create_pr"
+      status: "completed"
+    then:
+      - concept: "pr-review"
+        action: "analyze"
+        model: "sonnet"
+        inputs:
+          pr_url: "${version.pr_url}"
+          focus_areas:
+            - "code_quality"
+            - "architecture"
+            - "testing"
+      # Post analysis as PR comment (not formal review)
+      - concept: "pr-review"
+        action: "submit"
+        model: "sonnet"
+        inputs:
+          review_type: "COMMENT"
+          analysis_id: "${pr_review.analysis_id}"
+          summary_prefix: "## Automated Code Analysis\n\n"
+
+    slo_expectations:
+      expected_duration_ms: 45000
+      max_duration_ms: 120000
+      expected_cost_usd: 0.01
+      max_cost_usd: 0.03
+      expected_context_tokens: 5000
+      on_timeout:
+        action: "skip"
+        fallback: "PR analysis can be done manually"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Automated PR analysis for Zen-created PRs"
+      category: "core"
+
+  # ----------------------------------------------------------------------------
+  # Deep review for high-risk PRs
+  # ----------------------------------------------------------------------------
+  - id: "deep-review-high-risk"
+    description: "Thorough review when PR touches critical areas"
+    when:
+      concept: "pr-review"
+      action: "analyze"
+      status: "completed"
+    where:
+      query: "pr_review.architectural_impact.risk_level == 'high' OR pr_review.security.score < 0.8"
+    then:
+      - concept: "pr-review"
+        action: "analyze"
+        model: "sonnet"  # Upgrade to Sonnet for deep analysis
+        inputs:
+          pr_url: "${pr_review.pr_url}"
+          deep_analysis: true
+          focus_areas:
+            - "security"
+            - "architectural_impact"
+            - "performance"
+
+    slo_expectations:
+      expected_duration_ms: 120000
+      max_duration_ms: 300000
+      expected_cost_usd: 0.03
+      max_cost_usd: 0.08
+      expected_context_tokens: 8000
+      on_timeout:
+        action: "skip"
+        fallback: "Deep review timed out - manual review recommended"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "High-risk PR requires deep analysis"
+      category: "validation"
+
+# ============================================================================
+# ARCHITECTURE DECISION RECORDS (ADRs)
+# ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # Auto-create ADR for significant decisions
+  # ----------------------------------------------------------------------------
+  - id: "architecture-to-adr"
+    description: "Create ADR when architecture makes significant decisions"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.decisions.length >= 2 OR architecture.estimated_risk != 'low'"
+    then:
+      - action: "adr.create"
+        model: "sonnet"
+        inputs:
+          title: "${architecture.approach}"
+          status: "proposed"
+          context: |
+            ## Context
+
+            ${story.description}
+
+            ## Decision Drivers
+
+            ${story.acceptance_criteria.map(c => `- ${c}`).join('\n')}
+          decision: |
+            ## Decision
+
+            We will ${architecture.approach}.
+
+            ### Key Choices
+
+            ${architecture.decisions.map(d => `
+            **${d.title}**
+            - Choice: ${d.choice}
+            - Rationale: ${d.rationale}
+            - Alternatives considered: ${d.alternatives.join(', ')}
+            `).join('\n')}
+          consequences: |
+            ## Consequences
+
+            ### Positive
+            ${architecture.benefits.map(b => `- ${b}`).join('\n')}
+
+            ### Risks
+            ${architecture.risks.map(r => `- ${r.description} (${r.mitigation})`).join('\n')}
+
+        target: "docs/adr/adr-${timestamp}-${architecture.id}.md"
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 45000
+      expected_cost_usd: 0.005
+      max_cost_usd: 0.015
+      expected_context_tokens: 3000
+      on_timeout:
+        action: "skip"
+        fallback: "ADR can be created manually"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Significant architecture decisions require documentation"
+      category: "core"
+
+# ============================================================================
+# CROSS-PROJECT KNOWLEDGE SYNC
+# ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # Propagate successful patterns to global memory
+  # ----------------------------------------------------------------------------
+  - id: "success-pattern-to-global"
+    description: "When a pattern succeeds, share it globally"
+    when:
+      concept: "retrospective"
+      action: "analyze"
+      status: "completed"
+    where:
+      query: |
+        retrospective.outcome == 'success' AND
+        retrospective.reusable_patterns.length > 0 AND
+        retrospective.confidence >= 0.8
+    then:
+      - action: "global-memory.store"
+        inputs:
+          category: "patterns"
+          content:
+            pattern_name: "${retrospective.reusable_patterns[0].name}"
+            description: "${retrospective.reusable_patterns[0].description}"
+            code_template: "${retrospective.reusable_patterns[0].template}"
+            applicable_to: "${retrospective.reusable_patterns[0].use_cases}"
+            source:
+              project: "${project.name}"
+              story_id: "${story.id}"
+              date: "${now}"
+            success_metrics:
+              quality_score: "${quality.score}"
+              review_passed: true
+              tests_passed: true
+          confidence: "${retrospective.confidence}"
+          tags:
+            - "${classification.type}"
+            - "${profile.languages.primary}"
+            - "${architecture.patterns_used}"
+
+        target: "~/.zen/global-memory/patterns/${classification.type}/${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.001
+      expected_context_tokens: 500
+      on_timeout:
+        action: "skip"
+        fallback: "Pattern sharing deferred"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Successful pattern shared for cross-project reuse"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Propagate failure learnings to prevent repetition
+  # ----------------------------------------------------------------------------
+  - id: "failure-learning-to-global"
+    description: "When something fails, share the lesson globally"
+    when:
+      concept: "retrospective"
+      action: "analyze"
+      status: "completed"
+    where:
+      query: |
+        (retrospective.outcome == 'failure' OR retrospective.outcome == 'partial') AND
+        retrospective.root_cause_identified == true
+    then:
+      - action: "global-memory.store"
+        inputs:
+          category: "learnings"
+          content:
+            learning_type: "failure_prevention"
+            title: "${retrospective.failure_analysis.title}"
+            root_cause: "${retrospective.failure_analysis.root_cause}"
+            symptoms: "${retrospective.failure_analysis.symptoms}"
+            prevention: "${retrospective.failure_analysis.prevention}"
+            source:
+              project: "${project.name}"
+              story_id: "${story.id}"
+              date: "${now}"
+          severity: "${retrospective.failure_analysis.severity}"
+          tags:
+            - "${classification.type}"
+            - "${retrospective.failure_analysis.category}"
+
+        target: "~/.zen/global-memory/learnings/failures/${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.001
+      expected_context_tokens: 500
+      on_timeout:
+        action: "skip"
+        fallback: "Learning sharing deferred"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Failure lesson shared to prevent repetition across projects"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Import relevant global learnings
+  # ----------------------------------------------------------------------------
+  - id: "import-global-learnings"
+    description: "At workflow start, import relevant global learnings"
+    when:
+      event: "workflow.start"
+    then:
+      - action: "global-memory.retrieve"
+        model: "sonnet"
+        inputs:
+          categories: ["patterns", "learnings"]
+          filters:
+            tags_match_any:
+              - "${classification.type}"
+              - "${profile.languages.primary}"
+              - "${story.technical_keywords}"
+            min_confidence: 0.6
+            max_age_days: 90
+          max_results: 5
+        inject_to:
+          workflow: "context.global_learnings"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without global learnings"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Import relevant global learnings at workflow start"
+      category: "intelligence"
+
+# ============================================================================
+# TEAM NOTIFICATIONS
+# ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # Notify on significant architecture decisions
+  # ----------------------------------------------------------------------------
+  - id: "notify-architecture-decision"
+    description: "Create notification when significant decisions are made"
+    when:
+      action: "adr.create"
+      status: "completed"
+    then:
+      - action: "notification.create"
+        inputs:
+          type: "architecture_decision"
+          title: "New ADR: ${adr.title}"
+          summary: |
+            A new Architecture Decision Record has been created:
+
+            **${adr.title}**
+
+            ${adr.decision.substring(0, 200)}...
+
+            View full ADR: ${adr.path}
+          priority: "medium"
+          channels:
+            - type: "file"
+              path: "koan/notifications/architecture-${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.001
+      expected_context_tokens: 300
+      on_timeout:
+        action: "skip"
+        fallback: "Notification skipped"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Notify team of significant architecture decision"
+      category: "core"
+
+  # ----------------------------------------------------------------------------
+  # Notify on high-risk PRs
+  # ----------------------------------------------------------------------------
+  - id: "notify-high-risk-pr"
+    description: "Alert team when high-risk PR needs attention"
+    when:
+      concept: "pr-review"
+      action: "analyze"
+      status: "completed"
+    where:
+      query: "pr_review.architectural_impact.risk_level == 'high'"
+    then:
+      - action: "notification.create"
+        inputs:
+          type: "pr_attention_needed"
+          title: "High-Risk PR Needs Review: ${pr_review.pr_number}"
+          summary: |
+            PR #${pr_review.pr_number} has been flagged as high-risk:
+
+            **Risk Factors:**
+            ${pr_review.risk_factors.map(r => `- ${r}`).join('\n')}
+
+            **Affected Components:**
+            ${pr_review.architectural_impact.affected_components.map(c => `- ${c.component}: ${c.impact}`).join('\n')}
+
+            Please review: ${pr_review.pr_url}
+          priority: "high"
+          channels:
+            - type: "file"
+              path: "koan/notifications/pr-alert-${timestamp}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.001
+      expected_context_tokens: 300
+      on_timeout:
+        action: "skip"
+        fallback: "High-risk PR notification skipped"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Alert team to high-risk PR"
+      category: "recovery"
+
+# ============================================================================
+# KNOWLEDGE SHARING TRIGGERS
+# ============================================================================
+
+  # ----------------------------------------------------------------------------
+  # Share useful skills discovered
+  # ----------------------------------------------------------------------------
+  - id: "share-skill-discovery"
+    description: "When a skill proves particularly useful, note it"
+    when:
+      concept: "*"
+      action: "*"
+      status: "completed"
+    where:
+      query: |
+        skills_used.length > 0 AND
+        slo_performance.duration_saved_percent > 30
+    then:
+      - action: "log.append"
+        target: "koan/knowledge/skill-effectiveness.yaml"
+        data:
+          timestamp: "${now}"
+          skill: "${skills_used[0]}"
+          task_type: "${classification.type}"
+          savings:
+            duration_percent: "${slo_performance.duration_saved_percent}"
+            cost_percent: "${slo_performance.cost_saved_percent}"
+          context: "${story.description.substring(0, 100)}"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 100
+      on_timeout:
+        action: "skip"
+        fallback: "Skill tracking skipped"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Track effective skill usage"
+      category: "learning"
+
+  # ----------------------------------------------------------------------------
+  # Track pattern usage
+  # ----------------------------------------------------------------------------
+  - id: "track-pattern-usage"
+    description: "Track when patterns from global memory are used"
+    when:
+      action: "global-memory.retrieve"
+      status: "completed"
+    where:
+      query: "retrieved_patterns.length > 0"
+    then:
+      - action: "log.append"
+        target: "~/.zen/global-memory/usage-log.yaml"
+        data:
+          timestamp: "${now}"
+          project: "${project.name}"
+          patterns_retrieved: "${retrieved_patterns.map(p => p.id)}"
+          task_type: "${classification.type}"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 100
+      on_timeout:
+        action: "skip"
+        fallback: "Pattern usage tracking skipped"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Track pattern usage for analytics"
+      category: "learning"
+
+# ============================================================================
+# SUMMARY
+# ============================================================================
+#
+# Collaboration Flow enables:
+#
+# 1. Automated PR Reviews
+#    - Auto-analyze Zen-created PRs
+#    - Deep review for high-risk changes
+#    - Security and architecture checks
+#
+# 2. Architecture Decision Records
+#    - Auto-generate ADRs for significant decisions
+#    - Document rationale and alternatives
+#    - Track decision history
+#
+# 3. Cross-Project Knowledge
+#    - Share successful patterns globally
+#    - Share failure learnings to prevent repetition
+#    - Import relevant global learnings at workflow start
+#
+# 4. Team Notifications
+#    - Alert on significant architecture decisions
+#    - Alert on high-risk PRs needing attention
+#
+# This creates a knowledge flywheel where:
+# - Individual successes become team patterns
+# - Individual failures become team lessons
+# - Each project benefits from collective learning

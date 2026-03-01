@@ -1,0 +1,18 @@
+# Zen Semantic Memory - Preferences
+# Stores user preferences and personal working style
+
+type: semantic
+category: preferences
+created_at: "${TIMESTAMP}"
+last_updated: "${TIMESTAMP}"
+
+# Preference memories
+memories: []
+
+# Example memory format:
+# - id: "mem-004"
+#   content: "User prefers smaller, focused commits"
+#   confidence: high
+#   source: "User stated in session 2025-01-05"
+#   tags: [git, commits, workflow]
+#   created_at: "2025-01-05T14:00:00Z"

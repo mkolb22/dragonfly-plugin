@@ -1,0 +1,61 @@
+---
+name: version
+type: concept
+model: sonnet
+state_location: "koan/versions/"
+execution: task-tool
+cost_tier: low
+purpose: "Handle git operations and version control"
+---
+
+# Version Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/version-concept.md`.
+
+**Model Assignment**: Sonnet 4.5 (git operations with conventional commits)
+**Cost per Action**: ~$0.003
+**State Location**: `koan/versions/`
+**Never Calls**: No other concepts (pure git operations)
+
+## Quick Reference
+
+### Actions
+- `commit(impl_id, review_id)` - Creates a git commit
+- `branch(story_id)` - Creates a feature branch
+- `tag(version)` - Creates a version tag
+
+### State File Format
+```yaml
+# koan/versions/version-{id}.yaml
+version_id: "version-001"
+impl_id: "impl-001"
+status: "committed"  # pending, committed, pushed, tagged
+summary: "One-line summary"
+
+details:
+  branch: "feature/story-001-description"
+  commit_hash: "abc123"
+  commit_message: "feat(scope): description"
+  files_changed: []
+  metadata:
+    created_at: "ISO-8601"
+    concept: "version"
+    model: "sonnet"
+```
+
+### Integration
+- **Triggered by**: `quality-to-version` sync when quality.status="approved"
+- **Triggers**: Workflow completion (no downstream concepts)
+
+## Full Documentation
+
+See `.claude/agents/version-concept.md` for:
+- Conventional commit format
+- Branch naming conventions
+- Git safety rules
+- Push/merge guidelines
+- Tag versioning
+
+---
+
+**See also**: [Agent Definition](.claude/agents/version-concept.md)

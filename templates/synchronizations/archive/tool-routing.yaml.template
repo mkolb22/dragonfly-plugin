@@ -1,0 +1,326 @@
+# Tool Routing Synchronization Rules
+# Enables dynamic tool selection and learning from outcomes
+#
+# Based on research:
+# - DyLAN: 25% accuracy improvement with dynamic selection
+# - Natural Language Tools: 18.4% improvement in tool calling
+# - MetaTools: Meta-execution for tool reasoning
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Global Defaults for Tool Routing
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+version: "1.0.0"
+
+slo_defaults:
+  expected_duration_ms: 2000
+  max_duration_ms: 10000
+  expected_cost_usd: 0.0002
+  max_cost_usd: 0.001
+  expected_context_tokens: 500
+  success_rate_target: 0.95
+  on_timeout:
+    action: "skip"
+    fallback: "Use default tool selection"
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Pre-Task Tool Selection
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "task-start-routing"
+    description: "Select optimal tools before starting a task"
+    when:
+      event: "task_started"
+    then:
+      - concept: "tool-router"
+        action: "select_tools"
+        model: "sonnet"
+        inputs:
+          task_description: "${task.description}"
+          available_tools: "${system.available_tools}"
+          context: "${context.summary}"
+
+    slo_expectations:
+      expected_duration_ms: 1500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.0005
+      on_timeout:
+        action: "skip"
+        fallback: "Use default tool set"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Pre-task tool optimization"
+      category: "intelligence"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Learning from Outcomes
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "task-success-to-learning"
+    description: "Learn from successful tool usage"
+    when:
+      event: "task_completed"
+    where:
+      query: "task.status == 'success'"
+    then:
+      - concept: "tool-router"
+        action: "learn_from_outcome"
+        model: "sonnet"
+        inputs:
+          task_id: "${task.id}"
+          task_type: "${task.type}"
+          tools_used: "${task.tools_used}"
+          tools_suggested: "${task.tools_suggested}"
+          outcome: "success"
+          metrics:
+            duration: "${task.duration}"
+            tokens: "${task.tokens_used}"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0003
+      on_timeout:
+        action: "skip"
+        fallback: "Learning deferred"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learning from successful tool usage"
+      category: "learning"
+
+  - id: "task-failure-to-learning"
+    description: "Learn from failed tool usage"
+    when:
+      event: "task_completed"
+    where:
+      query: "task.status == 'failure'"
+    then:
+      - concept: "tool-router"
+        action: "learn_from_outcome"
+        model: "sonnet"
+        inputs:
+          task_id: "${task.id}"
+          task_type: "${task.type}"
+          tools_used: "${task.tools_used}"
+          tools_suggested: "${task.tools_suggested}"
+          outcome: "failure"
+          error: "${task.error}"
+
+    slo_expectations:
+      expected_duration_ms: 1500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.0005
+      on_timeout:
+        action: "skip"
+        fallback: "Failure learning deferred"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learning from tool failures"
+      category: "learning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Error Recovery
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "tool-failure-to-alternative"
+    description: "Suggest alternative tools when one fails"
+    when:
+      event: "tool_call_failed"
+    then:
+      - concept: "tool-router"
+        action: "suggest_tool_for_error"
+        model: "sonnet"
+        inputs:
+          failed_tool: "${tool.name}"
+          error_message: "${tool.error}"
+          task_context: "${task.current_context}"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 3000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0003
+      on_timeout:
+        action: "escalate"
+        message: "Cannot find alternative tool"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Tool failed - finding alternative"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Context-Specific Routing
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-pre-routing"
+    description: "Select best tools for implementation"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "starting"
+    then:
+      - concept: "tool-router"
+        action: "select_tools"
+        model: "sonnet"
+        inputs:
+          task_description: "Implement ${implementation.component}"
+          task_type: "implementation"
+          context: "${architecture.design}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.0003
+      max_cost_usd: 0.001
+      on_timeout:
+        action: "skip"
+        fallback: "Use default implementation tools"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Optimizing tools for implementation"
+      category: "intelligence"
+
+  - id: "search-pre-routing"
+    description: "Select best search tools based on query"
+    when:
+      event: "search_requested"
+    then:
+      - concept: "tool-router"
+        action: "select_tools"
+        model: "sonnet"
+        inputs:
+          task_description: "${search.query}"
+          task_type: "code_search"
+          constraints:
+            prefer_speed: "${search.is_interactive}"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0002
+      on_timeout:
+        action: "skip"
+        fallback: "Use Grep for search"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Optimizing search tool selection"
+      category: "intelligence"
+
+  - id: "debug-pre-routing"
+    description: "Select best debugging approach"
+    when:
+      concept: "execution-loop"
+      action: "self_debug"
+      status: "starting"
+    then:
+      - concept: "tool-router"
+        action: "select_tools"
+        model: "sonnet"
+        inputs:
+          task_description: "Debug ${error.type}: ${error.message}"
+          task_type: "debugging"
+          context:
+            error_type: "${error.type}"
+            file: "${error.file}"
+            language: "${error.language}"
+
+    slo_expectations:
+      expected_duration_ms: 1500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0002
+      max_cost_usd: 0.0005
+      on_timeout:
+        action: "skip"
+        fallback: "Use standard debug approach"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Selecting debugging approach"
+      category: "intelligence"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Periodic Optimization
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "periodic-routing-review"
+    description: "Review and optimize routing rules periodically"
+    when:
+      schedule: "daily"
+    where:
+      query: "routing.task_count_24h > 10"
+    then:
+      - concept: "tool-router"
+        action: "get_tool_stats"
+        model: "sonnet"
+        inputs:
+          timeframe: "24h"
+      - concept: "retrospective"
+        action: "analyze_tool_usage"
+        model: "sonnet"
+        inputs:
+          stats: "${tool_router.stats}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Daily routing optimization"
+      category: "optimization"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Apply Recommendations
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "apply-routing-suggestion"
+    description: "Apply tool router suggestions to current task"
+    when:
+      concept: "tool-router"
+      action: "select_tools"
+      status: "completed"
+    then:
+      - concept: "task"
+        action: "set_tool_preferences"
+        model: "sonnet"
+        inputs:
+          recommended_tools: "${routing.recommended_tools}"
+          sequence: "${routing.sequence}"
+          fallbacks: "${routing.fallbacks}"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 2000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0002
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Applying tool routing recommendations"
+      category: "execution"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Tool Routing Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# This synchronization file enables:
+# - Pre-task tool optimization based on task type
+# - Learning from successful and failed tool usage
+# - Automatic fallback to alternatives on failure
+# - Context-specific routing (implementation, search, debug)
+# - Periodic analysis and optimization
+#
+# Expected improvement: 25% accuracy, 18% efficiency
+# Cost per routing decision: ~$0.0002

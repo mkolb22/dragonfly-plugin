@@ -1,0 +1,657 @@
+# Learning Loop Synchronization Rules
+# Enables continuous learning from every workflow execution
+#
+# Based on research:
+# - Darwin Gödel Machine: Self-improving agents
+# - Continuous Learning: Every iteration improves the system
+# - Self-training from prior execution
+
+version: "1.0.0"
+
+# Global SLO defaults for learning operations
+slo_defaults:
+  expected_duration_ms: 3000
+  max_duration_ms: 15000
+  expected_cost_usd: 0.002
+  max_cost_usd: 0.008
+  expected_context_tokens: 1500
+  success_rate_target: 0.95
+  on_timeout:
+    action: "skip"
+    fallback: "Continue without storing learning"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Success Pattern Extraction
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Extract pattern from every successful completion
+  - id: "success-to-pattern"
+    description: "Extract reusable patterns from successful workflows"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "review.status == 'approved' AND review.rework_cycles == 0"
+    then:
+      - concept: "retrospective"
+        action: "extract_pattern"
+        model: "sonnet"
+        inputs:
+          source: "workflow"
+          workflow_id: "${workflow.id}"
+          story: "${story.summary}"
+          architecture: "${architecture.summary}"
+          implementation: "${implementation.summary}"
+          pattern_type: "success"
+
+    slo_expectations:
+      expected_duration_ms: 4000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "skip"
+        fallback: "Pattern extraction deferred"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn from successful first-try workflow"
+      category: "learning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Failure Learning
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Extract learning from failures
+  - id: "failure-to-learning"
+    description: "Extract learnings from failed or reworked implementations"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "review.status == 'needs_changes' OR review.rework_cycles > 0"
+    then:
+      - concept: "retrospective"
+        action: "extract_learning"
+        model: "sonnet"
+        inputs:
+          source: "workflow"
+          workflow_id: "${workflow.id}"
+          failure_type: "${review.failure_type}"
+          issues_found: "${review.issues}"
+          rework_cycles: "${review.rework_cycles}"
+          learning_type: "failure"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.01
+      expected_context_tokens: 2500
+      on_timeout:
+        action: "skip"
+        fallback: "Failure learning deferred"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn from workflow that required rework"
+      category: "learning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Learning Injection
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Inject relevant learnings before implementation
+  - id: "pre-impl-inject-learnings"
+    description: "Inject relevant past learnings before starting implementation"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "starting"
+    then:
+      - concept: "retrospective"
+        action: "retrieve_relevant_learnings"
+        model: "sonnet"
+        inputs:
+          task_description: "${implementation.task}"
+          story_type: "${story.type}"
+          technology: "${architecture.technology}"
+          max_learnings: 5
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without learnings"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Inject learnings to prevent past mistakes"
+      category: "optimization"
+
+  # Apply learnings to implementation context
+  - id: "apply-learnings-to-impl"
+    description: "Apply retrieved learnings to implementation prompt"
+    when:
+      concept: "retrospective"
+      action: "retrieve_relevant_learnings"
+      status: "completed"
+    where:
+      query: "learnings.count > 0"
+    then:
+      - concept: "implementation"
+        action: "augment_prompt"
+        model: "sonnet"
+        inputs:
+          learnings: "${learnings.items}"
+          format: |
+            ## Learnings from Past Work
+
+            Consider these insights from similar past implementations:
+
+            ${learnings.items.map(l => '- ' + l.summary).join('\n')}
+
+            Avoid these past mistakes:
+            ${learnings.failures.map(f => '- ' + f.mistake + ': ' + f.lesson).join('\n')}
+
+    slo_expectations:
+      expected_duration_ms: 1500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      expected_context_tokens: 800
+      on_timeout:
+        action: "skip"
+        fallback: "Continue without augmentation"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Augment implementation with past learnings"
+      category: "optimization"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Decision Pattern Learning
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Learn from exploration decisions
+  - id: "exploration-to-learning"
+    description: "Store exploration decision patterns for future reference"
+    when:
+      concept: "exploration"
+      action: ["branch_explore", "backtrack"]
+      status: "completed"
+    then:
+      - concept: "retrospective"
+        action: "store_decision_pattern"
+        model: "sonnet"
+        inputs:
+          exploration_id: "${exploration.id}"
+          problem_type: "${exploration.problem_type}"
+          selected_path: "${exploration.selected_path}"
+          rejected_paths: "${exploration.rejected_paths}"
+          backtrack_reason: "${exploration.backtrack_reason}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 12000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "skip"
+        fallback: "Decision pattern not stored"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn from exploration decisions"
+      category: "learning"
+
+  # Learn from tool routing outcomes
+  - id: "routing-to-learning"
+    description: "Store tool routing effectiveness"
+    when:
+      concept: "tool-router"
+      action: "learn_from_outcome"
+      status: "completed"
+    then:
+      - concept: "retrospective"
+        action: "update_tool_patterns"
+        model: "sonnet"
+        inputs:
+          task_type: "${routing.task_type}"
+          tools_effective: "${routing.tools_used}"
+          tools_ineffective: "${routing.tools_failed}"
+          outcome: "${routing.outcome}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Tool patterns not updated"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn tool effectiveness patterns"
+      category: "intelligence"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Pattern Maintenance
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Periodic pattern consolidation
+  - id: "daily-pattern-consolidation"
+    description: "Consolidate and prune learnings daily"
+    when:
+      schedule: "daily"
+    where:
+      query: "learnings.count > 50"
+    then:
+      - concept: "retrospective"
+        action: "consolidate_patterns"
+        model: "sonnet"
+        inputs:
+          max_patterns: 100
+          prune_threshold: 0.3  # Remove patterns used <30% of relevant cases
+          merge_similar: true
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.005
+      max_cost_usd: 0.02
+      expected_context_tokens: 5000
+      on_timeout:
+        action: "skip"
+        fallback: "Consolidation deferred to next run"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Daily pattern maintenance"
+      category: "maintenance"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Effectiveness Tracking
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Track learning effectiveness
+  - id: "track-learning-impact"
+    description: "Track whether learnings actually help"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "implementation.learnings_applied.count > 0"
+    then:
+      - concept: "retrospective"
+        action: "update_learning_effectiveness"
+        model: "sonnet"
+        inputs:
+          learnings_applied: "${implementation.learnings_applied}"
+          outcome: "${review.status}"
+          rework_needed: "${review.rework_cycles > 0}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Effectiveness tracking skipped"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Track whether applied learnings helped"
+      category: "intelligence"
+
+  # Share high-value learnings globally
+  - id: "high-value-to-global"
+    description: "Promote high-value learnings to global memory"
+    when:
+      concept: "retrospective"
+      action: "update_learning_effectiveness"
+      status: "completed"
+    where:
+      query: "learning.effectiveness > 0.8 AND learning.use_count > 5"
+    then:
+      - concept: "global-memory"
+        action: "store"
+        model: "sonnet"
+        inputs:
+          pattern: "${learning.pattern}"
+          category: "${learning.category}"
+          effectiveness: "${learning.effectiveness}"
+          source_project: "${project.name}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Global promotion deferred"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Share effective learning globally"
+      category: "learning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Auto-Improvement
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Auto-update prompts based on learnings
+  - id: "auto-prompt-improvement"
+    description: "Suggest prompt improvements based on accumulated learnings"
+    when:
+      schedule: "weekly"
+    where:
+      query: "learnings.failure_patterns.count >= 3"
+    then:
+      - concept: "retrospective"
+        action: "suggest_prompt_improvements"
+        model: "opus"
+        inputs:
+          failure_patterns: "${learnings.failure_patterns}"
+          current_prompts: "${prompts.current}"
+          improvement_goal: "reduce_failure_rate"
+
+    slo_expectations:
+      expected_duration_ms: 15000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.015
+      max_cost_usd: 0.05
+      expected_context_tokens: 5000
+      on_timeout:
+        action: "skip"
+        fallback: "Prompt improvement suggestions deferred"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Auto-suggest prompt improvements"
+      category: "intelligence"
+
+  # Learn from verification disagreements
+  - id: "verification-disagreement-learning"
+    description: "Learn from cases where verification agents disagreed"
+    when:
+      concept: "verification-synthesizer"
+      action: "resolve_disagreement"
+      status: "completed"
+    then:
+      - concept: "retrospective"
+        action: "store_disagreement_pattern"
+        model: "sonnet"
+        inputs:
+          issue_type: "${disagreement.issue_type}"
+          positions: "${disagreement.positions}"
+          resolution: "${disagreement.resolution}"
+          correct_agent: "${disagreement.correct_agent}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 12000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "skip"
+        fallback: "Disagreement pattern not stored"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn from verification disagreements"
+      category: "learning"
+
+  # Learn from context folding
+  - id: "context-fold-learning"
+    description: "Learn which context is actually needed"
+    when:
+      concept: "context"
+      action: "fold_trajectory"
+      status: "completed"
+    then:
+      - concept: "retrospective"
+        action: "analyze_context_usage"
+        model: "sonnet"
+        inputs:
+          folded_content: "${fold.summary}"
+          preserved_artifacts: "${fold.artifacts}"
+          subsequent_references: "${fold.references_after}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 12000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "skip"
+        fallback: "Context analysis skipped"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn context importance patterns"
+      category: "optimization"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Retrospective-Driven Improvement Loop
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Connects retrospective analysis back to workflow improvements
+
+  # Workflow completion triggers retrospective analysis
+  - id: "workflow-complete-retrospective"
+    description: "Analyze complete workflow for improvements"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    then:
+      - concept: "retrospective"
+        action: "analyze_workflow"
+        model: "sonnet"
+        inputs:
+          flow_id: "${flow.id}"
+          story_id: "${story.id}"
+          total_cost: "${flow.total_cost}"
+          total_duration: "${flow.duration}"
+          rework_cycles: "${quality.rework_cycles || 0}"
+          context_peak: "${context.peak_usage}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.01
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "skip"
+        fallback: "Post-commit retrospective skipped"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Post-commit retrospective analysis"
+      category: "core"
+
+  # Retrospective insights feed into learning loop
+  - id: "retrospective-to-learning"
+    description: "Convert retrospective insights to learnings"
+    when:
+      concept: "retrospective"
+      action: "analyze_workflow"
+      status: "completed"
+    where:
+      query: "retrospective.insights.count > 0"
+    then:
+      - concept: "retrospective"
+        action: "store_insights"
+        model: "sonnet"
+        inputs:
+          insights: "${retrospective.insights}"
+          workflow_metrics:
+            cost_efficiency: "${flow.total_cost / story.complexity}"
+            time_efficiency: "${flow.duration / story.estimated_duration}"
+            quality_score: "${quality.score}"
+          recommendations: "${retrospective.recommendations}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 12000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "skip"
+        fallback: "Insights storage deferred"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Store retrospective insights for learning"
+      category: "learning"
+
+  # Apply retrospective learnings to future workflows
+  - id: "retrospective-inject-pre-story"
+    description: "Inject relevant retrospective learnings before story creation"
+    when:
+      concept: "story"
+      action: "create"
+      status: "starting"
+    then:
+      - concept: "retrospective"
+        action: "get_relevant_insights"
+        model: "sonnet"
+        inputs:
+          context: "${user.request}"
+          insight_types: ["cost_optimization", "quality_improvement", "common_pitfalls"]
+          max_insights: 3
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without insights"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Apply past retrospective insights"
+      category: "optimization"
+
+  # Track retrospective-driven improvements
+  - id: "track-retrospective-impact"
+    description: "Measure whether retrospective insights improved outcomes"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    where:
+      query: "flow.retrospective_insights_applied.count > 0"
+    then:
+      - concept: "retrospective"
+        action: "measure_insight_impact"
+        model: "sonnet"
+        inputs:
+          insights_applied: "${flow.retrospective_insights_applied}"
+          predicted_improvement: "${insights.predicted_delta}"
+          actual_metrics:
+            cost: "${flow.total_cost}"
+            duration: "${flow.duration}"
+            quality: "${quality.score}"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Impact tracking skipped"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Track retrospective insight effectiveness"
+      category: "intelligence"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Learning Loop Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Categories:
+#   - learning: Pattern extraction and storage
+#   - optimization: Applying learnings to improve performance
+#   - intelligence: Self-improvement and adaptation
+#   - maintenance: Pattern consolidation and cleanup
+#   - core: Primary workflow integration
+#
+# Key Flows:
+#   1. Success → Extract Pattern → Store
+#   2. Failure → Extract Learning → Store
+#   3. Before Impl → Retrieve Learnings → Inject
+#   4. After Review → Track Effectiveness → Update Confidence
+#   5. High Value → Promote to Global Memory
+#
+# Expected costs per workflow: ~$0.01-0.02 for learning operations

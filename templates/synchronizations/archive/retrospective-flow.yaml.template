@@ -1,0 +1,277 @@
+# Retrospective Flow Synchronizations
+# Triggers retrospective analysis when workflows fail
+
+version: "1.0.0"
+description: |
+  Implements the Reflexion pattern by automatically triggering
+  retrospective analysis when concepts fail or are rejected.
+
+synchronizations:
+  # Trigger on quality review rejection
+  quality-review-rejected:
+    description: Analyze why code review was rejected
+    when:
+      concept: quality
+      action: review
+      status: "completed"
+    where:
+      query: "review.status == 'rejected'"
+    then:
+      concept: retrospective
+      action: analyze
+      model: sonnet
+      inputs:
+        trigger_concept: quality
+        trigger_action: review
+        trigger_status: rejected
+        flow_id: "{{flow.id}}"
+        failed_output: "{{quality.review.output}}"
+        failure_details: "{{quality.review.issues | json}}"
+    outputs:
+      path: "koan/retrospectives/retro-{{id}}.yaml"
+    priority: high
+
+    # SLO Expectations for retrospective.analyze
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds typical for deep analysis
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2000    # Review context + failure details
+      max_context_tokens: 8000         # Warning threshold
+      success_rate_target: 0.90        # 90% of retrospectives succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Trigger on test failure
+  quality-test-failed:
+    description: Analyze why tests failed
+    when:
+      concept: quality
+      action: test
+      status: "completed"
+    where:
+      query: "test.passed == false"
+    then:
+      concept: retrospective
+      action: analyze
+      model: sonnet
+      inputs:
+        trigger_concept: quality
+        trigger_action: test
+        trigger_status: failed
+        flow_id: "{{flow.id}}"
+        failed_output: "{{quality.test.output}}"
+        failure_details: "{{quality.test.failures | json}}"
+    outputs:
+      path: "koan/retrospectives/retro-{{id}}.yaml"
+    priority: high
+
+    # SLO Expectations for retrospective.analyze
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds typical for deep analysis
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2000    # Test output + failure details
+      max_context_tokens: 8000         # Warning threshold
+      success_rate_target: 0.90        # 90% of retrospectives succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Trigger on architecture blocked
+  architecture-blocked:
+    description: Analyze why architecture was blocked
+    when:
+      concept: architecture
+      action: design
+      status: "completed"
+    where:
+      query: "architecture.status == 'blocked'"
+    then:
+      concept: retrospective
+      action: analyze
+      model: sonnet
+      inputs:
+        trigger_concept: architecture
+        trigger_action: design
+        trigger_status: blocked
+        flow_id: "{{flow.id}}"
+        failed_output: "{{architecture.design.output}}"
+        failure_details: "{{architecture.blockers | json}}"
+    outputs:
+      path: "koan/retrospectives/retro-{{id}}.yaml"
+    priority: medium
+
+    # SLO Expectations for retrospective.analyze
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds typical for deep analysis
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2500    # Architecture context + blockers
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.90        # 90% of retrospectives succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Trigger on implementation blocked
+  implementation-blocked:
+    description: Analyze why implementation was blocked
+    when:
+      concept: implementation
+      action: generate
+      status: "completed"
+    where:
+      query: "implementation.status == 'blocked'"
+    then:
+      concept: retrospective
+      action: analyze
+      model: sonnet
+      inputs:
+        trigger_concept: implementation
+        trigger_action: generate
+        trigger_status: blocked
+        flow_id: "{{flow.id}}"
+        failed_output: "{{implementation.generate.output}}"
+        failure_details: "{{implementation.blockers | json}}"
+    outputs:
+      path: "koan/retrospectives/retro-{{id}}.yaml"
+    priority: medium
+
+    # SLO Expectations for retrospective.analyze
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds typical for deep analysis
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2000    # Implementation context + blockers
+      max_context_tokens: 8000         # Warning threshold
+      success_rate_target: 0.90        # 90% of retrospectives succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # After retrospective, update prompts with learnings
+  retrospective-to-learning-update:
+    description: Apply learnings to relevant concept prompts
+    when:
+      concept: retrospective
+      action: analyze
+      status: "completed"
+    where:
+      query: "retrospective.learnings.length > 0"
+    then:
+      action: update_learnings
+      model: sonnet
+      inputs:
+        learnings: "{{retrospective.learnings}}"
+        applies_to_concepts: "{{retrospective.learnings | map('applies_to') | unique}}"
+    outputs:
+      path: "koan/learnings/active-learnings.yaml"
+    priority: low
+
+    # SLO Expectations for update_learnings
+    slo_expectations:
+      expected_duration_ms: 2000       # 2 seconds typical
+      max_duration_ms: 20000           # 20 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet for simple update
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 500     # Learnings + current file
+      max_context_tokens: 2000         # Warning threshold
+      success_rate_target: 0.99        # 99% of updates succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+# Learning integration
+learning_integration:
+  description: |
+    Learnings from retrospectives are stored in koan/learnings/active-learnings.yaml
+    and automatically included in relevant concept prompts.
+
+  active_learnings_format: |
+    # Active Learnings
+    # Auto-updated by retrospective sync rules
+
+    story:
+      - L001: Always specify error types explicitly in acceptance criteria
+      - L005: Include performance requirements in acceptance criteria
+
+    architecture:
+      - L002: Architecture must include security requirements for each layer
+      - L003: Consider rate limits when integrating external APIs
+
+    implementation:
+      - L004: Database queries must use parameterized statements
+      - L006: Add input validation at all API boundaries
+
+    quality:
+      - L007: Run security linting before code review
+
+  prompt_injection: |
+    ## Learnings from Previous Failures
+    The following learnings have been extracted from past workflow failures.
+    Apply these insights to avoid repeating mistakes:
+
+    {{#each active_learnings[concept]}}
+    - {{this}}
+    {{/each}}

@@ -1,0 +1,209 @@
+# SLO Monitoring Synchronizations
+# Automatic post-action SLO validation for all concepts
+#
+# WYSIWID Principle: This YAML defines when SLO monitoring happens
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Universal SLO Monitoring
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Triggered after ANY concept action completes
+  # Only runs if the triggering sync rule has slo_expectations defined
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "post-action-slo-monitor"
+    description: "After any action completes, validate against SLO expectations"
+    when:
+      concept: "*"           # Any concept
+      action: "*"            # Any action
+      status: "completed"    # Only successful completions
+    where:
+      # Only monitor if the sync rule that triggered this action has SLOs defined
+      query: "sync_rule.slo_expectations != null"
+    then:
+      - concept: "slo"
+        action: "monitor"
+        model: "sonnet"       # Fast numeric analysis, <500ms overhead
+        inputs:
+          action_id: "${action.id}"
+          concept: "${action.concept}"
+          sync_id: "${sync.id}"
+          slo_config: "${sync_rule.slo_expectations}"
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Post-action SLO validation"
+      slo_monitoring: true
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # SLO Violation Handlers
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # These rules handle specific violation types
+  # Triggered by slo.monitor when violations detected
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "slo-timeout-retry"
+    description: "Retry action when timeout occurs and retries available"
+    when:
+      concept: "slo"
+      action: "monitor"
+      status: "completed"
+    where:
+      query: "violations.any(v => v.type == 'timeout') AND handler.action == 'retry' AND handler.retries_remaining > 0"
+    then:
+      # Retry the original action that timed out
+      - concept: "${violation.concept}"
+        action: "${violation.action}"
+        model: "${violation.model}"
+        inputs: "${violation.original_inputs}"
+        retry: true
+        retry_count: "${handler.retry_count + 1}"
+        backoff_ms: "${handler.backoff_ms}"
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "SLO timeout violation - retry attempt ${handler.retry_count + 1}"
+      triggered_by_violation: "${violation.id}"
+
+  - id: "slo-timeout-escalate"
+    description: "Escalate to human when retries exhausted"
+    when:
+      concept: "slo"
+      action: "monitor"
+      status: "completed"
+    where:
+      query: "violations.any(v => v.type == 'timeout') AND handler.action == 'retry' AND handler.retries_remaining == 0"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Action '${violation.concept}.${violation.action}' exceeded timeout (${violation.actual}ms > ${violation.threshold}ms). Retries exhausted. How to proceed?"
+            header: "SLO Timeout Escalation"
+            multiSelect: false
+            options:
+              - label: "Continue anyway"
+                description: "Accept the timeout and continue workflow"
+              - label: "Increase timeout"
+                description: "Increase max_duration_ms and retry"
+              - label: "Cancel workflow"
+                description: "Stop this workflow due to performance issue"
+        on_answer:
+          "Continue anyway":
+            - concept: "slo"
+              action: "alert"
+              model: "sonnet"
+              inputs:
+                violation: "${violation}"
+                user_decision: "accepted"
+
+          "Increase timeout":
+            - concept: "slo"
+              action: "update_threshold"
+              model: "sonnet"
+              inputs:
+                sync_id: "${violation.sync_id}"
+                threshold: "max_duration_ms"
+                new_value: "${violation.threshold * 1.5}"
+            - concept: "${violation.concept}"
+              action: "${violation.action}"
+              model: "${violation.model}"
+              inputs: "${violation.original_inputs}"
+              retry: true
+
+          "Cancel workflow":
+            - concept: "story"
+              action: "cancel"
+              model: "sonnet"
+              inputs:
+                story_id: "${story.id}"
+                reason: "User cancelled due to timeout violations"
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "SLO timeout escalated - retries exhausted"
+      decision_point: true
+      user_interaction: "ask_user_question"
+
+  - id: "slo-cost-exceeded-alert"
+    description: "Alert when cost threshold exceeded"
+    when:
+      concept: "slo"
+      action: "monitor"
+      status: "completed"
+    where:
+      query: "violations.any(v => v.type == 'cost_exceeded')"
+    then:
+      - concept: "slo"
+        action: "alert"
+        model: "sonnet"
+        inputs:
+          violation: "${violations.find(v => v.type == 'cost_exceeded')}"
+          handler_config: "${sync_rule.slo_expectations.on_cost_exceeded}"
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "SLO cost violation - sending alert"
+
+  - id: "slo-context-exceeded-investigate"
+    description: "Create investigation task when context limit exceeded"
+    when:
+      concept: "slo"
+      action: "monitor"
+      status: "completed"
+    where:
+      query: "violations.any(v => v.type == 'context_exceeded') AND handler.investigate == true"
+    then:
+      - concept: "slo"
+        action: "alert"
+        model: "sonnet"
+        inputs:
+          violation: "${violations.find(v => v.type == 'context_exceeded')}"
+          handler_config: "${sync_rule.slo_expectations.on_context_exceeded}"
+          create_task: true
+          task_description: "Investigate context token violation: ${violation.actual} tokens > ${violation.threshold} tokens. Check Phase 2 optimizations."
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "SLO context violation - investigation task created"
+      investigation: true
+
+  - id: "slo-quality-escalate"
+    description: "Escalate when quality falls below target"
+    when:
+      concept: "slo"
+      action: "monitor"
+      status: "completed"
+    where:
+      query: "violations.any(v => v.type == 'quality_below_target')"
+    then:
+      - concept: "slo"
+        action: "alert"
+        model: "sonnet"
+        inputs:
+          violation: "${violations.find(v => v.type == 'quality_below_target')}"
+          handler_config: "${sync_rule.slo_expectations.on_quality_below_target}"
+          escalate: true
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "SLO quality violation - escalating"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SLO Monitoring Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Flow:
+#   1. Any concept action completes
+#   2. post-action-slo-monitor triggers (if rule has SLOs)
+#   3. slo.monitor compares actual vs expected
+#   4. If violations:
+#      - timeout → retry (if retries available) → escalate (if exhausted)
+#      - cost_exceeded → alert
+#      - context_exceeded → alert + investigate
+#      - quality_below_target → escalate
+#   5. Update monthly metrics
+#   6. Record violations
+#
+# Performance:
+#   - SLO monitoring adds <500ms per action (Sonnet)
+#   - Only runs when slo_expectations defined
+#   - No monitoring = no overhead
+#
+# Integration:
+#   - Works with all concepts (story, architecture, implementation, etc.)
+#   - Reads from provenance (no data duplication)
+#   - Writes to koan/slo/ (monthly aggregation)
+#

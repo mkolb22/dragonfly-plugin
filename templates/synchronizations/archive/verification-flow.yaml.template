@@ -1,0 +1,407 @@
+# Verification Flow Synchronizations
+# Multi-agent verification for critical concept outputs
+
+version: "1.0.0"
+description: |
+  Implements multi-agent verification pattern.
+  Critical outputs get multiple independent reviews before proceeding.
+  Research shows 39.7% accuracy improvement with this approach.
+
+configuration:
+  # Number of verification passes for each concept
+  verification_passes:
+    architecture: 2
+    implementation: 2
+
+  # Severity thresholds for blocking
+  block_on:
+    - critical  # Any critical issue blocks
+
+  # Consensus requirements
+  consensus:
+    revise_threshold: 2  # If 2+ reviewers find same major issue
+
+synchronizations:
+  # Architecture verification (pass 1)
+  arch-verify-pass-1:
+    description: First verification pass on architecture
+    when:
+      concept: architecture
+      action: design
+      status: "completed"
+    where:
+      query: "architecture.risk != 'low' OR story.complexity == 'high'"
+    then:
+      concept: verification
+      action: verify_architecture
+      model: sonnet
+      inputs:
+        story: "{{story}}"
+        architecture: "{{architecture}}"
+        plan: "{{plan}}"
+        verification_pass: 1
+        total_passes: 2
+    outputs:
+      path: "koan/verifications/verify-arch-{{id}}-pass1.yaml"
+    priority: high
+
+    # SLO Expectations for verification.verify_architecture
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds for verification
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2500    # Story + architecture + plan
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of verifications succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Architecture verification (pass 2)
+  arch-verify-pass-2:
+    description: Second verification pass on architecture
+    when:
+      concept: verification
+      action: verify_architecture
+      status: "completed"
+    where:
+      query: "verification.pass == 1 AND verification.target.concept == 'architecture'"
+    then:
+      concept: verification
+      action: verify_architecture
+      model: sonnet
+      inputs:
+        story: "{{story}}"
+        architecture: "{{architecture}}"
+        plan: "{{plan}}"
+        verification_pass: 2
+        total_passes: 2
+        previous_reviews:
+          - reviewer: "{{verification.reviewer}}"
+            summary: "{{verification.summary}}"
+    outputs:
+      path: "koan/verifications/verify-arch-{{id}}-pass2.yaml"
+    priority: high
+
+    # SLO Expectations for verification.verify_architecture
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds for verification
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2800    # Story + architecture + plan + previous review
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of verifications succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Architecture consensus
+  arch-verify-consensus:
+    description: Aggregate architecture verifications
+    when:
+      concept: verification
+      action: verify_architecture
+      status: "completed"
+    where:
+      query: "verification.pass == 2 AND verification.target.concept == 'architecture'"
+    then:
+      concept: verification
+      action: consensus
+      model: sonnet
+      inputs:
+        verifications:
+          - "{{verifications[0]}}"
+          - "{{verifications[1]}}"
+    outputs:
+      path: "koan/verifications/verify-arch-{{id}}-consensus.yaml"
+    priority: high
+
+    # SLO Expectations for verification.consensus
+    slo_expectations:
+      expected_duration_ms: 3000       # 3 seconds for aggregation
+      max_duration_ms: 20000           # 20 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet for simple aggregation
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 1200    # Two verification reports
+      max_context_tokens: 5000         # Warning threshold
+      success_rate_target: 0.99        # 99% of consensus operations succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Consensus approved → proceed to implementation
+  arch-consensus-approved:
+    description: Proceed to implementation after verification passes
+    when:
+      concept: verification
+      action: consensus
+      status: "completed"
+    where:
+      query: "verification.recommendation == 'approve' OR verification.recommendation == 'approve_with_notes'"
+    then:
+      concept: implementation
+      action: generate
+      model: sonnet
+      inputs:
+        story: "{{story}}"
+        architecture: "{{architecture}}"
+        verification_notes: "{{verification.aggregated_issues}}"
+    outputs:
+      path: "koan/implementations/impl-{{id}}.yaml"
+    priority: high
+
+    # SLO Expectations for implementation.generate
+    slo_expectations:
+      expected_duration_ms: 3000       # 3 seconds typical
+      max_duration_ms: 30000           # 30 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet with pattern-based generation
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 1000    # Moderate context usage
+      max_context_tokens: 5000         # Warning threshold
+      success_rate_target: 0.90        # 90% implementation success
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Consensus blocked → return to architecture
+  arch-consensus-blocked:
+    description: Return to architecture when verification fails
+    when:
+      concept: verification
+      action: consensus
+      status: "completed"
+    where:
+      query: "verification.recommendation == 'block' OR verification.recommendation == 'revise'"
+    then:
+      concept: architecture
+      action: revise
+      model: opus
+      inputs:
+        original_architecture: "{{architecture}}"
+        verification_issues: "{{verification.aggregated_issues}}"
+        recommendation: "{{verification.rationale}}"
+    outputs:
+      path: "koan/architecture/arch-{{id}}-revised.yaml"
+    priority: high
+
+    # SLO Expectations for architecture.revise
+    slo_expectations:
+      expected_duration_ms: 20000      # 20 seconds for revision with Opus
+      max_duration_ms: 90000           # 90 seconds timeout
+      expected_cost_usd: 0.015         # Opus for complex revision
+      max_cost_usd: 0.050              # Alert if exceeds
+      expected_context_tokens: 3500    # Architecture + verification issues
+      max_context_tokens: 15000        # Warning threshold
+      success_rate_target: 0.90        # 90% of revisions succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 3000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Implementation verification (pass 1)
+  impl-verify-pass-1:
+    description: First verification pass on implementation
+    when:
+      concept: implementation
+      action: generate
+      status: "completed"
+    where:
+      query: "architecture.risk != 'low' OR implementation.changes.length > 5"
+    then:
+      concept: verification
+      action: verify_implementation
+      model: sonnet
+      inputs:
+        architecture: "{{architecture}}"
+        implementation: "{{implementation}}"
+        files: "{{implementation.files}}"
+        verification_pass: 1
+        total_passes: 2
+    outputs:
+      path: "koan/verifications/verify-impl-{{id}}-pass1.yaml"
+    priority: high
+
+    # SLO Expectations for verification.verify_implementation
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds for verification
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2500    # Architecture + implementation + files
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of verifications succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Implementation verification (pass 2)
+  impl-verify-pass-2:
+    description: Second verification pass on implementation
+    when:
+      concept: verification
+      action: verify_implementation
+      status: "completed"
+    where:
+      query: "verification.pass == 1 AND verification.target.concept == 'implementation'"
+    then:
+      concept: verification
+      action: verify_implementation
+      model: sonnet
+      inputs:
+        architecture: "{{architecture}}"
+        implementation: "{{implementation}}"
+        files: "{{implementation.files}}"
+        verification_pass: 2
+        total_passes: 2
+        previous_reviews:
+          - reviewer: "{{verification.reviewer}}"
+            summary: "{{verification.summary}}"
+    outputs:
+      path: "koan/verifications/verify-impl-{{id}}-pass2.yaml"
+    priority: high
+
+    # SLO Expectations for verification.verify_implementation
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds for verification
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 2800    # Architecture + implementation + files + previous review
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of verifications succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Implementation consensus
+  impl-verify-consensus:
+    description: Aggregate implementation verifications
+    when:
+      concept: verification
+      action: verify_implementation
+      status: "completed"
+    where:
+      query: "verification.pass == 2 AND verification.target.concept == 'implementation'"
+    then:
+      concept: verification
+      action: consensus
+      model: sonnet
+      inputs:
+        verifications:
+          - "{{verifications[0]}}"
+          - "{{verifications[1]}}"
+    outputs:
+      path: "koan/verifications/verify-impl-{{id}}-consensus.yaml"
+    priority: high
+
+    # SLO Expectations for verification.consensus
+    slo_expectations:
+      expected_duration_ms: 3000       # 3 seconds for aggregation
+      max_duration_ms: 20000           # 20 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet for simple aggregation
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 1200    # Two verification reports
+      max_context_tokens: 5000         # Warning threshold
+      success_rate_target: 0.99        # 99% of consensus operations succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+# Skip verification for low-risk items
+skip_verification:
+  description: |
+    Verification is skipped for low-risk, simple changes to maintain
+    workflow efficiency. Direct sync rules handle these cases.
+
+  conditions:
+    - architecture.risk == 'low' AND story.complexity != 'high'
+    - implementation.changes.length <= 3

@@ -1,0 +1,21 @@
+# Zen Semantic Memory - Architecture
+# Stores architectural decisions, system design, and technical constraints
+
+type: semantic
+category: architecture
+created_at: "${TIMESTAMP}"
+last_updated: "${TIMESTAMP}"
+
+# Architecture memories
+memories: []
+
+# Example memory format:
+# - id: "mem-001"
+#   content: "Authentication uses JWT with RS256 signing"
+#   confidence: high
+#   source: "User stated in session 2025-01-05"
+#   tags: [auth, jwt, security]
+#   created_at: "2025-01-05T10:30:00Z"
+#   related_files:
+#     - src/auth/jwt.ts
+#   supersedes: null

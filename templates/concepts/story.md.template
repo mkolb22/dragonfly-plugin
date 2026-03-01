@@ -1,0 +1,50 @@
+---
+name: story
+type: concept
+model: sonnet
+state_location: "state.db (stories table)"
+execution: task-tool
+cost_tier: low
+purpose: "Capture and validate user requirements"
+---
+
+# Story Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/story-concept.md`.
+
+**Model Assignment**: Sonnet 4.5 (fast, efficient for structured data capture)
+**Cost per Action**: ~$0.003
+**State Location**: SQLite `state.db` (via `zen_story_save`/`zen_story_get`/`zen_story_list`)
+**Never Calls**: No other concepts (pure input processing)
+
+## Quick Reference
+
+### Actions
+- `create(title, description, context)` - Captures a new user requirement
+- `validate(story_id)` - Checks if a story is ready for architecture
+- `query(filter)` - Search stories by status, date, keywords
+
+### State Format
+Stories are stored in SQLite via MCP tools. Use:
+- `zen_story_save` — save or update a story
+- `zen_story_get` — retrieve by ID or latest
+- `zen_story_list` — list stories with optional status filter
+
+The `data` field contains the full story content (summary, acceptance_criteria, context, metadata).
+
+### Integration
+- **Triggered by**: `/feature` command, direct invocation
+- **Triggers**: Architecture concept via `story-to-arch` sync when status="ready"
+
+## Full Documentation
+
+See `.claude/agents/story-concept.md` for:
+- Complete action documentation
+- Output format examples
+- Validation rules
+- Error handling
+- Never/Always Do This guidelines
+
+---
+
+**See also**: [Agent Definition](.claude/agents/story-concept.md)

@@ -1,0 +1,1031 @@
+# Error Recovery Flow Synchronizations
+# Comprehensive error handling for all workflow phases
+#
+# WYSIWID Principle: This YAML IS the error recovery logic
+# Read this file to understand exactly how errors are handled
+
+version: "1.0.0"
+description: |
+  Centralized error recovery for all concepts and synchronizations.
+  Implements retry, escalate, and graceful degradation patterns.
+
+# Global SLO defaults for error recovery operations
+slo_defaults:
+  expected_duration_ms: 2000
+  max_duration_ms: 10000
+  expected_cost_usd: 0.001
+  max_cost_usd: 0.005
+  expected_context_tokens: 500
+  success_rate_target: 0.95
+  on_timeout:
+    action: "skip"
+    fallback: "Continue with default error handling"
+  on_cost_exceeded:
+    action: "proceed"
+    message: "Error recovery cost acceptable"
+
+# Error Classification
+# Used to determine appropriate recovery action
+error_classifications:
+  transient:
+    description: "Temporary failures that may succeed on retry"
+    examples:
+      - "network_timeout"
+      - "rate_limit"
+      - "service_unavailable"
+    default_action: "retry"
+    max_retries: 3
+
+  permanent:
+    description: "Failures that require intervention"
+    examples:
+      - "validation_failed"
+      - "security_violation"
+      - "missing_required_input"
+    default_action: "escalate"
+    max_retries: 0
+
+  degraded:
+    description: "Partial failures where fallback is possible"
+    examples:
+      - "optional_service_unavailable"
+      - "enhancement_failed"
+      - "mcp_server_unavailable"
+    default_action: "fallback"
+    max_retries: 1
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Story Concept Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "story-create-failed"
+    description: "Handle story creation failures"
+    when:
+      concept: "story"
+      action: "create"
+      status: "failed"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+          concept: "story"
+          action: "create"
+
+      - action: "ask_user"
+        condition: "${error.classification == 'permanent'}"
+        questions:
+          - question: "Story creation failed: ${error.message}. How to proceed?"
+            header: "Story Error"
+            multiSelect: false
+            options:
+              - label: "Provide more details"
+                description: "Add clarification to help create the story"
+              - label: "Skip story capture"
+                description: "Proceed directly to architecture (not recommended)"
+              - label: "Cancel"
+                description: "Stop the workflow"
+
+        on_answer:
+          "Provide more details":
+            - action: "set_flag"
+              flag: "story.needs_clarification"
+              value: true
+            - action: "notify"
+              message: "Please provide additional context for: ${story.description}"
+
+          "Skip story capture":
+            - concept: "architecture"
+              action: "design"
+              model: "opus"
+              inputs:
+                requirements: "${user.original_request}"
+                skip_story: true
+
+          "Cancel":
+            - action: "cancel_workflow"
+              reason: "Story creation failed - user cancelled"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Story error recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Story creation error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Code Analysis Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "code-analysis-failed"
+    description: "Handle code analysis failures (MCP unavailable)"
+    when:
+      concept: "code-analysis"
+      action: "context"
+      status: "failed"
+    then:
+      # Mark as skipped so fallback sync triggers
+      - action: "set_flag"
+        flag: "code_analysis.skipped"
+        value: true
+
+      - action: "log"
+        level: "warn"
+        message: "Code analysis skipped: ${error.message}. Proceeding without codebase context."
+
+      # Trigger fallback architecture design
+      - concept: "architecture"
+        action: "design"
+        model: "opus"
+        inputs:
+          story_id: "${story.id}"
+          requirements: "${story.description}"
+          note: "Proceeding without code analysis context"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 500
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without code analysis"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Code analysis failed - graceful degradation to architecture"
+      error_recovery: true
+      fallback: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Architecture Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-design-failed"
+    description: "Handle architecture design failures"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "failed"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+          concept: "architecture"
+          action: "design"
+
+      # Retry for transient errors
+      - action: "retry"
+        condition: "${error.classification == 'transient' AND retry_count < 2}"
+        concept: "architecture"
+        action: "design"
+        backoff_ms: 2000
+        inputs:
+          story_id: "${story.id}"
+          requirements: "${story.description}"
+
+      # Escalate for permanent errors
+      - action: "ask_user"
+        condition: "${error.classification == 'permanent' OR retry_count >= 2}"
+        questions:
+          - question: "Architecture design failed after retries: ${error.message}. How to proceed?"
+            header: "Architecture Error"
+            multiSelect: false
+            options:
+              - label: "Simplify requirements"
+                description: "Reduce scope and try a simpler design"
+              - label: "Manual architecture"
+                description: "I'll provide the architecture myself"
+              - label: "Cancel feature"
+                description: "Stop the workflow"
+
+        on_answer:
+          "Simplify requirements":
+            - concept: "story"
+              action: "simplify"
+              model: "sonnet"
+              inputs:
+                story_id: "${story.id}"
+                constraint: "Reduce complexity for simpler architecture"
+
+          "Manual architecture":
+            - action: "notify"
+              message: "Please create architecture file at koan/architecture/arch-${story.id}.yaml"
+            - action: "wait_for_file"
+              path: "koan/architecture/arch-${story.id}.yaml"
+              timeout_ms: 300000  # 5 minutes
+
+          "Cancel feature":
+            - action: "cancel_workflow"
+              reason: "Architecture design failed - user cancelled"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.015
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "escalate"
+        message: "Architecture recovery timed out - user input needed"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture design error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  - id: "arch-revise-failed"
+    description: "Handle architecture revision failures"
+    when:
+      concept: "architecture"
+      action: "revise"
+      status: "failed"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Architecture revision failed: ${error.message}. Original issues: ${verification.issues}"
+            header: "Revision Error"
+            multiSelect: false
+            options:
+              - label: "Accept original architecture"
+                description: "Proceed with the original design despite issues"
+              - label: "Retry revision"
+                description: "Try revising again with different approach"
+              - label: "Cancel"
+                description: "Stop and review manually"
+
+        on_answer:
+          "Accept original architecture":
+            - action: "set_flag"
+              flag: "architecture.accepted_with_issues"
+              value: true
+            - concept: "implementation"
+              action: "generate"
+              model: "sonnet"
+              inputs:
+                architecture_id: "${original_architecture.id}"
+                story_id: "${story.id}"
+                note: "Proceeding with original architecture despite verification issues"
+
+          "Retry revision":
+            - concept: "architecture"
+              action: "revise"
+              model: "opus"
+              inputs:
+                original_architecture_id: "${original_architecture.id}"
+                story_id: "${story.id}"
+                constraint: "Alternative approach required"
+
+          "Cancel":
+            - action: "cancel_workflow"
+              reason: "Architecture revision failed - user cancelled"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.015
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "escalate"
+        message: "Architecture revision recovery timed out"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture revision error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Verification Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "verification-failed"
+    description: "Handle verification failures"
+    when:
+      concept: "verification"
+      action: "verify_architecture|verify_implementation"
+      status: "failed"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+
+      # Skip verification if transient (degraded mode)
+      - action: "skip_verification"
+        condition: "${error.classification == 'transient' AND config.allow_skip_verification}"
+        message: "Verification skipped due to ${error.message}"
+        continue_workflow: true
+
+      # Escalate if verification is required
+      - action: "ask_user"
+        condition: "${error.classification != 'transient' OR NOT config.allow_skip_verification}"
+        questions:
+          - question: "Verification failed: ${error.message}. This is a quality gate."
+            header: "Verification Error"
+            multiSelect: false
+            options:
+              - label: "Retry verification"
+                description: "Try running verification again"
+              - label: "Skip verification (not recommended)"
+                description: "Proceed without verification - may miss issues"
+              - label: "Cancel"
+                description: "Stop and investigate"
+
+        on_answer:
+          "Retry verification":
+            - concept: "verification"
+              action: "${verification.action}"
+              model: "sonnet"
+              inputs:
+                target: "${verification.target}"
+                retry: true
+
+          "Skip verification (not recommended)":
+            - action: "set_flag"
+              flag: "verification.skipped"
+              value: true
+            - action: "log"
+              level: "warn"
+              message: "Verification skipped by user - proceeding without quality gate"
+
+          "Cancel":
+            - action: "cancel_workflow"
+              reason: "Verification failed - user cancelled"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Verification error recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verification error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Implementation Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-generate-failed"
+    description: "Handle implementation generation failures"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "failed"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+
+      # Retry with simpler approach
+      - action: "retry"
+        condition: "${error.classification == 'transient' AND retry_count < 2}"
+        concept: "implementation"
+        action: "generate"
+        backoff_ms: 1000
+        inputs:
+          architecture_id: "${architecture.id}"
+          story_id: "${story.id}"
+
+      # Escalate after retries
+      - action: "ask_user"
+        condition: "${retry_count >= 2 OR error.classification == 'permanent'}"
+        questions:
+          - question: "Implementation failed: ${error.message}. Architecture may be too complex."
+            header: "Implementation Error"
+            multiSelect: false
+            options:
+              - label: "Break into smaller pieces"
+                description: "Split architecture into implementable chunks"
+              - label: "Revise architecture"
+                description: "Simplify the technical design"
+              - label: "Implement manually"
+                description: "I'll write the code myself"
+              - label: "Cancel"
+                description: "Stop the workflow"
+
+        on_answer:
+          "Break into smaller pieces":
+            - concept: "architecture"
+              action: "decompose"
+              model: "opus"
+              inputs:
+                architecture_id: "${architecture.id}"
+                reason: "Implementation failed - need smaller units"
+
+          "Revise architecture":
+            - concept: "architecture"
+              action: "revise"
+              model: "opus"
+              inputs:
+                original_architecture_id: "${architecture.id}"
+                constraint: "Simplify for easier implementation"
+
+          "Implement manually":
+            - action: "notify"
+              message: "Please implement and place files according to architecture spec"
+            - action: "wait_for_files"
+              paths: "${architecture.expected_files}"
+              timeout_ms: 600000  # 10 minutes
+
+          "Cancel":
+            - action: "cancel_workflow"
+              reason: "Implementation failed - user cancelled"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.015
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "escalate"
+        message: "Implementation recovery timed out"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  - id: "impl-fix-failed"
+    description: "Handle implementation fix failures (test-driven fixes)"
+    when:
+      concept: "implementation"
+      action: "fix"
+      status: "failed"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Auto-fix failed for: ${test.failures}. May need manual intervention."
+            header: "Fix Failed"
+            multiSelect: false
+            options:
+              - label: "Retry with hints"
+                description: "Try again with additional context about the failure"
+              - label: "Fix manually"
+                description: "I'll fix the failing tests myself"
+              - label: "Skip failing tests"
+                description: "Mark tests as expected failures (temporary)"
+
+        on_answer:
+          "Retry with hints":
+            - action: "ask_user"
+              questions:
+                - question: "What additional context can help fix ${test.failures[0].name}?"
+                  header: "Fix Hint"
+                  multiSelect: false
+                  options:
+                    - label: "Mock issue"
+                      description: "Test mocks/stubs need adjustment"
+                    - label: "Async timing"
+                      description: "Test has race conditions"
+                    - label: "Data setup"
+                      description: "Test fixtures/data incorrect"
+            - concept: "implementation"
+              action: "fix"
+              model: "sonnet"
+              inputs:
+                failing_tests: "${test.failures}"
+                hint: "${answer}"
+
+          "Fix manually":
+            - action: "notify"
+              message: "Please fix the failing tests in: ${test.failures[0].file}"
+
+          "Skip failing tests":
+            - action: "set_flag"
+              flag: "test.expected_failures"
+              value: "${test.failures}"
+            - action: "log"
+              level: "warn"
+              message: "Tests marked as expected failures: ${test.failures}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "escalate"
+        message: "Implementation fix recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation fix error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Quality Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-review-failed"
+    description: "Handle code review failures"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "failed"
+    then:
+      # Retry once
+      - action: "retry"
+        condition: "${retry_count < 1}"
+        concept: "quality"
+        action: "review"
+        backoff_ms: 1000
+        inputs:
+          implementation_id: "${implementation.id}"
+
+      # Skip review if retry fails (degraded mode)
+      - action: "ask_user"
+        condition: "${retry_count >= 1}"
+        questions:
+          - question: "Code review failed: ${error.message}. Skip or retry?"
+            header: "Review Error"
+            multiSelect: false
+            options:
+              - label: "Retry review"
+                description: "Try the code review again"
+              - label: "Skip review (risk)"
+                description: "Proceed without code review"
+              - label: "Cancel"
+                description: "Stop and investigate"
+
+        on_answer:
+          "Retry review":
+            - concept: "quality"
+              action: "review"
+              model: "sonnet"
+              inputs:
+                implementation_id: "${implementation.id}"
+
+          "Skip review (risk)":
+            - action: "set_flag"
+              flag: "review.skipped"
+              value: true
+            - action: "set_flag"
+              flag: "review.status"
+              value: "skipped"
+            - action: "log"
+              level: "warn"
+              message: "Code review skipped - proceeding without review"
+
+          "Cancel":
+            - action: "cancel_workflow"
+              reason: "Code review failed - user cancelled"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Quality review recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Quality review error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  - id: "quality-test-failed"
+    description: "Handle test execution failures (not test failures)"
+    when:
+      concept: "quality"
+      action: "test"
+      status: "failed"
+    where:
+      # Distinguish execution failure from test failures
+      query: "error.type == 'execution_error' OR error.type == 'timeout'"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+
+      # Retry for transient
+      - action: "retry"
+        condition: "${error.classification == 'transient' AND retry_count < 2}"
+        concept: "quality"
+        action: "test"
+        backoff_ms: 2000
+        inputs:
+          implementation_id: "${implementation.id}"
+
+      # Escalate
+      - action: "ask_user"
+        condition: "${retry_count >= 2}"
+        questions:
+          - question: "Test execution failed: ${error.message}. Tests couldn't run."
+            header: "Test Execution Error"
+            multiSelect: false
+            options:
+              - label: "Retry tests"
+                description: "Try running tests again"
+              - label: "Run tests manually"
+                description: "I'll run tests and provide results"
+              - label: "Skip tests (risk)"
+                description: "Proceed without test verification"
+
+        on_answer:
+          "Retry tests":
+            - concept: "quality"
+              action: "test"
+              model: "sonnet"
+              inputs:
+                implementation_id: "${implementation.id}"
+
+          "Run tests manually":
+            - action: "notify"
+              message: "Run: npm test (or appropriate test command) and report results"
+            - action: "wait_for_input"
+              prompt: "Test results (pass/fail/coverage):"
+
+          "Skip tests (risk)":
+            - action: "set_flag"
+              flag: "test.skipped"
+              value: true
+            - action: "set_flag"
+              flag: "test.status"
+              value: "skipped"
+            - action: "log"
+              level: "warn"
+              message: "Tests skipped - proceeding without test verification"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Test recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Test execution error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Documentation Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "documentation-generation-failed"
+    description: "Handle documentation generation failures"
+    when:
+      concept: "documentation"
+      action: "generate_requirements|generate_architecture|generate_api|generate_tests"
+      status: "failed"
+    then:
+      # Documentation is optional - log and continue
+      - action: "log"
+        level: "warn"
+        message: "Documentation generation failed: ${error.message}. Continuing workflow."
+
+      - action: "set_flag"
+        flag: "documentation.${action}.skipped"
+        value: true
+
+      # Don't block workflow for documentation failures
+      - action: "continue_workflow"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      expected_context_tokens: 300
+      on_timeout:
+        action: "skip"
+        fallback: "Continue without documentation"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Documentation generation error - graceful degradation"
+      error_recovery: true
+      non_blocking: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Version/Git Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "version-commit-failed"
+    description: "Handle git commit failures"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "failed"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+          known_errors:
+            - pattern: "pre-commit hook"
+              classification: "hook_failure"
+            - pattern: "nothing to commit"
+              classification: "no_changes"
+            - pattern: "merge conflict"
+              classification: "conflict"
+
+      # Hook failure - offer to fix or skip
+      - action: "ask_user"
+        condition: "${error.classification == 'hook_failure'}"
+        questions:
+          - question: "Pre-commit hook failed: ${error.message}"
+            header: "Hook Failed"
+            multiSelect: false
+            options:
+              - label: "Fix hook issues"
+                description: "Address the hook failure automatically"
+              - label: "Commit without hooks"
+                description: "Skip pre-commit hooks (--no-verify)"
+              - label: "Cancel commit"
+                description: "Stop and review the issues"
+
+        on_answer:
+          "Fix hook issues":
+            - concept: "implementation"
+              action: "fix_lint"
+              model: "sonnet"
+              inputs:
+                errors: "${error.hook_output}"
+            - concept: "version"
+              action: "commit"
+              model: "sonnet"
+              inputs:
+                implementation_id: "${implementation.id}"
+                retry: true
+
+          "Commit without hooks":
+            - concept: "version"
+              action: "commit"
+              model: "sonnet"
+              inputs:
+                implementation_id: "${implementation.id}"
+                skip_hooks: true
+
+          "Cancel commit":
+            - action: "notify"
+              message: "Commit cancelled. Hook output: ${error.hook_output}"
+
+      # No changes - not an error
+      - action: "notify"
+        condition: "${error.classification == 'no_changes'}"
+        message: "No changes to commit. Workflow complete."
+
+      # Merge conflict - requires manual resolution
+      - action: "ask_user"
+        condition: "${error.classification == 'conflict'}"
+        questions:
+          - question: "Merge conflict detected. Manual resolution required."
+            header: "Conflict"
+            multiSelect: false
+            options:
+              - label: "I'll resolve manually"
+                description: "Open files and resolve conflicts"
+              - label: "Abort and restart"
+                description: "Reset to before the conflict"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Git commit recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Git commit error recovery"
+      error_recovery: true
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Context/Memory Errors
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "context-compression-failed"
+    description: "Handle context compression failures"
+    when:
+      concept: "context"
+      action: "compress"
+      status: "failed"
+    then:
+      # Try more aggressive compression
+      - action: "retry"
+        condition: "${retry_count < 1}"
+        concept: "context"
+        action: "compress"
+        inputs:
+          strategy: "aggressive"
+          target_reduction: "90%"
+
+      # Create checkpoint as fallback
+      - action: "fallback"
+        condition: "${retry_count >= 1}"
+        concept: "context"
+        action: "snapshot"
+        model: "sonnet"
+        inputs:
+          strategy: "emergency_snapshot"
+          reset_to: "minimal"
+
+      - action: "log"
+        level: "error"
+        message: "Context compression failed - emergency snapshot created"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.01
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Critical - context compression recovery timed out"
+      on_cost_exceeded:
+        action: "proceed"
+        message: "Context management is critical"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Context compression error recovery"
+      error_recovery: true
+      critical: true
+      category: "recovery"
+
+  - id: "context-snapshot-failed"
+    description: "Handle context snapshot failures (critical)"
+    when:
+      concept: "context"
+      action: "snapshot"
+      status: "failed"
+    then:
+      # This is critical - escalate immediately
+      - action: "escalate"
+        level: "critical"
+        message: "Context snapshot failed at ${context.usage_percent}% - risk of context overflow"
+
+      - action: "notify"
+        message: |
+          CRITICAL: Context management failed.
+          Current usage: ${context.usage_percent}%
+
+          Recommended actions:
+          1. Save important state manually
+          2. Start new session with /restore
+          3. Review koan/session-state/ for recovery data
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 500
+      on_timeout:
+        action: "escalate"
+        message: "Critical - context snapshot failed"
+      on_cost_exceeded:
+        action: "proceed"
+        message: "Recovery is critical"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Context snapshot critical failure"
+      error_recovery: true
+      critical: true
+      category: "recovery"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Global Error Handlers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+global_handlers:
+  # Catch-all for unhandled errors
+  unhandled_error:
+    description: "Default handler for errors not caught by specific handlers"
+    when:
+      status: "failed"
+    then:
+      - action: "classify_error"
+        inputs:
+          error: "${error}"
+
+      - action: "log"
+        level: "error"
+        message: "Unhandled error in ${concept}.${action}: ${error.message}"
+
+      - action: "ask_user"
+        questions:
+          - question: "An unexpected error occurred: ${error.message}"
+            header: "Error"
+            multiSelect: false
+            options:
+              - label: "Retry"
+                description: "Try the operation again"
+              - label: "Skip"
+                description: "Skip this step and continue"
+              - label: "Cancel"
+                description: "Stop the workflow"
+
+  # Rate limit handler
+  rate_limited:
+    description: "Handle API rate limiting"
+    when:
+      error_type: "rate_limit"
+    then:
+      - action: "wait"
+        duration_ms: "${error.retry_after_ms || 60000}"
+      - action: "retry"
+        max_retries: 3
+        backoff_multiplier: 2
+
+  # Timeout handler
+  timeout:
+    description: "Handle operation timeouts"
+    when:
+      error_type: "timeout"
+    then:
+      - action: "retry"
+        condition: "${retry_count < 2}"
+        timeout_multiplier: 1.5
+
+      - action: "escalate"
+        condition: "${retry_count >= 2}"
+        message: "Operation timed out after ${retry_count} retries"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Error Recovery Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Recovery Patterns:
+#   1. Retry - For transient errors (network, rate limit)
+#   2. Fallback - For degraded mode (skip optional steps)
+#   3. Escalate - For permanent errors (user decision required)
+#   4. Graceful degradation - Continue without failed optional component
+#
+# Error Classifications:
+#   - transient: Retry up to 3 times with backoff
+#   - permanent: Escalate to user immediately
+#   - degraded: Try fallback, then escalate
+#
+# Critical Paths (never skip):
+#   - Security checks
+#   - Test failures (actual failures, not execution errors)
+#   - Context overflow prevention
+#
+# Optional Paths (can skip):
+#   - Code analysis (MCP unavailable)
+#   - Documentation generation
+#   - Multi-pass verification

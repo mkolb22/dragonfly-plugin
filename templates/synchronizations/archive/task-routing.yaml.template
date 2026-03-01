@@ -1,0 +1,489 @@
+# Task Routing - Intelligent Workflow Selection
+# Phase 6A: Route tasks to appropriate workflows based on classification
+#
+# WYSIWID: This file defines HOW tasks are classified and routed.
+# Reading this tells you exactly what workflow a task will trigger.
+
+version: "1.0"
+description: "Automatic task classification and workflow routing"
+
+# ============================================================================
+# GLOBAL MCP ERROR HANDLING
+# ============================================================================
+# Defines how to handle MCP server failures across all workflows.
+# Individual phases can override these defaults.
+
+mcp_error_handling:
+  defaults:
+    timeout_ms: 10000               # 10 second MCP call timeout
+    max_retries: 2
+    retry_backoff_ms: 1000
+
+  handlers:
+    connection_failed:
+      type: "transient"
+      action: "retry"
+      on_exhausted:
+        action: "skip_mcp"
+        log_level: "warn"
+        reason: "MCP servers unavailable - proceeding without code analysis"
+
+    tool_not_found:
+      type: "permanent"
+      action: "skip_mcp"
+      log_level: "info"
+      reason: "Required MCP tool not installed"
+
+    rate_limited:
+      type: "transient"
+      action: "retry"
+      backoff_ms: 5000              # Longer backoff for rate limits
+      max_retries: 3
+
+    response_error:
+      type: "transient"
+      action: "retry"
+      max_retries: 1
+      on_exhausted:
+        action: "skip_mcp"
+        log_level: "warn"
+
+# ============================================================================
+# TASK CLASSIFIERS
+# ============================================================================
+# Patterns are evaluated in order. First match wins.
+# Each classifier routes to a specific workflow optimized for that task type.
+
+classifiers:
+  # Bug fixes - Skip architecture, go straight to implementation
+  - id: bug-fix
+    name: "Bug Fix"
+    patterns:
+      - "fix"
+      - "bug"
+      - "broken"
+      - "error"
+      - "crash"
+      - "issue"
+      - "not working"
+      - "fails"
+      - "exception"
+    workflow: bug-fix-flow
+    rationale: "Bug fixes have known behavior to restore - no architecture needed"
+    expected_savings:
+      time: "40%"
+      cost: "60%"
+
+  # Refactoring - Heavy AST analysis, careful impact assessment
+  - id: refactor
+    name: "Refactoring"
+    patterns:
+      - "refactor"
+      - "cleanup"
+      - "rename"
+      - "reorganize"
+      - "restructure"
+      - "move"
+      - "extract"
+      - "consolidate"
+    workflow: refactor-flow
+    rationale: "Refactoring needs impact analysis but not feature design"
+    mcp_tools_required:
+      - ast-index.get_call_graph
+      - ast-index.find_references
+
+  # Documentation - Lightweight, no code changes
+  - id: documentation
+    name: "Documentation"
+    patterns:
+      - "document"
+      - "docs"
+      - "readme"
+      - "comment"
+      - "explain"
+      - "clarify"
+    workflow: documentation-flow
+    rationale: "Documentation doesn't need architecture or quality phases"
+    expected_savings:
+      time: "70%"
+      cost: "80%"
+
+  # Testing - Focus on quality, skip architecture
+  - id: testing
+    name: "Testing"
+    patterns:
+      - "test"
+      - "spec"
+      - "coverage"
+      - "assert"
+      - "mock"
+    workflow: testing-flow
+    rationale: "Test creation focuses on implementation and quality"
+
+  # Performance - Needs profiling and measurement
+  - id: performance
+    name: "Performance"
+    patterns:
+      - "performance"
+      - "optimize"
+      - "slow"
+      - "speed"
+      - "memory"
+      - "cache"
+      - "faster"
+    workflow: performance-flow
+    rationale: "Performance work needs measurement before and after"
+    mcp_tools_required:
+      - semantic-rag.find_similar  # Find similar optimizations
+
+  # New feature - Full workflow
+  - id: new-feature
+    name: "New Feature"
+    patterns:
+      - "add"
+      - "create"
+      - "implement"
+      - "build"
+      - "new"
+      - "feature"
+      - "support"
+    workflow: full-feature-flow
+    rationale: "New features need complete design-to-deployment cycle"
+
+  # Default - Full workflow for unclassified tasks
+  - id: default
+    name: "Default"
+    patterns: []
+    workflow: full-feature-flow
+    rationale: "When in doubt, use complete workflow"
+
+# ============================================================================
+# WORKFLOW DEFINITIONS
+# ============================================================================
+# Each workflow defines which phases to run and any special configuration.
+
+workflows:
+  # ----------------------------------------------------------------------------
+  # BUG FIX FLOW - Streamlined for quick fixes
+  # ----------------------------------------------------------------------------
+  bug-fix-flow:
+    name: "Bug Fix Workflow"
+    description: "Fast path for fixing known issues"
+    phases:
+      - concept: story
+        action: create
+        model: sonnet
+        config:
+          focus: "bug_description"
+          skip_fields: ["architecture_hints", "non_functional"]
+
+      # Skip architecture - bug fixes restore known behavior
+
+      - concept: implementation
+        action: generate
+        model: sonnet
+        config:
+          approach: "minimal_change"
+          require_test: true
+
+      - concept: quality
+        action: review
+        model: sonnet
+        parallel: true
+
+      - concept: quality
+        action: test
+        model: sonnet
+        parallel: true
+
+      - concept: version
+        action: commit
+        model: sonnet
+        config:
+          prefix: "fix"
+
+    slo_expectations:
+      duration: "< 5 minutes"
+      cost: "< $0.01"
+      context_usage: "< 30%"
+
+  # ----------------------------------------------------------------------------
+  # REFACTOR FLOW - Impact-aware code restructuring
+  # ----------------------------------------------------------------------------
+  refactor-flow:
+    name: "Refactoring Workflow"
+    description: "Safe code restructuring with impact analysis"
+    phases:
+      - concept: story
+        action: create
+        model: sonnet
+        config:
+          focus: "refactoring_scope"
+
+      # Pre-architecture: Analyze impact
+      - concept: code-analysis
+        action: impact
+        model: sonnet
+        mcp_tools:
+          - tool: ast-index.find_symbol
+            input: "$story.target_symbols"
+          - tool: ast-index.get_call_graph
+            input: "$story.entry_points"
+            depth: 3
+          - tool: ast-index.find_references
+            input: "$story.target_symbols"
+
+      - concept: architecture
+        action: design
+        model: sonnet
+        config:
+          focus: "refactoring_strategy"
+          context_includes:
+            - "$code_analysis.call_graph"
+            - "$code_analysis.references"
+
+      - concept: implementation
+        action: generate
+        model: sonnet
+        config:
+          approach: "incremental_refactor"
+          preserve_behavior: true
+
+      - concept: quality
+        action: review
+        model: sonnet
+        parallel: true
+
+      - concept: quality
+        action: test
+        model: sonnet
+        parallel: true
+        config:
+          require_no_regression: true
+
+      - concept: version
+        action: commit
+        model: sonnet
+        config:
+          prefix: "refactor"
+
+    slo_expectations:
+      duration: "< 15 minutes"
+      cost: "< $0.03"
+
+  # ----------------------------------------------------------------------------
+  # DOCUMENTATION FLOW - Lightweight docs updates
+  # ----------------------------------------------------------------------------
+  documentation-flow:
+    name: "Documentation Workflow"
+    description: "Quick documentation updates"
+    phases:
+      - concept: story
+        action: create
+        model: sonnet
+        config:
+          minimal: true
+
+      - concept: implementation
+        action: generate
+        model: sonnet
+        config:
+          type: "documentation"
+
+      - concept: version
+        action: commit
+        model: sonnet
+        config:
+          prefix: "docs"
+
+    slo_expectations:
+      duration: "< 3 minutes"
+      cost: "< $0.005"
+
+  # ----------------------------------------------------------------------------
+  # TESTING FLOW - Test creation and enhancement
+  # ----------------------------------------------------------------------------
+  testing-flow:
+    name: "Testing Workflow"
+    description: "Create or improve tests"
+    phases:
+      - concept: story
+        action: create
+        model: sonnet
+        config:
+          focus: "test_requirements"
+
+      - concept: implementation
+        action: generate
+        model: sonnet
+        config:
+          type: "tests"
+          use_semantic_search: true  # Find similar test patterns
+
+      - concept: quality
+        action: test
+        model: sonnet
+        config:
+          run_new_tests: true
+          check_coverage: true
+
+      - concept: version
+        action: commit
+        model: sonnet
+        config:
+          prefix: "test"
+
+    slo_expectations:
+      duration: "< 8 minutes"
+      cost: "< $0.015"
+
+  # ----------------------------------------------------------------------------
+  # PERFORMANCE FLOW - Optimization with measurement
+  # ----------------------------------------------------------------------------
+  performance-flow:
+    name: "Performance Workflow"
+    description: "Performance optimization with benchmarks"
+    phases:
+      - concept: story
+        action: create
+        model: sonnet
+        config:
+          require_baseline: true
+
+      - concept: code-analysis
+        action: profile
+        model: sonnet
+        mcp_tools:
+          - tool: semantic-rag.find_similar
+            input: "performance optimization $story.area"
+
+      - concept: architecture
+        action: design
+        model: sonnet
+        config:
+          focus: "optimization_strategy"
+          context_includes:
+            - "$code_analysis.similar_optimizations"
+
+      - concept: implementation
+        action: generate
+        model: sonnet
+        config:
+          approach: "performance"
+
+      - concept: quality
+        action: benchmark
+        model: sonnet
+        config:
+          compare_baseline: true
+
+      - concept: quality
+        action: test
+        model: sonnet
+
+      - concept: version
+        action: commit
+        model: sonnet
+        config:
+          prefix: "perf"
+
+    slo_expectations:
+      duration: "< 20 minutes"
+      cost: "< $0.04"
+
+  # ----------------------------------------------------------------------------
+  # FULL FEATURE FLOW - Complete development cycle
+  # ----------------------------------------------------------------------------
+  full-feature-flow:
+    name: "Full Feature Workflow"
+    description: "Complete feature development from story to deployment"
+    phases:
+      - concept: story
+        action: create
+        model: sonnet
+
+      # Pre-architecture: Code intelligence
+      - concept: code-analysis
+        action: context
+        model: sonnet
+        mcp_tools:
+          - tool: ast-index.find_symbol
+            input: "$story.technical_keywords"
+          - tool: semantic-rag.semantic_search
+            input: "$story.description"
+            limit: 5
+
+      - concept: architecture
+        action: design
+        model: sonnet
+        config:
+          context_includes:
+            - "$code_analysis.existing_patterns"
+            - "$code_analysis.similar_implementations"
+
+      - concept: implementation
+        action: generate
+        model: sonnet
+
+      - concept: quality
+        action: review
+        model: sonnet
+        parallel: true
+
+      - concept: quality
+        action: test
+        model: sonnet
+        parallel: true
+
+      - concept: version
+        action: commit
+        model: sonnet
+        config:
+          prefix: "feat"
+
+    slo_expectations:
+      duration: "< 20 minutes"
+      cost: "< $0.05"
+      quality_score: "> 0.8"
+
+# ============================================================================
+# CLASSIFICATION SYNC RULES
+# ============================================================================
+# These rules run at workflow start to classify and route tasks.
+
+sync_rules:
+  - id: classify-task
+    name: "Classify incoming task"
+    when:
+      event: workflow.start
+    then:
+      action: classify
+      steps:
+        - extract_keywords: "$task.description"
+        - match_patterns: "$classifiers"
+        - select_workflow: "$best_match.workflow"
+        - log_classification: "koan/routing/classification-{id}.yaml"
+
+  - id: route-to-workflow
+    name: "Route to selected workflow"
+    when:
+      event: task.classified
+    then:
+      action: execute_workflow
+      inputs:
+        workflow: "$classification.workflow"
+        task: "$task"
+
+  - id: log-routing-decision
+    name: "Log routing for analysis"
+    when:
+      event: task.classified
+    then:
+      action: append_log
+      target: "koan/routing/history.yaml"
+      data:
+        timestamp: "$now"
+        task: "$task.description"
+        classified_as: "$classification.id"
+        workflow: "$classification.workflow"
+        rationale: "$classification.rationale"

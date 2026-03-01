@@ -1,0 +1,530 @@
+# Dead Letter Queue Synchronization Rules
+# Captures and manages failed operations for later retry/analysis
+#
+# WYSIWID Principle: This YAML IS the failure handling logic
+# Read this file to understand exactly how failures are captured and retried
+#
+# Dead Letter Queue (DLQ) Pattern:
+# - Failed operations are captured with full context
+# - Retries follow exponential backoff
+# - Old entries are pruned after max attempts
+# - Patterns are analyzed to prevent recurring failures
+
+version: "1.0.0"
+
+# Global SLO defaults for DLQ operations (mostly local, low-cost)
+slo_defaults:
+  expected_duration_ms: 1000
+  max_duration_ms: 10000
+  expected_cost_usd: 0.0
+  max_cost_usd: 0.001
+  expected_context_tokens: 500
+  success_rate_target: 0.99
+  on_timeout:
+    action: "skip"
+    message: "DLQ operation timed out - will retry later"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+# Configuration
+dlq_config:
+  storage_path: "koan/dlq"
+  max_entries: 500
+  max_retry_attempts: 3
+  backoff_base_ms: 2000        # 2s, 4s, 8s for retries
+  backoff_multiplier: 2
+  entry_ttl_hours: 168         # 7 days before auto-cleanup
+  critical_alert_threshold: 10 # Alert if > 10 failures in 1 hour
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Capture: Concept Action Failures
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "concept-failure-to-dlq"
+    description: "Capture failed concept actions in dead letter queue"
+    when:
+      concept: "*"   # Any concept
+      action: "*"    # Any action
+      status: "failed"
+    where:
+      query: "error.type != 'user_cancelled'"  # Don't queue user cancellations
+    then:
+      - action: "store_to_dlq"
+        inputs:
+          entry_type: "concept_failure"
+          concept: "${concept.name}"
+          action: "${action.name}"
+          flow_id: "${flow.id}"
+          story_id: "${story.id}"
+          error:
+            type: "${error.type}"
+            message: "${error.message}"
+            stack: "${error.stack}"
+            timestamp: "${timestamp}"
+          context:
+            inputs: "${action.inputs}"
+            state_snapshot: "${state.snapshot}"
+          retry_info:
+            attempts: 0
+            next_retry_at: null
+            backoff_ms: 2000
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 200
+      on_timeout:
+        action: "skip"
+        fallback: "Log error and continue - entry may be lost"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Concept action failed - storing in DLQ for retry"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Capture: Sync Rule Failures
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "sync-failure-to-dlq"
+    description: "Capture failed sync rule evaluations in DLQ"
+    when:
+      sync_rule: "*"  # Any sync rule
+      status: "failed"
+    then:
+      - action: "store_to_dlq"
+        inputs:
+          entry_type: "sync_failure"
+          sync_rule_id: "${sync.id}"
+          flow_id: "${flow.id}"
+          trigger:
+            concept: "${trigger.concept}"
+            action: "${trigger.action}"
+          error:
+            type: "${error.type}"
+            message: "${error.message}"
+            timestamp: "${timestamp}"
+          context:
+            inputs: "${sync.inputs}"
+            where_clause: "${sync.where}"
+          retry_info:
+            attempts: 0
+            next_retry_at: null
+            backoff_ms: 2000
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 200
+      on_timeout:
+        action: "skip"
+        fallback: "Log error and continue"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Sync rule failed - storing in DLQ"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Capture: MCP Server Failures
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "mcp-failure-to-dlq"
+    description: "Capture MCP server failures after retries exhausted"
+    when:
+      mcp_server: "*"
+      status: "failed"
+    where:
+      query: "error.retry_count >= config.max_retries"
+    then:
+      - action: "store_to_dlq"
+        inputs:
+          entry_type: "mcp_failure"
+          server: "${mcp.server}"
+          tool: "${mcp.tool}"
+          flow_id: "${flow.id}"
+          error:
+            type: "${error.type}"
+            message: "${error.message}"
+            retry_count: "${error.retry_count}"
+            timestamp: "${timestamp}"
+          context:
+            inputs: "${mcp.inputs}"
+            server_status: "${mcp.server_status}"
+          retry_info:
+            attempts: 0
+            next_retry_at: null
+            backoff_ms: 5000  # Longer backoff for MCP
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 200
+      on_timeout:
+        action: "skip"
+        fallback: "Log error and continue"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "MCP operation failed after max retries - storing in DLQ"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Capture: Timeout Failures
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "timeout-to-dlq"
+    description: "Capture operations that timed out"
+    when:
+      status: "timeout"
+    then:
+      - action: "store_to_dlq"
+        inputs:
+          entry_type: "timeout"
+          operation_type: "${operation.type}"
+          operation_id: "${operation.id}"
+          flow_id: "${flow.id}"
+          timeout_info:
+            configured_timeout_ms: "${timeout.configured}"
+            actual_duration_ms: "${timeout.actual}"
+            timestamp: "${timestamp}"
+          context:
+            operation_inputs: "${operation.inputs}"
+            partial_output: "${operation.partial_output}"
+          retry_info:
+            attempts: 0
+            next_retry_at: null
+            backoff_ms: 3000
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 300
+      on_timeout:
+        action: "skip"
+        fallback: "Log timeout and continue"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Operation timed out - storing in DLQ"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Retry: Automatic Retry with Backoff
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "dlq-auto-retry"
+    description: "Automatically retry failed operations with exponential backoff"
+    when:
+      schedule: "every_5_minutes"
+    where:
+      query: |
+        dlq.entries.any(e =>
+          e.retry_info.attempts < config.max_retry_attempts AND
+          e.retry_info.next_retry_at <= now() AND
+          e.entry_type != 'permanent_failure'
+        )
+    then:
+      - action: "process_dlq_retries"
+        inputs:
+          max_retries_per_run: 5
+          backoff_strategy: "exponential"
+          on_retry_success:
+            - action: "remove_from_dlq"
+            - action: "log_recovery"
+              message: "DLQ entry recovered: ${entry.id}"
+          on_retry_failure:
+            - action: "update_dlq_entry"
+              updates:
+                retry_info.attempts: "${entry.retry_info.attempts + 1}"
+                retry_info.next_retry_at: "${now() + (entry.retry_info.backoff_ms * 2)}"
+                retry_info.backoff_ms: "${entry.retry_info.backoff_ms * 2}"
+                last_error: "${error.message}"
+          on_max_attempts_reached:
+            - action: "mark_permanent_failure"
+            - action: "notify_user"
+              message: "DLQ entry exhausted retries: ${entry.id}"
+
+    slo_expectations:
+      expected_duration_ms: 30000
+      max_duration_ms: 120000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.001
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Abort retry batch - will continue next run"
+
+    provenance:
+      flow_id: "scheduled"
+      reason: "Scheduled DLQ retry processing"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Cleanup: Prune Old Entries
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "dlq-cleanup"
+    description: "Clean up old DLQ entries that exceeded TTL"
+    when:
+      schedule: "daily"
+    where:
+      query: "dlq.entries.any(e => age(e.timestamp) > config.entry_ttl_hours * 3600000)"
+    then:
+      - action: "cleanup_dlq"
+        inputs:
+          ttl_hours: 168  # 7 days
+          archive_before_delete: true
+          archive_path: "koan/dlq/archive"
+          keep_count: 100  # Keep last 100 entries even if old
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 100
+      on_timeout:
+        action: "skip"
+        fallback: "Skip cleanup - will retry tomorrow"
+
+    provenance:
+      flow_id: "scheduled"
+      reason: "Scheduled DLQ cleanup"
+      category: "maintenance"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Analysis: Pattern Detection
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "dlq-pattern-analysis"
+    description: "Analyze DLQ for recurring failure patterns"
+    when:
+      schedule: "daily"
+    where:
+      query: "dlq.entries.count > 5"
+    then:
+      - concept: "retrospective"
+        action: "analyze_failures"
+        model: "sonnet"
+        inputs:
+          entries: "${dlq.entries}"
+          analysis_type: "pattern_detection"
+          group_by: ["error.type", "concept", "action"]
+          threshold: 3  # Flag patterns with 3+ occurrences
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.01
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "skip"
+        fallback: "Skip analysis - will retry tomorrow"
+
+    provenance:
+      flow_id: "scheduled"
+      reason: "Daily DLQ pattern analysis"
+      category: "learning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Alert: Critical Failure Threshold
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "dlq-critical-alert"
+    description: "Alert when failure rate exceeds threshold"
+    when:
+      dlq_entries: "added"
+    where:
+      query: |
+        dlq.entries.filter(e =>
+          age(e.timestamp) < 3600000
+        ).count >= config.critical_alert_threshold
+    then:
+      - action: "notify_user"
+        priority: "high"
+        message: |
+          Critical failure rate detected!
+          ${dlq.recent_count} failures in the last hour.
+
+          Most common errors:
+          ${dlq.error_summary}
+
+          Consider pausing workflow or investigating.
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 500
+      on_timeout:
+        action: "escalate"
+        message: "Critical alert timed out - manual intervention needed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Critical failure threshold exceeded"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Manual: User Retry Request
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "dlq-manual-retry"
+    description: "Allow user to manually retry DLQ entries"
+    when:
+      command: "dlq_retry"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Which DLQ entries should be retried?"
+            header: "Retry"
+            multiSelect: true
+            options:
+              - label: "All pending"
+                description: "Retry all entries that haven't exceeded max attempts"
+              - label: "Recent failures"
+                description: "Retry entries from the last 24 hours"
+              - label: "Specific type"
+                description: "Choose a specific failure type to retry"
+
+        on_answer:
+          "All pending":
+            - action: "retry_dlq_entries"
+              filter: "retry_info.attempts < max_retry_attempts"
+          "Recent failures":
+            - action: "retry_dlq_entries"
+              filter: "age(timestamp) < 86400000"
+          "Specific type":
+            - action: "ask_user"
+              questions:
+                - question: "Which failure type?"
+                  header: "Type"
+                  options:
+                    - label: "Concept failures"
+                    - label: "Sync failures"
+                    - label: "MCP failures"
+                    - label: "Timeouts"
+
+    slo_expectations:
+      expected_duration_ms: 60000
+      max_duration_ms: 300000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.005
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "escalate"
+        message: "Manual retry timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Manual DLQ retry requested"
+      user_interaction: true
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Manual: View DLQ Status
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "dlq-status"
+    description: "Show DLQ status summary"
+    when:
+      command: "dlq_status"
+    then:
+      - action: "generate_report"
+        format: "markdown"
+        template: |
+          # Dead Letter Queue Status
+
+          ## Summary
+          - **Total Entries**: ${dlq.total_count}
+          - **Pending Retry**: ${dlq.pending_count}
+          - **Permanent Failures**: ${dlq.permanent_count}
+          - **Oldest Entry**: ${dlq.oldest_entry.age} ago
+
+          ## By Type
+          | Type | Count | Avg Retries |
+          |------|-------|-------------|
+          | Concept | ${dlq.concept_count} | ${dlq.concept_avg_retries} |
+          | Sync | ${dlq.sync_count} | ${dlq.sync_avg_retries} |
+          | MCP | ${dlq.mcp_count} | ${dlq.mcp_avg_retries} |
+          | Timeout | ${dlq.timeout_count} | ${dlq.timeout_avg_retries} |
+
+          ## Recent Errors
+          ${dlq.recent_errors.map(e => '- ' + e.summary).join('\n')}
+
+          ## Actions
+          - `/dlq retry` - Retry pending entries
+          - `/dlq clear` - Clear permanent failures
+          - `/dlq analyze` - Analyze failure patterns
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 800
+      on_timeout:
+        action: "skip"
+        fallback: "Unable to generate status report"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "DLQ status requested"
+      category: "core"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Dead Letter Queue Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Entry Lifecycle:
+#
+#   Operation Failed ──> Store in DLQ
+#          │                  │
+#          │                  v
+#          │            Wait for Retry
+#          │                  │
+#          │                  v
+#          │            Retry (1..3)
+#          │               │    │
+#          │       Success─┘    └─Failure
+#          │          │              │
+#          │          v              v
+#          │     Remove Entry   Mark Permanent
+#          │                         │
+#          │                         v
+#          └──────────────> Archive & Cleanup
+#
+# Storage Structure:
+#   koan/dlq/
+#   ├── pending/
+#   │   ├── entry-001.yaml
+#   │   └── entry-002.yaml
+#   ├── permanent/
+#   │   └── failed-003.yaml
+#   └── archive/
+#       └── 2025-01/
+#
+# Retry Schedule:
+#   Attempt 1: Immediate + 2s
+#   Attempt 2: After 4s backoff
+#   Attempt 3: After 8s backoff
+#   Permanent: After 3 failed attempts
+#
+# Commands:
+#   /dlq status  - View DLQ summary
+#   /dlq retry   - Manually retry entries
+#   /dlq clear   - Clear permanent failures
+#   /dlq analyze - Analyze failure patterns

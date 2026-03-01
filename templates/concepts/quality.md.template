@@ -1,0 +1,63 @@
+---
+name: quality
+type: concept
+model: sonnet
+state_location: "koan/reviews/"
+execution: task-tool
+cost_tier: medium
+purpose: "Review code and run tests for quality assurance"
+---
+
+# Quality Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/quality-concept.md`.
+
+**Model Assignment**: Sonnet 4.5 (thorough code review and testing)
+**Cost per Action**: ~$0.003
+**State Location**: `koan/reviews/`
+**Never Calls**: No other concepts (pure quality assessment)
+
+## Quick Reference
+
+### Actions
+- `review(impl_id)` - Reviews implementation for quality issues
+- `test(impl_id)` - Runs and validates tests
+- `approve(review_id)` - Final approval for commit
+
+### State File Format
+```yaml
+# koan/reviews/review-{id}.yaml
+review_id: "review-001"
+impl_id: "impl-001"
+status: "approved"  # in_progress, needs_changes, approved, rejected
+summary: "One-line summary"
+
+details:
+  issues: []
+  test_results:
+    passed: 0
+    failed: 0
+    coverage: 0.0
+  recommendations: []
+  metadata:
+    created_at: "ISO-8601"
+    concept: "quality"
+    model: "sonnet"
+```
+
+### Integration
+- **Triggered by**: `impl-to-quality` sync when implementation.status="completed"
+- **Triggers**: Version commit via `quality-to-version` sync when status="approved"
+
+## Full Documentation
+
+See `.claude/agents/quality-concept.md` for:
+- Review checklist
+- Testing requirements
+- Coverage thresholds
+- Issue severity levels
+- Approval criteria
+
+---
+
+**See also**: [Agent Definition](.claude/agents/quality-concept.md)

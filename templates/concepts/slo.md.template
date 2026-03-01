@@ -1,0 +1,274 @@
+---
+name: slo
+type: concept
+model: sonnet
+purpose: "Monitor and enforce Service Level Objectives for workflow performance"
+---
+
+# SLO (Service Level Objectives) Concept
+
+Declarative performance expectations for LLM workflows with automatic monitoring, alerting, and enforcement.
+
+## Purpose
+
+SLOs make performance expectations explicit and enforceable:
+- **Duration**: How long actions should take
+- **Cost**: Budget limits per action
+- **Quality**: Success rates and rework limits
+- **Context**: Token usage expectations (Phase 2 compliance)
+
+This completes the WYSIWID principle: "See exactly what it does, how well it performs, and when it deviates."
+
+## Model Assignment
+
+**Model**: Sonnet (fast numeric analysis)
+**Cost per Action**: ~$0.0001
+**Justification**: SLO monitoring is template-based analysis of numeric data (compare actual vs threshold). No complex reasoning required. Sonnet provides <500ms response time, ensuring minimal overhead.
+
+## Actions
+
+### monitor
+
+Validate a single action against SLO expectations after it completes.
+
+**Inputs**:
+- `action_id`: The action to monitor
+- `concept`: Concept name (e.g., "architecture")
+- `sync_id`: Synchronization rule ID
+- `slo_config`: SLO expectations from sync rule
+
+**Process**:
+1. Read provenance entry: `koan/provenance/actions/{action_id}.yaml`
+2. Extract actual values: duration_ms, cost_usd, context_tokens
+3. Compare against slo_config thresholds
+4. Determine violations (timeout, cost_exceeded, context_exceeded)
+5. Execute handlers in priority order if violations found
+6. Update monthly metrics: `koan/slo/metrics/{concept}/metrics-{YYYY-MM}.yaml`
+7. Record violations: `koan/slo/violations/viol-{id}.yaml`
+
+**Output**:
+- Compliance status (pass/fail)
+- Violations list (if any)
+- Updated metrics file
+
+**Triggers**: Automatically triggered by post-action-slo-monitor sync rule
+
+### report
+
+Generate SLO performance dashboard for a time period.
+
+**Inputs**:
+- `timeframe`: Period to analyze ("1d", "7d", "30d", "all")
+- `concept_filter`: Optional concept name filter
+
+**Process**:
+1. Load monthly metrics for timeframe
+2. Aggregate across concepts
+3. Calculate percentiles (p50, p95, p99)
+4. Compute compliance rates
+5. Load violations for period
+6. Generate recommendations based on trends
+
+**Output**: `koan/slo/reports/report-{timestamp}.yaml` with:
+- Executive summary (overall compliance, violations count)
+- Per-concept breakdown (duration, cost, context stats)
+- Violations list
+- Recommendations
+
+**Triggers**: `/slo report` command
+
+### alert
+
+Send notification for SLO violation and execute handler action.
+
+**Inputs**:
+- `violation`: Violation record
+- `handler_config`: Handler configuration from slo_expectations
+
+**Process**:
+1. Format violation notification
+2. Execute handler action:
+   - `retry`: Retry action with backoff
+   - `escalate`: Create human task
+   - `alert`: Log and notify
+   - `block`: Stop workflow
+   - `investigate`: Create investigation task
+3. Track handler execution in provenance
+4. Update violation record with resolution status
+
+**Output**:
+- Notification sent status
+- Handler execution result
+- Updated violation record
+
+**Triggers**: Called by monitor action when violations detected
+
+### validate
+
+Validate all SLO configurations in sync rules.
+
+**Inputs**:
+- `sync_files`: List of sync rule files to validate
+
+**Process**:
+1. Parse each sync rule file
+2. Extract slo_expectations blocks
+3. Validate against slo.schema.json
+4. Check realistic values:
+   - Duration not < 100ms for Sonnet
+   - Cost not < $0.0001
+   - Context not > 200000 tokens
+5. Warn on missing SLOs for important rules
+6. Generate validation report
+
+**Output**: Validation results with warnings/errors
+
+**Triggers**: `/slo validate` command or when sync rules change
+
+## SLO Configuration Schema
+
+SLOs are defined in synchronization rules:
+
+```yaml
+- id: "story-to-arch"
+  when:
+    concept: "story"
+    status: "completed"
+  then:
+    - concept: "architecture"
+      action: "design"
+      model: "sonnet"
+
+  slo:
+    duration:
+      expected_seconds: 12
+      max_seconds: 30
+      p95_target_seconds: 15
+
+    cost:
+      expected_usd: 0.003
+      max_usd: 0.006
+      budget_period: "daily"
+      budget_limit_usd: 1.00
+
+    quality:
+      success_rate_target: 0.95
+      max_rework_cycles: 1
+      schema_compliance_target: 1.0
+
+    context:
+      expected_tokens: 1100
+      max_tokens: 2000
+      alert_threshold_tokens: 1500
+
+  on_violation:
+    duration_exceeded:
+      action: "retry"
+      max_retries: 1
+      then: "escalate"
+
+    cost_exceeded:
+      action: "alert"
+      continue: true
+
+    context_exceeded:
+      action: "alert"
+      investigate: true
+
+    quality_failed:
+      action: "escalate"
+      notify: "user"
+```
+
+## Metrics Storage
+
+Metrics are stored in `koan/slo/`:
+
+```
+koan/slo/
+  metrics.yaml           # Aggregated metrics
+  violations.yaml        # Violation log
+  thresholds.yaml        # Current SLO definitions
+  reports/
+    report-{date}.yaml   # Daily/weekly reports
+```
+
+### metrics.yaml Format
+
+```yaml
+metrics:
+  architecture:
+    design:
+      count: 42
+      duration:
+        p50_seconds: 11
+        p95_seconds: 14
+        p99_seconds: 18
+        max_seconds: 25
+      cost:
+        avg_usd: 0.0031
+        p95_usd: 0.0038
+        total_usd: 0.1302
+      context:
+        avg_tokens: 1150
+        p95_tokens: 1400
+        max_tokens: 1850
+      quality:
+        success_rate: 0.952
+        avg_rework_cycles: 0.05
+        schema_compliance: 1.0
+      slo_compliance:
+        duration: 0.98
+        cost: 0.95
+        context: 1.0
+        quality: 0.95
+        overall: 0.94
+```
+
+### violations.yaml Format
+
+```yaml
+violations:
+  - id: "viol-001"
+    timestamp: "2025-12-06T10:30:00Z"
+    concept: "architecture"
+    action: "design"
+    action_id: "act-042"
+    type: "duration_exceeded"
+    threshold: 30
+    actual: 35
+    unit: "seconds"
+    resolution: "escalated_to_human"
+    resolved: true
+```
+
+## Integration with Workflow
+
+SLO monitoring integrates automatically:
+
+1. **Pre-action**: Load SLO config from sync rule
+2. **During action**: Track timing and tokens
+3. **Post-action**: Validate against SLOs
+4. **On violation**: Execute configured action
+5. **Periodic**: Generate compliance reports
+
+## Dashboard Command
+
+Use `/slo` to view status:
+
+```bash
+/slo                    # Summary dashboard
+/slo --report           # Full compliance report
+/slo --violations       # Recent violations
+/slo --concept arch     # Filter by concept
+/slo --timeframe 7d     # Specific period
+```
+
+## Benefits
+
+1. **Declare expectations** - Make performance goals explicit
+2. **Detect anomalies** - Automatic threshold checking
+3. **Alert on violations** - Immediate notification
+4. **Track trends** - Identify degradation over time
+5. **Verify optimizations** - Confirm Phase 2 working
+6. **WYSIWID compliance** - Performance is visible

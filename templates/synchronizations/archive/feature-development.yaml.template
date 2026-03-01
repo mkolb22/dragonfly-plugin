@@ -1,0 +1,2145 @@
+# Feature Development Workflow Synchronizations
+# This file defines the complete workflow from story to deployment
+#
+# WYSIWID Principle: This YAML IS the workflow logic
+# Read this file to understand exactly what happens and when
+
+version: "1.0.0"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SLO Templates (YAML Anchors for reuse)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Use *SLO_NAME to reference these templates in rules
+
+slo_templates:
+  # Architecture design with Opus (deep reasoning)
+  architecture: &SLO_ARCHITECTURE
+    expected_duration_ms: 15000
+    max_duration_ms: 90000
+    expected_cost_usd: 0.015
+    max_cost_usd: 0.050
+    expected_context_tokens: 1500
+    success_rate_target: 0.95
+    on_timeout:
+      action: "retry"
+      max_retries: 1
+      backoff_ms: 2000
+      on_exhausted: "escalate"
+    on_cost_exceeded:
+      action: "alert"
+      continue: true
+
+  # Verification passes (Sonnet reasoning)
+  verification: &SLO_VERIFICATION
+    expected_duration_ms: 12000
+    max_duration_ms: 60000
+    expected_cost_usd: 0.003
+    max_cost_usd: 0.015
+    expected_context_tokens: 2500
+    success_rate_target: 0.95
+    on_timeout:
+      action: "skip"
+      fallback: "Proceed without verification"
+
+  # Implementation generation (Sonnet)
+  implementation: &SLO_IMPLEMENTATION
+    expected_duration_ms: 3000
+    max_duration_ms: 30000
+    expected_cost_usd: 0.000175
+    max_cost_usd: 0.001
+    expected_context_tokens: 1000
+    success_rate_target: 0.90
+    on_timeout:
+      action: "retry"
+      max_retries: 1
+      backoff_ms: 1000
+      on_exhausted: "escalate"
+
+  # Quality review/test (Sonnet)
+  quality: &SLO_QUALITY
+    expected_duration_ms: 2500
+    max_duration_ms: 20000
+    expected_cost_usd: 0.000175
+    max_cost_usd: 0.001
+    expected_context_tokens: 800
+    success_rate_target: 0.95
+    on_timeout:
+      action: "retry"
+      max_retries: 1
+      backoff_ms: 1000
+      on_exhausted: "escalate"
+
+  # Quick operations (commit, context inject, etc.)
+  quick: &SLO_QUICK
+    expected_duration_ms: 1000
+    max_duration_ms: 10000
+    expected_cost_usd: 0.000175
+    max_cost_usd: 0.0005
+    expected_context_tokens: 300
+    success_rate_target: 0.99
+    on_timeout:
+      action: "retry"
+      max_retries: 2
+      backoff_ms: 500
+      on_exhausted: "escalate"
+
+  # Context operations (compression, snapshot)
+  context: &SLO_CONTEXT
+    expected_duration_ms: 1500
+    max_duration_ms: 10000
+    expected_cost_usd: 0.000175
+    max_cost_usd: 0.0005
+    expected_context_tokens: 500
+    success_rate_target: 0.99
+    on_timeout:
+      action: "escalate"
+
+  # MCP-based code analysis
+  mcp_analysis: &SLO_MCP_ANALYSIS
+    expected_duration_ms: 2000
+    max_duration_ms: 10000
+    expected_cost_usd: 0.0002
+    max_cost_usd: 0.001
+    expected_context_tokens: 500
+    success_rate_target: 0.90
+    on_timeout:
+      action: "skip"
+      fallback: "Proceed without code analysis"
+
+  # Zero-cost operations (inject context, set flag)
+  zero_cost: &SLO_ZERO_COST
+    expected_duration_ms: 100
+    max_duration_ms: 500
+    expected_cost_usd: 0.0
+    max_cost_usd: 0.0
+    expected_context_tokens: 200
+    on_timeout:
+      action: "skip"
+      fallback: "Proceed without context"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # MCP Server SLO Templates
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Test Generator MCP operations
+  test_generation: &SLO_TEST_GENERATION
+    expected_duration_ms: 5000
+    max_duration_ms: 30000
+    expected_cost_usd: 0.0005
+    max_cost_usd: 0.002
+    expected_context_tokens: 800
+    success_rate_target: 0.90
+    on_timeout:
+      action: "skip"
+      fallback: "Proceed without auto-generated tests"
+      set_flag: "test_generation.skipped = true"
+    on_mcp_unavailable:
+      action: "skip"
+      fallback: "MCP server unavailable - manual test creation needed"
+
+  # Execution Loop MCP operations (self-repair)
+  execution_loop: &SLO_EXECUTION_LOOP
+    expected_duration_ms: 15000
+    max_duration_ms: 120000      # 2 minutes for iterative repair
+    expected_cost_usd: 0.001
+    max_cost_usd: 0.005
+    expected_context_tokens: 1500
+    success_rate_target: 0.85
+    on_timeout:
+      action: "escalate"
+      message: "Self-repair loop exceeded timeout - manual intervention needed"
+    on_mcp_unavailable:
+      action: "fallback"
+      fallback_rule: "quality-tests-failed"  # Use legacy manual fix path
+
+  # Coverage Analysis MCP operations
+  coverage_analysis: &SLO_COVERAGE_ANALYSIS
+    expected_duration_ms: 3000
+    max_duration_ms: 20000
+    expected_cost_usd: 0.0002
+    max_cost_usd: 0.001
+    expected_context_tokens: 500
+    success_rate_target: 0.95
+    on_timeout:
+      action: "skip"
+      fallback: "Proceed without coverage analysis"
+
+# Global SLO defaults (fallback when no template specified)
+slo_defaults:
+  expected_duration_ms: 5000
+  max_duration_ms: 60000
+  expected_cost_usd: 0.002
+  max_cost_usd: 0.02
+  expected_context_tokens: 1500
+  success_rate_target: 0.95
+  on_timeout:
+    action: "retry"
+    max_retries: 1
+    backoff_ms: 2000
+    on_exhausted: "escalate"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Global Defaults - Applied to all rules unless overridden
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+defaults:
+  timeout_seconds: 120          # 2 minutes default timeout
+  max_retries: 2                # Retry twice before failing
+  retry_backoff_ms: 2000        # 2 second backoff between retries
+  on_timeout: "escalate"        # escalate | skip | retry | fail
+  on_error: "retry"             # retry | skip | fail | escalate
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 0: Story Clarification (Optional - Human-in-the-Loop)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "story-ambiguous-clarify"
+    description: "Ask user for clarification when story is ambiguous"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "story.clarity == 'ambiguous' OR story.confidence < 0.7"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Story '${story.description}' is ambiguous. What's the primary goal?"
+            header: "Clarification"
+            multiSelect: false
+            options:
+              - label: "New feature"
+                description: "Add new functionality to the system"
+              - label: "Bug fix"
+                description: "Fix existing broken behavior"
+              - label: "Performance optimization"
+                description: "Improve speed, memory, or efficiency"
+              - label: "Refactoring"
+                description: "Improve code structure without changing behavior"
+              - label: "Technical debt"
+                description: "Address architectural or code quality issues"
+
+          - question: "What's the urgency/priority?"
+            header: "Priority"
+            multiSelect: false
+            options:
+              - label: "Critical (today)"
+                description: "Blocking work or production issue"
+              - label: "High (this week)"
+                description: "Important but not blocking"
+              - label: "Medium (this sprint)"
+                description: "Should be done but flexible timing"
+              - label: "Low (backlog)"
+                description: "Nice to have, no rush"
+
+        on_answer:
+          # Update story with clarifications
+          - concept: "story"
+            action: "update"
+            model: "sonnet"
+            inputs:
+              story_id: "${story.id}"
+              goal_type: "${answer.primary_goal}"
+              priority: "${answer.urgency}"
+              clarity: "clarified"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Ambiguous story requires user clarification"
+      decision_point: true
+      user_interaction: "ask_user_question"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1A: Story → Code Analysis + Security (PARALLEL)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # PARALLEL EXECUTION: Both run simultaneously after story
+  # - Code Analysis: Gather codebase context via MCP
+  # - Security Threat Modeling: STRIDE analysis
+  #
+  # Benefits: ~30% faster than sequential, no cost increase
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "story-to-code-analysis"
+    description: "When story is ready, gather codebase context before architecture"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "story.status == 'ready' AND story.acceptance_criteria.length > 0"
+    then:
+      - concept: "code-analysis"
+        action: "context"
+        model: "sonnet"
+        mcp_tools:
+          # Find existing patterns related to this feature
+          - tool: "ast-index.find_symbol"
+            input: "${story.technical_keywords}"
+            output_to: "existing_patterns"
+
+          # Find semantically similar implementations
+          - tool: "semantic-rag.semantic_search"
+            input: "${story.description}"
+            limit: 5
+            output_to: "similar_implementations"
+
+          # Get file symbols for key files
+          - tool: "ast-index.get_file_symbols"
+            input: "${similar_implementations[0].file}"
+            output_to: "reference_structure"
+
+        inputs:
+          story_id: "${story.id}"
+          description: "${story.description}"
+          keywords: "${story.technical_keywords}"
+
+        outputs:
+          target: "koan/context/analysis-${story.id}.yaml"
+
+    # MCP-specific error handling for code analysis
+    error_handling:
+      mcp_connection_failed:
+        type: "transient"
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 1000
+        on_exhausted:
+          action: "skip"
+          set_flag: "code_analysis.skipped = true"
+          reason: "MCP servers unavailable - proceeding without code analysis"
+
+      mcp_tool_not_found:
+        type: "permanent"
+        action: "skip"
+        set_flag: "code_analysis.skipped = true"
+        fallback: "story-to-arch"     # Use legacy path without MCP
+        reason: "Required MCP tool not installed"
+
+      mcp_rate_limited:
+        type: "transient"
+        action: "retry"
+        backoff_ms: 5000              # Longer backoff for rate limits
+        max_retries: 3
+        on_exhausted:
+          action: "skip"
+          set_flag: "code_analysis.skipped = true"
+
+      mcp_response_error:
+        type: "transient"
+        action: "retry"
+        max_retries: 1
+        on_exhausted:
+          action: "skip"
+          set_flag: "code_analysis.skipped = true"
+
+    slo_expectations:
+      expected_duration_ms: 2000       # 2 seconds (fast MCP calls)
+      max_duration_ms: 10000           # 10 seconds timeout
+      expected_cost_usd: 0.0002        # Sonnet + MCP overhead
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 500     # Minimal context
+      max_context_tokens: 2000         # Warning threshold
+      success_rate_target: 0.90        # 90% analysis succeeds
+
+      on_timeout:
+        action: "skip"                 # Don't block - architecture can proceed without
+        fallback: "architecture.design without context"
+        set_flag: "code_analysis.skipped = true"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Gathering codebase context to inform architecture decisions"
+      category: "intelligence"
+
+  # Parallel: Security threat modeling (runs alongside code-analysis)
+  - id: "story-to-security-threat"
+    description: "PARALLEL with code-analysis: Perform security threat modeling"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "story.status == 'ready' AND story.acceptance_criteria.length > 0"
+    then:
+      - concept: "security"
+        action: "threat_model"
+        model: "sonnet"
+        parallel: true  # ← ENABLES PARALLEL EXECUTION with code-analysis
+        inputs:
+          story_id: "${story.id}"
+          description: "${story.description}"
+          acceptance_criteria: "${story.acceptance_criteria}"
+          analysis_type: "STRIDE"
+
+    slo_expectations:
+      expected_duration_ms: 3000      # 3 seconds
+      max_duration_ms: 15000          # 15 second timeout
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.95
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Security threat modeling (parallel with code analysis)"
+      parallel_with: "story-to-code-analysis"
+      category: "intelligence"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1B: Global Learnings → Architecture Context
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: Inject relevant global learnings into architecture inputs
+  # This ensures cross-project patterns inform design decisions
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "global-learnings-to-arch-context"
+    description: "Automatically inject global learnings into architecture design"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "starting"
+    where:
+      query: "context.global_learnings != null AND context.global_learnings.length > 0"
+    then:
+      - action: "inject_context"
+        target: "architecture.design"
+        context_type: "global_patterns"
+        content:
+          patterns: "${context.global_learnings.filter(l => l.category == 'patterns')}"
+          failure_lessons: "${context.global_learnings.filter(l => l.category == 'learnings')}"
+          relevance_scores: "${context.global_learnings.map(l => l.relevance_score)}"
+
+    slo_expectations:
+      expected_duration_ms: 100
+      max_duration_ms: 500
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 200
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without global learnings"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Injecting relevant global learnings to inform architecture decisions"
+      category: "intelligence"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # MEMORY INTEGRATION: Auto-Remember Architecture Decisions
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: Store architecture decisions in semantic memory
+  # These decisions become available for future feature workflows
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-decisions-to-memory"
+    description: "Auto-remember architecture decisions after design completes"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.decisions != null AND architecture.decisions.length > 0"
+    then:
+      - action: "store_memory"
+        target: "koan/memory/semantic/architecture.yaml"
+        content:
+          id: "mem-arch-${architecture.id}-${timestamp}"
+          type: "auto_captured"
+          category: "architecture"
+          content: "${architecture.approach}: ${architecture.decisions.map(d => d.description).join('; ')}"
+          confidence: 0.7
+          source: "Auto-captured from architecture ${architecture.id}"
+          tags: "${architecture.technologies || []}"
+          story_id: "${story.id}"
+          created_at: "${timestamp}"
+          related_files: "${architecture.affected_files || []}"
+
+    slo_expectations:
+      expected_duration_ms: 50
+      max_duration_ms: 200
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      on_timeout:
+        action: "skip"
+        fallback: "Memory storage skipped - decisions not persisted"
+      on_failure:
+        action: "log"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Auto-remembering architecture decisions for future workflows"
+      category: "memory"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1C: Code Analysis + Security → Architecture
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # WAIT for BOTH parallel steps before architecture
+
+  - id: "code-analysis-to-arch"
+    description: "When code analysis complete, design architecture with context"
+    when:
+      concept: "code-analysis"
+      action: "context"
+      status: "completed"
+    then:
+      - concept: "architecture"
+        action: "design"
+        model: "opus"  # Deepest reasoning for complex trade-offs
+        inputs:
+          story_id: "${story.id}"
+          requirements: "${story.description}"
+          acceptance_criteria: "${story.acceptance_criteria}"
+          # Code analysis context
+          existing_patterns: "${code_analysis.existing_patterns}"
+          similar_implementations: "${code_analysis.similar_implementations}"
+          reference_structure: "${code_analysis.reference_structure}"
+          # Security context from parallel threat modeling
+          security_threats: "${security.threat_model.threats}"
+          security_requirements: "${security.threat_model.requirements}"
+
+    slo_expectations:
+      expected_duration_ms: 15000      # 15 seconds typical with Opus
+      max_duration_ms: 90000           # 90 seconds timeout for deep reasoning
+      expected_cost_usd: 0.015         # Opus with Phase 2 optimizations
+      max_cost_usd: 0.050              # Alert if exceeds
+      expected_context_tokens: 1500    # Slightly higher with code context
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of architecture designs succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true                 # Don't block workflow
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true              # Create investigation task
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Code analysis complete, designing architecture with codebase context"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1 (Legacy): Story → Architecture (Fallback)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Used when code-analysis is skipped or fails
+
+  - id: "story-to-arch"
+    description: "Fallback: design architecture without code analysis"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      # Only triggers if code-analysis was skipped (no MCP servers available)
+      query: "story.status == 'ready' AND story.acceptance_criteria.length > 0 AND code_analysis.skipped == true"
+    then:
+      - concept: "architecture"
+        action: "design"
+        model: "opus"  # Deepest reasoning for complex trade-offs
+        inputs:
+          story_id: "${story.id}"
+          requirements: "${story.description}"
+          acceptance_criteria: "${story.acceptance_criteria}"
+
+    # SLO Expectations for architecture.design
+    slo_expectations:
+      expected_duration_ms: 15000      # 15 seconds typical with Opus
+      max_duration_ms: 90000           # 90 seconds timeout for deep reasoning
+      expected_cost_usd: 0.015         # Opus with Phase 2 optimizations
+      max_cost_usd: 0.050              # Alert if exceeds
+      expected_context_tokens: 1100    # With incremental loading
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of architecture designs succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true                 # Don't block workflow
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true              # Create investigation task
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Story validated and ready for technical design"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2A: Architecture → Verification (Always Run)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Multi-pass verification runs on EVERY feature for quality assurance.
+  # Research shows 39.7% accuracy improvement with this approach.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-to-verify"
+    description: "Run multi-pass verification on architecture before implementation"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.decisions.length > 0"
+    then:
+      - concept: "verification"
+        action: "verify_architecture"
+        model: "sonnet"
+        inputs:
+          story: "${story}"
+          architecture: "${architecture}"
+          verification_pass: 1
+          total_passes: 2
+
+    slo_expectations:
+      expected_duration_ms: 12000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.015
+      expected_context_tokens: 2500
+      success_rate_target: 0.95
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed to implementation without verification"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Multi-pass verification of architecture design"
+      category: "validation"
+
+  # Second verification pass
+  - id: "arch-verify-pass-2"
+    description: "Second verification pass with previous findings"
+    when:
+      concept: "verification"
+      action: "verify_architecture"
+      status: "completed"
+    where:
+      query: "verification.pass == 1 AND verification.target.concept == 'architecture'"
+    then:
+      - concept: "verification"
+        action: "verify_architecture"
+        model: "sonnet"
+        inputs:
+          story: "${story}"
+          architecture: "${architecture}"
+          verification_pass: 2
+          total_passes: 2
+          previous_reviews:
+            - reviewer: "${verification.reviewer}"
+              summary: "${verification.summary}"
+
+    slo_expectations:
+      expected_duration_ms: 12000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.015
+      expected_context_tokens: 2800
+      success_rate_target: 0.95
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Second verification pass with prior findings"
+      category: "validation"
+
+  # Verification consensus
+  - id: "arch-verify-consensus"
+    description: "Aggregate verification passes and decide"
+    when:
+      concept: "verification"
+      action: "verify_architecture"
+      status: "completed"
+    where:
+      query: "verification.pass == 2 AND verification.target.concept == 'architecture'"
+    then:
+      - concept: "verification"
+        action: "consensus"
+        model: "sonnet"
+        inputs:
+          verifications: "${all_verification_passes}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.000175
+      max_cost_usd: 0.001
+      expected_context_tokens: 1200
+      success_rate_target: 0.99
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Aggregate verification findings"
+      category: "validation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2B: Verification → Implementation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "verify-approved-to-impl"
+    description: "When verification approves, proceed to implementation"
+    when:
+      concept: "verification"
+      action: "consensus"
+      status: "completed"
+    where:
+      query: "verification.recommendation == 'approve' OR verification.recommendation == 'approve_with_notes'"
+    then:
+      - concept: "implementation"
+        action: "generate"
+        model: "sonnet"
+        inputs:
+          architecture_id: "${architecture.id}"
+          story_id: "${story.id}"
+          technical_spec: "${architecture.technical_spec}"
+          patterns: "${architecture.patterns}"
+          verification_notes: "${verification.aggregated_issues}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.000175
+      max_cost_usd: 0.001
+      expected_context_tokens: 1000
+      success_rate_target: 0.90
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verification approved, proceeding to implementation"
+      category: "core"
+
+  - id: "verify-blocked-to-revise"
+    description: "When verification blocks, revise architecture"
+    when:
+      concept: "verification"
+      action: "consensus"
+      status: "completed"
+    where:
+      query: "verification.recommendation == 'block' OR verification.recommendation == 'revise'"
+    then:
+      - concept: "architecture"
+        action: "revise"
+        model: "opus"  # Deep reasoning for revision
+        inputs:
+          original_architecture: "${architecture}"
+          verification_issues: "${verification.aggregated_issues}"
+          recommendation: "${verification.rationale}"
+
+    slo_expectations:
+      expected_duration_ms: 20000
+      max_duration_ms: 90000
+      expected_cost_usd: 0.015
+      max_cost_usd: 0.050
+      expected_context_tokens: 3500
+      success_rate_target: 0.90
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verification blocked - revising architecture"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2 (Legacy): Architecture → Implementation (Fallback)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Only used when verification is skipped or times out
+
+  - id: "arch-to-impl"
+    description: "Fallback: implement without verification (when verification skipped)"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      # Only triggers if verification was skipped
+      query: "architecture.decisions.length > 0 AND verification.skipped == true"
+    then:
+      - concept: "implementation"
+        action: "generate"
+        model: "sonnet"
+        inputs:
+          architecture_id: "${architecture.id}"
+          story_id: "${story.id}"
+          technical_spec: "${architecture.technical_spec}"
+          patterns: "${architecture.patterns}"
+
+    # SLO Expectations for implementation.generate
+    slo_expectations:
+      expected_duration_ms: 3000       # 3 seconds typical
+      max_duration_ms: 30000           # 30 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet with pattern-based generation
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 1000    # Moderate context usage
+      max_context_tokens: 5000         # Warning threshold
+      success_rate_target: 0.90        # 90% implementation success
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture approved, risk acceptable, specs clear"
+      category: "core"
+
+  - id: "arch-high-risk-approval"
+    description: "When architecture has high risk, ask user how to proceed"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.estimated_risk == 'high'"
+    then:
+      # NEW: Ask user for decision (human-in-the-loop)
+      - action: "ask_user"
+        questions:
+          - question: "Architecture has HIGH RISK. Review koan/architecture/${architecture.id}.yaml - How should we proceed?"
+            header: "Risk Decision"
+            multiSelect: false
+            options:
+              - label: "Approve and implement"
+                description: "I reviewed the architecture. Risk is acceptable - proceed with implementation."
+              - label: "Revise for lower risk"
+                description: "Find an alternative approach with medium or low risk."
+              - label: "Cancel this feature"
+                description: "Don't implement. Risk is too high for this project."
+
+        # Handle user's decision
+        on_answer:
+          "Approve and implement":
+            - concept: "implementation"
+              action: "generate"
+              model: "sonnet"
+              inputs:
+                architecture_id: "${architecture.id}"
+                story_id: "${story.id}"
+                user_approval: "approved_high_risk"
+
+          "Revise for lower risk":
+            - concept: "architecture"
+              action: "revise"
+              model: "sonnet"
+              inputs:
+                original_architecture_id: "${architecture.id}"
+                story_id: "${story.id}"
+                constraint: "Design alternative approach with medium or low risk. Avoid: ${architecture.risks}"
+
+          "Cancel this feature":
+            - concept: "story"
+              action: "cancel"
+              model: "sonnet"
+              inputs:
+                story_id: "${story.id}"
+                reason: "User cancelled due to high-risk architecture"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "High risk requires human approval before proceeding"
+      decision_point: true
+      user_interaction: "ask_user_question"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2.7: Implementation → Auto Test Generation (MCP)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: Use test-generator MCP to create tests for new code
+  # - Generates unit tests for all new/modified functions
+  # - Suggests integration tests for API changes
+  # - Runs BEFORE manual quality checks
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-to-test-generation"
+    description: "Auto-generate tests for new implementation using test-generator MCP"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.status == 'completed' AND implementation.files_changed.length > 0"
+    then:
+      - concept: "quality"
+        action: "generate_tests"
+        model: "sonnet"
+        parallel: true  # Runs alongside code review
+        mcp_tools:
+          # Generate unit tests for each changed file
+          - tool: "test-generator.generate_unit_tests"
+            input:
+              sourceFiles: "${implementation.files_changed}"
+              language: "${implementation.language || 'typescript'}"
+              framework: "${project.test_framework || 'vitest'}"
+              coverageTarget: 80
+            output_to: "generated_tests"
+
+          # Suggest additional tests based on code analysis
+          - tool: "test-generator.suggest_tests"
+            input:
+              files: "${implementation.files_changed}"
+              language: "${implementation.language || 'typescript'}"
+            output_to: "test_suggestions"
+
+          # Find any files that now lack tests
+          - tool: "test-generator.find_untested_files"
+            input:
+              sourceGlob: "src/**/*.{ts,tsx,js,jsx}"
+              testGlob: "**/*.{test,spec}.{ts,tsx,js,jsx}"
+            output_to: "untested_files"
+
+        inputs:
+          implementation_id: "${implementation.id}"
+          story_id: "${story.id}"
+          files_changed: "${implementation.files_changed}"
+
+        outputs:
+          target: "koan/tests/test-gen-${implementation.id}.yaml"
+
+    # MCP-specific error handling
+    error_handling:
+      mcp_connection_failed:
+        type: "transient"
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 1000
+        on_exhausted:
+          action: "skip"
+          set_flag: "test_generation.skipped = true"
+          reason: "Test generator MCP unavailable - manual test creation needed"
+
+      mcp_tool_not_found:
+        type: "permanent"
+        action: "skip"
+        set_flag: "test_generation.skipped = true"
+        reason: "test-generator MCP server not installed"
+
+    slo_expectations:
+      <<: *SLO_TEST_GENERATION
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Auto-generating tests for new implementation"
+      category: "automation"
+      mcp_server: "test-generator"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 3: Implementation → Quality (PARALLEL)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # KEY OPTIMIZATION: Both quality checks run simultaneously
+  # - 50% faster execution (2min vs 4min)
+  # - Same cost (both actions run anyway)
+  # - Safe parallelization (independent checks)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2.5: Exploration → Quality Context
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: When exploration was performed, inject rationale into quality review
+  # This helps reviewers understand why certain approaches were selected
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "exploration-to-quality-context"
+    description: "Inject exploration rationale into quality review for informed review"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "starting"
+    where:
+      query: "exploration.selected_path != null"
+    then:
+      - action: "inject_context"
+        target: "quality.review"
+        context_type: "exploration_rationale"
+        content:
+          selected_approach: "${exploration.selected_path.name}"
+          selection_criteria: "${exploration.selected_path.criteria}"
+          rejected_alternatives: "${exploration.rejected_paths_summary}"
+          confidence_level: "${exploration.confidence}"
+          trade_offs: "${exploration.selected_path.trade_offs}"
+
+    slo_expectations:
+      expected_duration_ms: 100
+      max_duration_ms: 500
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 300
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without exploration context"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Injecting exploration rationale to inform quality review"
+      category: "intelligence"
+
+  - id: "impl-to-quality-review"
+    description: "When implementation complete, review code quality"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.status == 'completed' AND implementation.blockers.length == 0"
+    then:
+      - concept: "quality"
+        action: "review"
+        model: "sonnet"
+        parallel: true  # ← ENABLES PARALLEL EXECUTION
+        inputs:
+          implementation_id: "${implementation.id}"
+          files: "${implementation.files_changed}"
+          patterns: "${architecture.patterns}"
+          # NEW: Include exploration context if available
+          exploration_rationale: "${exploration.selected_path || null}"
+
+    # SLO Expectations for quality.review
+    slo_expectations:
+      expected_duration_ms: 2500       # 2.5 seconds typical
+      max_duration_ms: 20000           # 20 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet pattern-based review
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 800     # Code + patterns
+      max_context_tokens: 3000         # Warning threshold
+      success_rate_target: 0.95        # 95% reviews complete successfully
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation complete, code review required"
+      category: "core"
+
+  - id: "impl-to-quality-test"
+    description: "When implementation complete, run tests"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.status == 'completed' AND implementation.test_files.length > 0"
+    then:
+      - concept: "quality"
+        action: "test"
+        model: "sonnet"
+        parallel: true  # ← RUNS SIMULTANEOUSLY WITH REVIEW
+        inputs:
+          implementation_id: "${implementation.id}"
+          test_paths: "${implementation.test_files}"
+          story_id: "${story.id}"
+
+    # SLO Expectations for quality.test
+    slo_expectations:
+      expected_duration_ms: 2500       # 2.5 seconds typical
+      max_duration_ms: 20000           # 20 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet test execution
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 800     # Test code + context
+      max_context_tokens: 3000         # Warning threshold
+      success_rate_target: 0.95        # 95% test runs succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation complete with tests, execute test suite"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 3.5: Coverage Analysis (MCP-Powered)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: After tests pass, analyze coverage and suggest improvements
+  # Uses test-generator MCP for coverage analysis
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-test-passed-to-coverage"
+    description: "After tests pass, analyze coverage using test-generator MCP"
+    when:
+      concept: "quality"
+      action: "test"
+      status: "completed"
+    where:
+      query: "test.status == 'passed' AND test.failed == 0"
+    then:
+      - concept: "quality"
+        action: "analyze_coverage"
+        model: "sonnet"
+        mcp_tools:
+          # Analyze coverage from test run
+          - tool: "test-generator.analyze_coverage"
+            input:
+              coverageDir: "${project.coverage_dir || 'coverage/'}"
+            output_to: "coverage_report"
+
+          # Find any files still without tests
+          - tool: "test-generator.find_untested_files"
+            input:
+              sourceGlob: "src/**/*.{ts,tsx,js,jsx}"
+              testGlob: "**/*.{test,spec}.{ts,tsx,js,jsx}"
+            output_to: "untested_files"
+
+        inputs:
+          implementation_id: "${implementation.id}"
+          test_results: "${test.results}"
+
+        outputs:
+          target: "koan/coverage/coverage-${implementation.id}.yaml"
+
+    # MCP-specific error handling
+    error_handling:
+      mcp_connection_failed:
+        type: "transient"
+        action: "skip"
+        set_flag: "coverage_analysis.skipped = true"
+        reason: "Coverage analysis MCP unavailable - proceeding without"
+
+      mcp_tool_not_found:
+        type: "permanent"
+        action: "skip"
+        set_flag: "coverage_analysis.skipped = true"
+
+    slo_expectations:
+      <<: *SLO_COVERAGE_ANALYSIS
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Analyzing coverage after successful tests"
+      category: "intelligence"
+      mcp_server: "test-generator"
+
+  # If coverage is below target, suggest generating more tests
+  - id: "coverage-below-target-suggest"
+    description: "When coverage below target, suggest additional tests"
+    when:
+      concept: "quality"
+      action: "analyze_coverage"
+      status: "completed"
+    where:
+      query: "coverage_report.overall < (project.coverage_target || 80)"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Coverage at ${coverage_report.overall}% (target: ${project.coverage_target || 80}%). Generate more tests?"
+            header: "Coverage Gap"
+            multiSelect: false
+            options:
+              - label: "Generate additional tests (Recommended)"
+                description: "Auto-generate tests for low-coverage files"
+              - label: "Proceed anyway"
+                description: "Accept current coverage and continue to commit"
+              - label: "Show coverage details"
+                description: "Display detailed coverage report first"
+
+        on_answer:
+          "Generate additional tests (Recommended)":
+            - concept: "quality"
+              action: "generate_tests"
+              model: "sonnet"
+              mcp_tools:
+                - tool: "test-generator.generate_unit_tests"
+                  input:
+                    sourceFiles: "${coverage_report.low_coverage_files}"
+                    language: "${implementation.language || 'typescript'}"
+                    framework: "${project.test_framework || 'vitest'}"
+                    coverageTarget: "${project.coverage_target || 80}"
+              inputs:
+                focus: "low_coverage"
+                files: "${coverage_report.low_coverage_files}"
+
+          "Proceed anyway":
+            - action: "set_flag"
+              flag: "coverage.accepted_below_target"
+              value: true
+            # Workflow continues to version
+
+          "Show coverage details":
+            - action: "display"
+              content:
+                title: "Coverage Report"
+                overall: "${coverage_report.overall}%"
+                breakdown: "${coverage_report.breakdown}"
+                low_files: "${coverage_report.low_coverage_files}"
+                suggestions: "${coverage_report.recommendations}"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Coverage below target - user decision required"
+      decision_point: true
+      user_interaction: "ask_user_question"
+      category: "quality"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 4: Quality → Version (Sequential)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # WAITS for BOTH parallel quality checks to complete
+  # Uses depends_on to prevent race condition
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-to-version"
+    description: "When quality approved and tests pass, commit changes"
+    when:
+      concept: "quality"
+      action: "review|test"  # Triggered after EITHER completes
+      status: "completed"
+
+    # RACE CONDITION FIX: Wait for both parallel tasks before triggering
+    depends_on:
+      required:
+        - id: "impl-to-quality-review"
+          status: "completed"
+          timeout_ms: 30000
+        - id: "impl-to-quality-test"
+          status: "completed|skipped"  # Test may be skipped if no test files
+          timeout_ms: 30000
+      on_dependency_timeout:
+        action: "wait"  # Keep waiting, don't proceed prematurely
+        max_wait_ms: 60000
+        on_max_wait:
+          action: "escalate"
+          message: "Quality checks timed out - manual intervention needed"
+
+    where:
+      # This query ensures BOTH checks passed AND no blockers exist
+      query: "review.status == 'approved' AND test.status == 'passed' AND test.failed == 0 AND implementation.blockers.length == 0"
+    then:
+      - concept: "version"
+        action: "commit"
+        model: "sonnet"
+        inputs:
+          implementation_id: "${implementation.id}"
+          story_id: "${story.id}"
+          flow_id: "${flow.id}"
+          files: "${implementation.files_changed}"
+
+    # SLO Expectations for version.commit
+    slo_expectations:
+      expected_duration_ms: 1000       # 1 second typical
+      max_duration_ms: 5000            # 5 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet commit message generation
+      max_cost_usd: 0.0005             # Alert if exceeds
+      expected_context_tokens: 300     # Minimal context (files + summary)
+      max_context_tokens: 1000         # Warning threshold
+      success_rate_target: 0.99        # 99% commits succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 500
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Quality approved, all tests passed, ready for version control"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 4B: Version → Story Completion (Auto-Transition)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: When workflow commits successfully, mark the
+  # story as "completed". This prevents stories from staying
+  # stuck at "ready" status after their implementation ships.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "version-to-story-complete"
+    description: "Auto-complete story when workflow commits successfully"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    where:
+      query: "story.status == 'ready' AND flow.status == 'completed'"
+    then:
+      - concept: "story"
+        action: "update_status"
+        model: "sonnet"
+        inputs:
+          story_id: "${story.id}"
+          new_status: "completed"
+          reason: "Workflow completed - implementation committed"
+
+    slo_expectations:
+      <<: *SLO_QUICK
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Auto-completing story after successful workflow commit"
+      category: "lifecycle"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Error Recovery: Quality → Implementation (Rework)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-needs-changes"
+    description: "When quality review finds issues, refactor implementation"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "review.status == 'needs_changes'"
+    then:
+      - concept: "implementation"
+        action: "refactor"
+        model: "sonnet"
+        inputs:
+          implementation_id: "${implementation.id}"
+          issues: "${review.issues}"
+          suggestions: "${review.suggestions}"
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Code review identified issues requiring refactoring"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # MCP-Powered Self-Repair (execution-loop)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # When tests fail, use execution-loop MCP for automatic repair:
+  # 1. Diagnose failure with self_debug
+  # 2. Apply fix with iterative_refine
+  # 3. Re-run tests with run_tests_with_repair
+  # 4. Loop until passing or max iterations
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-tests-failed-self-repair"
+    description: "When tests fail, use execution-loop MCP to auto-repair"
+    when:
+      concept: "quality"
+      action: "test"
+      status: "completed"
+    where:
+      # Only trigger if tests failed AND we haven't exceeded repair attempts
+      query: "test.status == 'failed' AND test.failed > 0 AND (repair_attempts || 0) < 3"
+    then:
+      - concept: "quality"
+        action: "self_repair"
+        model: "sonnet"
+        mcp_tools:
+          # First: Diagnose the failure
+          - tool: "execution-loop.self_debug"
+            input:
+              code: "${implementation.files_changed}"
+              error: "${test.failures[0].message}"
+              language: "${implementation.language || 'typescript'}"
+              contextFiles: "${test.failures[0].file}"
+            output_to: "diagnosis"
+
+          # Second: Run tests with automatic repair
+          - tool: "execution-loop.run_tests_with_repair"
+            input:
+              testCommand: "${project.test_command || 'npm test'}"
+              cwd: "${project.root}"
+              targetFiles: "${implementation.files_changed}"
+              maxRetries: 3
+            output_to: "repair_result"
+
+        inputs:
+          implementation_id: "${implementation.id}"
+          failing_tests: "${test.failures}"
+          test_output: "${test.results}"
+          repair_attempt: "${(repair_attempts || 0) + 1}"
+
+        outputs:
+          target: "koan/repairs/repair-${implementation.id}-${repair_attempts || 1}.yaml"
+
+    # Track repair attempts to prevent infinite loops
+    state_updates:
+      - key: "repair_attempts"
+        value: "${(repair_attempts || 0) + 1}"
+
+    # MCP-specific error handling
+    error_handling:
+      mcp_connection_failed:
+        type: "transient"
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted:
+          action: "fallback"
+          fallback_rule: "quality-tests-failed-manual"
+
+      mcp_tool_not_found:
+        type: "permanent"
+        action: "fallback"
+        fallback_rule: "quality-tests-failed-manual"
+
+    slo_expectations:
+      <<: *SLO_EXECUTION_LOOP
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Test failures - attempting automatic repair via execution-loop MCP"
+      category: "automation"
+      mcp_server: "execution-loop"
+
+  # Fallback: Manual fix when MCP unavailable or max retries exceeded
+  - id: "quality-tests-failed-manual"
+    description: "Fallback: Manual implementation fix when self-repair unavailable"
+    when:
+      concept: "quality"
+      action: "test"
+      status: "completed"
+    where:
+      # Triggers if: MCP unavailable OR max repair attempts exceeded
+      query: "(test.status == 'failed' AND test.failed > 0 AND execution_loop.unavailable == true) OR (repair_attempts >= 3)"
+    then:
+      - concept: "implementation"
+        action: "fix"
+        model: "sonnet"
+        inputs:
+          implementation_id: "${implementation.id}"
+          failing_tests: "${test.failures}"
+          test_output: "${test.results}"
+          repair_history: "${repair_attempts > 0 ? 'Previous auto-repair attempts failed' : null}"
+
+    slo_expectations:
+      <<: *SLO_IMPLEMENTATION
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Test failures require manual implementation fixes (auto-repair unavailable or exhausted)"
+      category: "recovery"
+
+  # After successful self-repair, re-run quality checks
+  - id: "self-repair-success-to-quality"
+    description: "After successful self-repair, re-run full quality checks"
+    when:
+      concept: "quality"
+      action: "self_repair"
+      status: "completed"
+    where:
+      query: "repair_result.success == true AND repair_result.tests_passing == true"
+    then:
+      - concept: "quality"
+        action: "test"
+        model: "sonnet"
+        inputs:
+          implementation_id: "${implementation.id}"
+          test_paths: "${implementation.test_files}"
+          story_id: "${story.id}"
+          after_repair: true
+
+    # Reset repair counter on success
+    state_updates:
+      - key: "repair_attempts"
+        value: 0
+
+    slo_expectations:
+      <<: *SLO_QUALITY
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Self-repair succeeded - re-running quality checks to verify"
+      category: "validation"
+
+  # If self-repair fails, escalate to user
+  - id: "self-repair-failed-escalate"
+    description: "When self-repair fails after max attempts, ask user"
+    when:
+      concept: "quality"
+      action: "self_repair"
+      status: "completed"
+    where:
+      query: "repair_result.success == false OR repair_attempts >= 3"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Auto-repair failed after ${repair_attempts} attempts. Test failures: ${test.failures.length}. How to proceed?"
+            header: "Repair Failed"
+            multiSelect: false
+            options:
+              - label: "Show me the errors"
+                description: "Display full error details so I can fix manually"
+              - label: "Try different approach"
+                description: "Revert changes and try a different implementation strategy"
+              - label: "Skip tests for now"
+                description: "Proceed without passing tests (not recommended)"
+
+        on_answer:
+          "Show me the errors":
+            - action: "display"
+              content:
+                title: "Test Failures"
+                failures: "${test.failures}"
+                repair_attempts: "${repair_history}"
+                suggested_fixes: "${diagnosis.suggestions}"
+
+          "Try different approach":
+            - concept: "implementation"
+              action: "revise"
+              model: "sonnet"
+              inputs:
+                original_implementation: "${implementation}"
+                failure_reason: "${test.failures}"
+                constraint: "Try a different approach - previous implementation had unfixable test failures"
+
+          "Skip tests for now":
+            - action: "set_flag"
+              flag: "tests.skipped"
+              value: true
+            - concept: "version"
+              action: "commit"
+              model: "sonnet"
+              inputs:
+                implementation_id: "${implementation.id}"
+                story_id: "${story.id}"
+                warning: "TESTS SKIPPED - User chose to proceed without passing tests"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Auto-repair exhausted - user intervention required"
+      decision_point: true
+      user_interaction: "ask_user_question"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Automatic Checkpoints (Phase 4)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Automatic state preservation at key points:
+  # 1. On every git commit (ties to version history)
+  # 2. Before context compression (safety net at 70%)
+  # 3. On workflow/feature completion (milestone marker)
+  # 4. On session exit (via hook)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Trigger 1: Auto-checkpoint on git commit
+  - id: "commit-auto-checkpoint"
+    description: "Create checkpoint automatically on every git commit"
+    when:
+      event: "git.commit"
+      status: "completed"
+    then:
+      - concept: "checkpoint"
+        action: "create"
+        model: "haiku"  # Fast, lightweight
+        inputs:
+          name: "commit-${commit.short_hash}"
+          type: "commit"
+          commit_hash: "${commit.hash}"
+          commit_message: "${commit.message}"
+          files_changed: "${commit.files}"
+          include:
+            - "active_task"
+            - "recent_decisions"
+            - "conversation_summary"
+          lightweight: true  # Don't include full conversation
+
+        outputs:
+          target: "koan/session-state/checkpoint-commit-${commit.short_hash}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 500
+      max_duration_ms: 3000
+      expected_cost_usd: 0.00005  # Haiku is very cheap
+      max_cost_usd: 0.0002
+      success_rate_target: 0.99
+
+    provenance:
+      reason: "Auto-checkpoint on commit for version-aligned restoration"
+      category: "checkpoint"
+      automatic: true
+
+  # Trigger 2: Auto-checkpoint before context compression
+  - id: "pre-compression-checkpoint"
+    description: "Create checkpoint before context compression at 70%"
+    when:
+      concept: "*"
+      action: "*"
+      status: "completed"
+    where:
+      query: "context.usage_percent >= 70 AND context.usage_percent < 75 AND checkpoint.last_at_percent < 70"
+    then:
+      - concept: "checkpoint"
+        action: "create"
+        model: "haiku"
+        inputs:
+          name: "pre-compress-${timestamp}"
+          type: "safety"
+          reason: "Context at 70% - saving state before compression"
+          include:
+            - "active_task"
+            - "all_decisions"
+            - "conversation_highlights"
+            - "pending_work"
+          lightweight: false  # Full checkpoint before potential loss
+
+        outputs:
+          target: "koan/session-state/checkpoint-pre-compress-${timestamp}.yaml"
+
+    state_updates:
+      - key: "checkpoint.last_at_percent"
+        value: "${context.usage_percent}"
+
+    slo_expectations:
+      expected_duration_ms: 1000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.0001
+      max_cost_usd: 0.0005
+      success_rate_target: 0.99
+
+    provenance:
+      reason: "Safety checkpoint before context compression"
+      category: "checkpoint"
+      automatic: true
+
+  # Trigger 3: Auto-checkpoint on workflow/feature completion
+  - id: "workflow-complete-checkpoint"
+    description: "Create checkpoint when workflow completes successfully"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    where:
+      query: "flow.status == 'completed'"
+    then:
+      - concept: "checkpoint"
+        action: "create"
+        model: "haiku"
+        inputs:
+          name: "feature-${story.id}"
+          type: "milestone"
+          story_id: "${story.id}"
+          story_title: "${story.title}"
+          flow_id: "${flow.id}"
+          include:
+            - "story_summary"
+            - "architecture_decisions"
+            - "implementation_summary"
+            - "quality_results"
+            - "total_cost"
+          milestone: true
+
+        outputs:
+          target: "koan/session-state/checkpoint-feature-${story.id}.yaml"
+
+    slo_expectations:
+      expected_duration_ms: 800
+      max_duration_ms: 4000
+      expected_cost_usd: 0.00008
+      max_cost_usd: 0.0003
+      success_rate_target: 0.99
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Feature milestone checkpoint - workflow completed successfully"
+      category: "checkpoint"
+      automatic: true
+      milestone: true
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # MEMORY INTEGRATION: Auto-Remember Workflow Summary
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # AUTOMATIC: Store workflow summary in semantic memory
+  # Captures feature approach, key files, and patterns for future reference
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "workflow-complete-memory"
+    description: "Auto-remember workflow summary after successful completion"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "completed"
+    where:
+      query: "flow.status == 'completed'"
+    then:
+      - action: "store_memory"
+        target: "koan/memory/semantic/patterns.yaml"
+        content:
+          id: "mem-workflow-${story.id}-${timestamp}"
+          type: "workflow_completion"
+          category: "patterns"
+          content: "Feature '${story.title}' implemented using ${architecture.approach}. Key files: ${implementation.files_changed.slice(0, 5).join(', ')}"
+          confidence: 0.6
+          source: "Auto-captured from workflow ${flow.id}"
+          tags:
+            - "workflow"
+            - "${story.title.split(' ')[0].toLowerCase()}"
+          story_id: "${story.id}"
+          architecture_id: "${architecture.id}"
+          implementation_id: "${implementation.id}"
+          created_at: "${timestamp}"
+          metrics:
+            files_changed: "${implementation.files_changed.length}"
+            total_cost: "${flow.total_cost}"
+            duration_minutes: "${flow.duration_minutes}"
+
+    slo_expectations:
+      expected_duration_ms: 50
+      max_duration_ms: 200
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      on_timeout:
+        action: "skip"
+        fallback: "Memory storage skipped - workflow summary not persisted"
+      on_failure:
+        action: "log"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Auto-remembering workflow summary for future reference"
+      category: "memory"
+      automatic: true
+
+  # Trigger 4: Session exit checkpoint (via hook)
+  # Note: This is implemented as a Claude Code hook, not a sync rule
+  # See: .claude/settings.local.json → hooks.Stop
+  #
+  # Hook implementation:
+  # {
+  #   "hooks": {
+  #     "Stop": [{
+  #       "type": "command",
+  #       "command": "claude -p 'Create a checkpoint for session end. Name: session-exit-$(date +%Y%m%d-%H%M%S). Include: active tasks, uncommitted work, conversation summary, next steps.' --output koan/session-state/"
+  #     }]
+  #   }
+  # }
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Context Management (Automatic - Phase 3)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Automatically manages context window to prevent overflow
+  # - 75% threshold: Smart compression of earlier steps
+  # - 90% threshold: Full snapshot and context reset
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "context-compression"
+    description: "At 75% context usage, compress earlier workflow steps"
+    when:
+      concept: "*"  # After any concept completes
+      action: "*"
+      status: "completed"
+    where:
+      query: "context.usage_percent >= 75 AND context.usage_percent < 90"
+    then:
+      - concept: "context"
+        action: "compress"
+        model: "sonnet"
+        inputs:
+          threshold: "75%"
+          strategy: "smart_compression"
+          compress_range: "steps_1_to_current_minus_3"  # Keep last 3 steps in full detail
+          target_reduction: "80%"
+
+    # SLO Expectations for context.compress
+    slo_expectations:
+      expected_duration_ms: 1500       # 1.5 seconds typical
+      max_duration_ms: 10000           # 10 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet compression
+      max_cost_usd: 0.0005             # Alert if exceeds
+      expected_context_tokens: 500     # Analyzing existing context
+      max_context_tokens: 2000         # Warning threshold
+      success_rate_target: 0.99        # 99% compression succeeds
+
+      on_timeout:
+        action: "escalate"             # Compression failure is serious
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Context at 75% - compressing earlier steps to maintain performance"
+      category: "context-management"
+
+  - id: "context-snapshot"
+    description: "At 90% context usage, create snapshot and reset"
+    when:
+      concept: "*"
+      action: "*"
+      status: "completed"
+    where:
+      query: "context.usage_percent >= 90"
+    then:
+      - concept: "context"
+        action: "snapshot"
+        model: "sonnet"
+        inputs:
+          threshold: "90%"
+          strategy: "full_snapshot"
+          snapshot_location: "koan/session-state/snapshot-${timestamp}.yaml"
+          reset_to: "5K_summary"
+
+    # SLO Expectations for context.snapshot
+    slo_expectations:
+      expected_duration_ms: 1500       # 1.5 seconds typical
+      max_duration_ms: 10000           # 10 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet snapshot creation
+      max_cost_usd: 0.0005             # Alert if exceeds
+      expected_context_tokens: 500     # Minimal (writing snapshot)
+      max_context_tokens: 2000         # Warning threshold
+      success_rate_target: 0.99        # 99% snapshots succeed
+
+      on_timeout:
+        action: "escalate"             # Snapshot failure is critical
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Context critical at 90% - creating snapshot and resetting"
+      category: "context-management"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Budget Management (Human-in-the-Loop)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "cost-budget-approval"
+    description: "Ask user when workflow cost exceeds configured budget"
+    when:
+      concept: "*"
+      action: "*"
+      status: "completed"
+    where:
+      query: "flow.total_cost > config.cost_budget AND flow.budget_approval_requested == false"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Workflow cost $${flow.total_cost} exceeds budget $${config.cost_budget}. Continue?"
+            header: "Budget Exceeded"
+            multiSelect: false
+            options:
+              - label: "Continue anyway"
+                description: "The extra cost is acceptable for this feature"
+              - label: "Optimize and retry"
+                description: "Try to reduce cost (may impact quality)"
+              - label: "Cancel workflow"
+                description: "Stop now to avoid more costs"
+
+        on_answer:
+          "Continue anyway":
+            - action: "set_flag"
+              flag: "flow.budget_approval_requested"
+              value: true
+            # Workflow continues normally
+
+          "Optimize and retry":
+            - concept: "context"
+              action: "optimize"
+              model: "sonnet"
+              inputs:
+                target: "reduce_cost"
+                budget_remaining: "${config.cost_budget - flow.total_cost}"
+
+          "Cancel workflow":
+            - concept: "story"
+              action: "cancel"
+              model: "sonnet"
+              inputs:
+                story_id: "${story.id}"
+                reason: "User cancelled due to budget exceeded ($${flow.total_cost} > $${config.cost_budget})"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Cost budget exceeded - user approval required"
+      decision_point: true
+      user_interaction: "ask_user_question"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # State Validation Rules
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # These rules validate that required state exists before
+  # allowing workflow to proceed. Prevents silent failures
+  # from missing prerequisites.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "validate-koan-directories"
+    description: "Ensure koan directories exist before workflow starts"
+    when:
+      event: "workflow.start"
+    then:
+      - action: "validate_state"
+        checks:
+          - type: "directory_exists"
+            path: "koan/stories"
+            on_missing: "create"
+          - type: "directory_exists"
+            path: "koan/architecture"
+            on_missing: "create"
+          - type: "directory_exists"
+            path: "koan/implementations"
+            on_missing: "create"
+          - type: "directory_exists"
+            path: "koan/reviews"
+            on_missing: "create"
+          - type: "directory_exists"
+            path: "koan/provenance/actions"
+            on_missing: "create"
+          - type: "directory_exists"
+            path: "koan/flows"
+            on_missing: "create"
+    provenance:
+      reason: "Ensuring required koan directories exist"
+      category: "validation"
+
+  - id: "validate-story-before-arch"
+    description: "Ensure story state file exists before architecture"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "starting"
+    where:
+      query: "story.id != null"
+    then:
+      - action: "validate_state"
+        checks:
+          - type: "file_exists"
+            path: "koan/stories/story-${story.id}.yaml"
+            on_missing: "block"
+            error_message: "Story state file not found. Run story.create first."
+          - type: "field_not_empty"
+            file: "koan/stories/story-${story.id}.yaml"
+            field: "acceptance_criteria"
+            on_empty: "warn"
+            warning_message: "Story has no acceptance criteria. Architecture may be incomplete."
+    provenance:
+      reason: "Validating story prerequisites before architecture"
+      category: "validation"
+
+  - id: "validate-arch-before-impl"
+    description: "Ensure architecture state file exists before implementation"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "starting"
+    where:
+      query: "architecture.id != null"
+    then:
+      - action: "validate_state"
+        checks:
+          - type: "file_exists"
+            path: "koan/architecture/arch-${architecture.id}.yaml"
+            on_missing: "block"
+            error_message: "Architecture state file not found. Run architecture.design first."
+          - type: "field_not_empty"
+            file: "koan/architecture/arch-${architecture.id}.yaml"
+            field: "decisions"
+            on_empty: "block"
+            error_message: "Architecture has no decisions. Cannot proceed with implementation."
+    provenance:
+      reason: "Validating architecture prerequisites before implementation"
+      category: "validation"
+
+  - id: "validate-impl-before-quality"
+    description: "Ensure implementation state exists before quality review"
+    when:
+      concept: "quality"
+      action: "review|test"
+      status: "starting"
+    where:
+      query: "implementation.id != null"
+    then:
+      - action: "validate_state"
+        checks:
+          - type: "file_exists"
+            path: "koan/implementations/impl-${implementation.id}.yaml"
+            on_missing: "block"
+            error_message: "Implementation state file not found. Run implementation.generate first."
+          - type: "field_not_empty"
+            file: "koan/implementations/impl-${implementation.id}.yaml"
+            field: "files_changed"
+            on_empty: "block"
+            error_message: "Implementation has no files changed. Nothing to review."
+    provenance:
+      reason: "Validating implementation prerequisites before quality review"
+      category: "validation"
+
+  - id: "validate-quality-before-version"
+    description: "Ensure quality checks passed before versioning"
+    when:
+      concept: "version"
+      action: "commit"
+      status: "starting"
+    then:
+      - action: "validate_state"
+        checks:
+          - type: "file_exists"
+            path: "koan/reviews/review-${implementation.id}.yaml"
+            on_missing: "block"
+            error_message: "No quality review found. Run quality.review first."
+          - type: "field_equals"
+            file: "koan/reviews/review-${implementation.id}.yaml"
+            field: "status"
+            value: "approved"
+            on_mismatch: "block"
+            error_message: "Quality review not approved. Fix issues before committing."
+    provenance:
+      reason: "Validating quality approval before version commit"
+      category: "validation"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Workflow Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Happy Path (with MCP Integration):
+#   Story → Code Analysis → Architecture → Verification → Implementation → Test Gen → Quality → Coverage → Version
+#            [MCP: ast-index,    (2-pass)                 [MCP: test-gen]  [PARALLEL]  [MCP: test-gen]
+#             semantic-rag]         ↓                           ↓
+#                              [block/revise]            [auto-generated tests]
+#                                   ↓                           ↓
+#                           Architecture Revision     ┌─────────────────────────┐
+#                                                     │ On test failure:        │
+#                                                     │ MCP: execution-loop     │
+#                                                     │ → self_debug            │
+#                                                     │ → run_tests_with_repair │
+#                                                     │ → iterate until passing │
+#                                                     └─────────────────────────┘
+#
+# MCP Server Integration:
+#   1. ast-index + semantic-rag (Code Analysis Phase):
+#      - find_symbol: Locate existing patterns
+#      - semantic_search: Find similar implementations
+#      - get_file_symbols: Understand structure
+#
+#   2. test-generator (After Implementation):
+#      - generate_unit_tests: Auto-create tests for new code
+#      - suggest_tests: Recommend integration tests
+#      - find_untested_files: Identify coverage gaps
+#      - analyze_coverage: Measure test coverage
+#
+#   3. execution-loop (On Test Failure):
+#      - self_debug: Diagnose failure root cause
+#      - run_tests_with_repair: Auto-fix and re-run
+#      - iterative_refine: Multiple improvement passes
+#      - Max 3 attempts before escalating to user
+#
+# Human-in-the-Loop Decision Points (WYSIWID):
+#   - Ambiguous story (Phase 0) → Ask user for goal type + priority
+#   - High risk architecture → Ask user: approve, revise, or cancel
+#   - Coverage below target → Ask user: generate more tests, proceed, or view details
+#   - Self-repair failed → Ask user: show errors, try different approach, or skip tests
+#   - Cost budget exceeded → Ask user: continue, optimize, or cancel
+#
+# Verification Flow:
+#   - Pass 1: Independent review of architecture
+#   - Pass 2: Review with Pass 1 findings
+#   - Consensus: Aggregate → approve/approve_with_notes/block/revise
+#   - 39.7% accuracy improvement (research-backed)
+#
+# Error Paths:
+#   - Verification blocks → Revise architecture with Opus
+#   - High risk architecture → Human approval required
+#   - Quality needs changes → Refactor
+#   - Tests failed → MCP self-repair (up to 3 attempts) → Human if exhausted
+#   - Coverage below target → User decision to generate more or proceed
+#   - Budget exceeded → Human decision required
+#
+# Performance:
+#   - With MCP: ~15-20 minutes (reduced by auto-test-gen and self-repair)
+#   - Without MCP: ~25-30 minutes (manual test creation and debugging)
+#   - Self-repair saves: ~5-10 minutes per failure cycle
+#
+# Cost (with MCP Integration):
+#   - Story (Sonnet):           $0.000175  (<1%)
+#   - Code Analysis (MCP):      $0.0002    (<1%)   ← ast-index + semantic-rag
+#   - Architecture (Opus):      $0.015     (60%)   ← Opus for deepest reasoning
+#   - Verification 2x (Sonnet): $0.006175  (25%)   ← 2 passes + consensus
+#   - Test Generation (MCP):    $0.0005    (2%)    ← test-generator
+#   - Implementation (Sonnet):  $0.000175  (<1%)
+#   - Quality 2x (Sonnet):      $0.000350  (1%)    ← Same cost parallel or sequential
+#   - Self-Repair (MCP):        $0.001     (4%)    ← execution-loop (if needed)
+#   - Coverage Analysis (MCP):  $0.0002    (<1%)   ← test-generator
+#   - Version (Sonnet):         $0.000175  (<1%)
+#   - Total:                    $0.025 per feature (with MCP)
+#
+# MCP Graceful Degradation:
+#   - All MCP integrations have fallback paths
+#   - If MCP unavailable, workflow continues without that feature
+#   - No hard dependency on MCP servers
+#
+# ROI:
+#   - 39.7% accuracy improvement from verification
+#   - ~50% reduction in manual test writing via auto-generation
+#   - ~70% reduction in debugging time via self-repair
+#   - +$0.003 per feature for MCP integration
+#
+# Phase 4 Enhancements (MCP Integration):
+#   - Auto Test Generation: Tests created automatically after implementation
+#   - Self-Repair Loop: Automatic debugging and fixing of test failures
+#   - Coverage Analysis: Automatic coverage tracking and gap identification
+#   - All MCP tools have graceful fallback to manual workflows

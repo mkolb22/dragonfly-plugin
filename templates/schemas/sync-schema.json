@@ -1,0 +1,196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://zen.wysiwid.dev/schemas/sync.json",
+  "title": "Zen Synchronization Rules",
+  "description": "Schema for Zen WYSIWID synchronization YAML files",
+  "type": "object",
+  "required": ["name", "description", "rules"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of this synchronization set"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of what this synchronization set does"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/syncRule" },
+      "minItems": 1
+    }
+  },
+  "definitions": {
+    "syncRule": {
+      "type": "object",
+      "required": ["id", "name", "when", "then"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Unique identifier for this rule"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "description": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Higher priority rules execute first"
+        },
+        "parallel": {
+          "type": "boolean",
+          "default": false,
+          "description": "Can run in parallel with other rules"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "when": { "$ref": "#/definitions/whenClause" },
+        "where": { "$ref": "#/definitions/whereClause" },
+        "then": { "$ref": "#/definitions/thenClause" },
+        "error_handling": { "$ref": "#/definitions/errorHandling" }
+      }
+    },
+    "whenClause": {
+      "type": "object",
+      "required": ["concept", "action", "status"],
+      "properties": {
+        "concept": {
+          "type": "string",
+          "description": "Concept that triggers this rule"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action that triggers this rule"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "blocked", "any"],
+          "description": "Status that triggers this rule"
+        }
+      }
+    },
+    "whereClause": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Query expression to evaluate"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Timeout in seconds"
+        }
+      }
+    },
+    "thenClause": {
+      "type": "object",
+      "required": ["concept", "action"],
+      "properties": {
+        "concept": {
+          "type": "string",
+          "description": "Concept to invoke"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action to invoke"
+        },
+        "model": {
+          "type": "string",
+          "enum": ["haiku", "sonnet", "opus"],
+          "description": "Model override (optional)"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Input parameters"
+        }
+      }
+    },
+    "errorHandling": {
+      "type": "object",
+      "properties": {
+        "on_error": {
+          "type": "string",
+          "enum": ["retry", "skip", "fail", "escalate"],
+          "default": "fail"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "default": 1000
+        },
+        "fallback": { "$ref": "#/definitions/thenClause" },
+        "mcp_connection_failed": { "$ref": "#/definitions/mcpErrorHandler" },
+        "mcp_tool_not_found": { "$ref": "#/definitions/mcpErrorHandler" },
+        "mcp_rate_limited": { "$ref": "#/definitions/mcpErrorHandler" },
+        "mcp_response_error": { "$ref": "#/definitions/mcpErrorHandler" }
+      }
+    },
+    "mcpErrorHandler": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["transient", "permanent"],
+          "description": "Error classification for retry decisions"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["retry", "skip", "fail", "escalate"],
+          "default": "retry"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "default": 1000
+        },
+        "set_flag": {
+          "type": "string",
+          "description": "Flag to set when this error occurs"
+        },
+        "fallback": {
+          "type": "string",
+          "description": "Alternative sync rule ID to invoke"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable reason for logging"
+        },
+        "on_exhausted": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["skip", "fail", "escalate"]
+            },
+            "set_flag": { "type": "string" },
+            "reason": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

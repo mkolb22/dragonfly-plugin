@@ -1,0 +1,67 @@
+# Zen Task Tracking Schema
+# Location: koan/tasks/task-{id}.yaml
+# Purpose: Track work items for GitOps-based Kanban visualization
+
+task_id: "${TASK_ID}"
+title: "${TITLE}"
+description: |
+  ${DESCRIPTION}
+
+# Status: todo | in_progress | done | blocked
+status: "todo"
+
+# Priority: low | medium | high | critical
+priority: "medium"
+
+# Type: feature | bug | chore | spike | refactor
+type: "feature"
+
+# Timestamps
+created_at: "${TIMESTAMP}"
+updated_at: "${TIMESTAMP}"
+
+# Provenance - links to Zen workflow artifacts
+provenance:
+  story_id: null
+  architecture_id: null
+  implementation_id: null
+  review_id: null
+
+# Subtasks for progress tracking
+subtasks: []
+# Example:
+# - id: "sub-001"
+#   title: "Design the interface"
+#   status: "done"
+# - id: "sub-002"
+#   title: "Implement core logic"
+#   status: "in_progress"
+
+# Git integration
+git:
+  branch: null
+  commits: []
+  pull_request: null
+
+# AI metadata (populated by Claude)
+ai_metadata:
+  concept_name: null
+  model_used: null
+  cost_usd: null
+  context_tokens: null
+
+# Labels for filtering
+labels: []
+
+# Assignee (optional)
+assignee: null
+
+# Due date (optional)
+due_date: null
+
+# Notes and comments
+notes: []
+# Example:
+# - timestamp: "2025-12-08T10:00:00Z"
+#   content: "Started implementation"
+#   author: "claude"

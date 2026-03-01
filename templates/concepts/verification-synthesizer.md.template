@@ -1,0 +1,279 @@
+---
+name: verification-synthesizer
+type: concept
+model: sonnet
+purpose: "Synthesize results from multiple verification agents into unified decision"
+---
+
+# Verification Synthesizer Concept
+
+The Verification Synthesizer combines results from multiple parallel verification agents into a coherent, unified assessment and decision.
+
+## Research Foundation
+
+Based on:
+- **Anthropic Multi-Agent Research (2025)**: Orchestrator-worker pattern for improved accuracy
+- **Multi-agent consensus**: Catches errors single agents miss
+- **Ensemble methods**: Multiple perspectives reduce individual biases
+
+## Purpose
+
+- Combine parallel review results
+- Detect and resolve disagreements
+- Make final approval/rejection decision
+- Identify issues requiring human attention
+
+## Actions
+
+### synthesize
+
+Combine results from multiple verification agents.
+
+**Inputs:**
+- `reviews`: Array of review results from parallel agents
+- `require_consensus`: Whether all agents must agree (default: true)
+- `threshold`: Minimum agreement ratio (default: 0.8)
+- `priority_weights`: Weight for each review type
+
+**Process:**
+
+1. **Collect Results**
+   - Gather all parallel review outputs
+   - Extract findings, scores, and recommendations
+   - Normalize scoring scales
+
+2. **Find Agreement**
+   - Identify findings that appear in multiple reviews
+   - Calculate consensus score for each issue
+   - Flag disagreements for analysis
+
+3. **Resolve Conflicts**
+   - For disagreements, analyze reasoning from each side
+   - Apply priority rules (security > correctness > performance)
+   - Defer to higher-confidence review when unclear
+
+4. **Generate Decision**
+   - Aggregate scores with weights
+   - Apply threshold for approval
+   - List all issues requiring attention
+
+**Output Format:**
+```yaml
+synthesis:
+  synthesis_id: "syn-001"
+  reviews_analyzed: 3
+
+  consensus:
+    reached: true
+    agreement_ratio: 0.92
+    unanimous_on:
+      - "No SQL injection vulnerabilities"
+      - "Error handling is adequate"
+
+  disagreements:
+    - issue: "Potential memory leak in loop"
+      positions:
+        review_security: "Not a concern"
+        review_correctness: "Minor concern"
+        review_performance: "Should be fixed"
+      resolution: "Flag for review - performance agent concern valid"
+      resolved_by: "priority_performance"
+
+  combined_findings:
+    critical: []
+    high:
+      - finding: "Missing rate limiting on endpoint"
+        from: ["review_security"]
+        action_required: true
+    medium:
+      - finding: "Could use connection pooling"
+        from: ["review_performance"]
+        action_required: false
+    low:
+      - finding: "Magic number could be constant"
+        from: ["review_correctness"]
+        action_required: false
+
+  scores:
+    security: 8.5
+    correctness: 9.0
+    performance: 7.5
+    overall: 8.3
+
+  decision: "approved_with_conditions"
+  conditions:
+    - "Add rate limiting before production"
+    - "Review potential memory leak"
+
+  confidence: 0.88
+```
+
+### resolve_disagreement
+
+Deeply analyze a specific disagreement between agents.
+
+**Inputs:**
+- `issue`: The disagreed-upon issue
+- `positions`: Each agent's position and reasoning
+- `context`: Additional context about the code
+
+**Output Format:**
+```yaml
+resolution:
+  issue: "Potential memory leak in loop"
+
+  analysis:
+    security_perspective: |
+      Loop allocations are bounded by input size.
+      Input is validated, so no security concern.
+
+    correctness_perspective: |
+      Objects should be reused but behavior is correct.
+      Minor optimization opportunity.
+
+    performance_perspective: |
+      Each iteration allocates new objects.
+      For large inputs, GC pressure could cause latency spikes.
+
+  verdict: "performance_agent_correct"
+  rationale: |
+    While not a security or correctness issue, the performance
+    concern is valid for production workloads. The loop should
+    use object pooling or pre-allocation.
+
+  severity: "medium"
+  action: "recommend_fix"
+```
+
+### check_unanimous
+
+Check if all reviews unanimously agree on a verdict.
+
+**Inputs:**
+- `reviews`: All reviews to check
+- `require`: What must be unanimous ("all_approved" | "no_critical")
+- `on_failure`: Action if not unanimous ("block" | "escalate" | "warn")
+
+**Output Format:**
+```yaml
+unanimous_check:
+  requirement: "all_approved"
+  result: false
+
+  votes:
+    review_security: "approved"
+    review_correctness: "approved"
+    review_performance: "changes_requested"
+
+  blocking_reviews:
+    - review: "review_performance"
+      reason: "Memory allocation in hot path"
+      severity: "medium"
+
+  action_taken: "block"
+  message: |
+    Unanimous approval not achieved.
+    review_performance requested changes.
+    Please address before proceeding.
+```
+
+### generate_report
+
+Generate comprehensive verification report.
+
+**Inputs:**
+- `synthesis`: Synthesis results
+- `format`: Report format ("summary" | "detailed" | "executive")
+
+**Output Format:**
+```yaml
+report:
+  format: "detailed"
+  generated_at: "2025-12-07T23:45:00Z"
+
+  executive_summary: |
+    Implementation reviewed by 3 specialized agents.
+    Overall score: 8.3/10. Approved with conditions.
+    1 high-priority issue requires attention before production.
+
+  detailed_findings:
+    security:
+      score: 8.5
+      findings: [...]
+      recommendations: [...]
+
+    correctness:
+      score: 9.0
+      findings: [...]
+      recommendations: [...]
+
+    performance:
+      score: 7.5
+      findings: [...]
+      recommendations: [...]
+
+  action_items:
+    before_merge:
+      - "Add rate limiting"
+    before_production:
+      - "Review memory usage under load"
+
+  reviewer_notes:
+    - from: "review_security"
+      note: "Consider adding audit logging for sensitive operations"
+```
+
+## Priority Rules
+
+When agents disagree, apply these priority rules:
+
+1. **Security over everything** - Security concerns always take priority
+2. **Correctness over performance** - Correct code beats fast incorrect code
+3. **Higher severity wins** - Critical issues override minor ones
+4. **Higher confidence wins** - More confident agents trusted more
+
+## Integration
+
+### With Quality Concept
+- Extends quality review with multi-agent verification
+- Results feed into quality reports
+- Findings tracked in quality metrics
+
+### With Workflow
+- Gates implementation completion
+- Can block or allow progression
+- Conditions carried forward
+
+### With Learning System
+- Disagreement patterns stored for learning
+- Resolution effectiveness tracked
+- Agent accuracy monitored
+
+## Configuration
+
+```yaml
+# .claude/config.yaml
+verification:
+  parallel_agents:
+    - "security"
+    - "correctness"
+    - "performance"
+  consensus_threshold: 0.8
+  require_unanimous_for:
+    - "security_critical"
+    - "production_deployment"
+  priority_order:
+    - "security"
+    - "correctness"
+    - "performance"
+```
+
+## Metrics
+
+Track verification effectiveness:
+- Consensus rate
+- Disagreement frequency by type
+- Post-synthesis issue discovery rate
+- Agent accuracy over time
+
+Stored in: `koan/metrics/verification.yaml`

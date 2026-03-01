@@ -1,0 +1,477 @@
+# Security Flow Synchronizations
+# Continuous security assurance throughout the workflow
+#
+# WYSIWID Principle: This YAML IS the security workflow logic
+# Read this file to understand exactly when security checks run
+
+version: "1.0.0"
+description: |
+  Implements security-by-design with checks at every workflow phase:
+  - Threat modeling after story capture
+  - Architecture validation for security patterns
+  - Implementation scanning for vulnerabilities
+  - Pre-commit verification as final gate
+
+configuration:
+  # Severity thresholds for blocking
+  block_on:
+    - critical  # Always block on critical
+    - high      # Block on high by default
+
+  # Allow override with user approval
+  allow_override:
+    high: true       # User can approve high-severity with justification
+    critical: false  # Never allow override for critical
+
+  # Parallel execution settings
+  parallel:
+    threat_model: true      # Run parallel with code-analysis
+    scan_implementation: true  # Run parallel with quality.review
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1: Story → Threat Model
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Generates threat model immediately after story capture.
+  # Runs in parallel with code-analysis.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "story-to-threat-model"
+    description: "Generate threat model when story is ready"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "story.status == 'ready'"
+    then:
+      - concept: "security"
+        action: "threat_model"
+        model: "sonnet"
+        parallel: true  # Runs in parallel with code-analysis
+        inputs:
+          story_id: "${story.id}"
+          title: "${story.title}"
+          description: "${story.description}"
+          acceptance_criteria: "${story.acceptance_criteria}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "warn"  # Don't block workflow, but log warning
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Story ready - generating threat model"
+      security_phase: "threat_modeling"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2: Architecture → Security Validation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Validates architecture design against threat model and
+  # OWASP security patterns. Can block if critical gaps found.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-to-security-validation"
+    description: "Validate architecture against security requirements"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.status == 'completed'"
+    then:
+      - concept: "security"
+        action: "validate_architecture"
+        model: "sonnet"
+        inputs:
+          arch_id: "${architecture.id}"
+          story_id: "${story.id}"
+          threat_model_id: "${security.threat_model.id}"
+          decisions: "${architecture.decisions}"
+          patterns: "${architecture.patterns}"
+
+    slo_expectations:
+      expected_duration_ms: 4000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture complete - validating security patterns"
+      security_phase: "architecture_validation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Architecture Security Blocked
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # When architecture fails security validation, return to
+  # architecture for revision.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "security-arch-blocked"
+    description: "When architecture fails security validation"
+    when:
+      concept: "security"
+      action: "validate_architecture"
+      status: "completed"
+    where:
+      query: "security.decision == 'block'"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "Architecture failed security validation. Issues: ${security.issues}. How to proceed?"
+            header: "Security Block"
+            multiSelect: false
+            options:
+              - label: "Revise architecture"
+                description: "Return to architecture to address security gaps"
+              - label: "Override with justification"
+                description: "Proceed anyway (requires documented justification)"
+              - label: "Cancel feature"
+                description: "Stop the workflow"
+
+        on_answer:
+          "Revise architecture":
+            - concept: "architecture"
+              action: "revise"
+              model: "opus"
+              inputs:
+                original_architecture_id: "${architecture.id}"
+                security_issues: "${security.issues}"
+                constraint: "Address security requirements: ${security.requirements}"
+
+          "Override with justification":
+            - action: "ask_user"
+              questions:
+                - question: "Enter security justification for override:"
+                  header: "Justification"
+                  multiSelect: false
+                  options:
+                    - label: "Risk accepted for MVP"
+                      description: "Will address before production"
+                    - label: "Mitigated by other controls"
+                      description: "External controls reduce risk"
+                    - label: "False positive"
+                      description: "Analysis incorrect"
+            - action: "set_flag"
+              flag: "security.override"
+              value: true
+            - action: "log"
+              level: "warn"
+              message: "Security override: ${answer.justification} for ${security.issues}"
+
+          "Cancel feature":
+            - action: "cancel_workflow"
+              reason: "Security validation failed - user cancelled"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture security blocked - user decision required"
+      decision_point: true
+      security_phase: "architecture_validation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 3: Implementation → Vulnerability Scan
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Scans implementation code for vulnerabilities.
+  # Runs in parallel with quality.review.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-to-security-scan"
+    description: "Scan implementation for vulnerabilities"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.status == 'completed'"
+    then:
+      - concept: "security"
+        action: "scan_implementation"
+        model: "sonnet"
+        parallel: true  # Runs in parallel with quality.review
+        inputs:
+          impl_id: "${implementation.id}"
+          arch_id: "${architecture.id}"
+          files_created: "${implementation.files_created}"
+          files_modified: "${implementation.files_modified}"
+          threat_model_id: "${security.threat_model.id}"
+
+    slo_expectations:
+      expected_duration_ms: 4000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "warn"
+        continue: true
+        message: "Security scan timed out - manual review recommended"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation complete - scanning for vulnerabilities"
+      security_phase: "vulnerability_scanning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Security Scan Found Critical Issues
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "security-scan-critical"
+    description: "When scan finds critical vulnerabilities"
+    when:
+      concept: "security"
+      action: "scan_implementation"
+      status: "completed"
+    where:
+      query: "security.vulnerabilities.critical > 0"
+    then:
+      - action: "notify"
+        level: "error"
+        message: |
+          CRITICAL SECURITY VULNERABILITIES FOUND
+
+          ${security.vulnerabilities.critical} critical issues must be fixed:
+          ${security.critical_issues}
+
+          Workflow blocked until resolved.
+
+      - concept: "implementation"
+        action: "fix_security"
+        model: "sonnet"
+        inputs:
+          impl_id: "${implementation.id}"
+          vulnerabilities: "${security.critical_issues}"
+          recommendations: "${security.recommendations}"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Critical security vulnerabilities - automatic fix triggered"
+      security_phase: "vulnerability_remediation"
+      severity: "critical"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Security Scan Found High Issues (User Decision)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "security-scan-high"
+    description: "When scan finds high-severity vulnerabilities"
+    when:
+      concept: "security"
+      action: "scan_implementation"
+      status: "completed"
+    where:
+      query: "security.vulnerabilities.critical == 0 AND security.vulnerabilities.high > 0"
+    then:
+      - action: "ask_user"
+        questions:
+          - question: "${security.vulnerabilities.high} high-severity issues found. How to proceed?"
+            header: "Security Issues"
+            multiSelect: false
+            options:
+              - label: "Fix issues (Recommended)"
+                description: "Fix high-severity vulnerabilities before commit"
+              - label: "Proceed with warning"
+                description: "Accept risk and continue (requires justification)"
+              - label: "Cancel"
+                description: "Stop and review issues"
+
+        on_answer:
+          "Fix issues (Recommended)":
+            - concept: "implementation"
+              action: "fix_security"
+              model: "sonnet"
+              inputs:
+                impl_id: "${implementation.id}"
+                vulnerabilities: "${security.high_issues}"
+
+          "Proceed with warning":
+            - action: "set_flag"
+              flag: "security.high_accepted"
+              value: true
+            - action: "log"
+              level: "warn"
+              message: "High-severity issues accepted: ${security.high_issues}"
+
+          "Cancel":
+            - action: "notify"
+              message: "Review security issues in koan/security/scan-${implementation.id}.yaml"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "High-severity security issues - user decision required"
+      decision_point: true
+      security_phase: "vulnerability_remediation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 4: Pre-Commit → Security Verification
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  #
+  # Final security gate before version.commit.
+  # Verifies all issues resolved and generates attestation.
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "pre-commit-security-verify"
+    description: "Final security verification before commit"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "review.status == 'approved'"
+
+    # Wait for security scan to complete
+    depends_on:
+      required:
+        - id: "impl-to-security-scan"
+          status: "completed"
+          timeout_ms: 20000
+
+    then:
+      - concept: "security"
+        action: "verify_commit"
+        model: "sonnet"
+        inputs:
+          impl_id: "${implementation.id}"
+          scan_id: "${security.scan.id}"
+          files_to_commit: "${implementation.files_changed}"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      success_rate_target: 0.99
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Quality approved - final security verification"
+      security_phase: "commit_verification"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Security Verified → Proceed to Commit
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "security-verified-to-commit"
+    description: "When security verification passes, allow commit"
+    when:
+      concept: "security"
+      action: "verify_commit"
+      status: "completed"
+    where:
+      query: "security.decision == 'approve'"
+    then:
+      - concept: "version"
+        action: "commit"
+        model: "sonnet"
+        inputs:
+          implementation_id: "${implementation.id}"
+          story_id: "${story.id}"
+          flow_id: "${flow.id}"
+          security_attestation: "${security.attestation.id}"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Security verified - proceeding to commit"
+      security_attestation: "${security.attestation.id}"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Secrets Detected → Block Commit
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "secrets-detected-block"
+    description: "Block commit when secrets detected in files"
+    when:
+      concept: "security"
+      action: "verify_commit"
+      status: "completed"
+    where:
+      query: "security.secrets_detected == true"
+    then:
+      - action: "notify"
+        level: "error"
+        message: |
+          SECRETS DETECTED IN STAGED FILES
+
+          Files with secrets:
+          ${security.secrets_files}
+
+          Commit blocked. Remove secrets before proceeding.
+
+      - action: "set_flag"
+        flag: "version.blocked"
+        value: true
+        reason: "Secrets detected in staged files"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Secrets detected - commit blocked"
+      security_phase: "commit_verification"
+      severity: "critical"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Security Flow Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Complete security flow:
+#
+#   Story ─────────────────┬──> Threat Model (parallel)
+#                          │
+#   Architecture ──────────┴──> Security Validation
+#                               │
+#                     ┌─────────┴─────────┐
+#                     │                   │
+#               [approved]            [blocked]
+#                     │                   │
+#                     v                   v
+#   Implementation ───┴──> Security Scan (parallel with quality)
+#                               │
+#                     ┌─────────┴─────────┐
+#                     │                   │
+#               [clean/low]         [critical/high]
+#                     │                   │
+#                     v                   v
+#   Quality ─────────────> Security Verify │
+#                               │         │
+#                     ┌─────────┴─────────┤
+#                     │                   │
+#               [approved]            [blocked]
+#                     │                   │
+#                     v                   v
+#                 Commit              Fix Issues
+#
+# Security Phases:
+#   1. Threat Modeling - Identify assets, threats, requirements
+#   2. Architecture Validation - Check design against OWASP
+#   3. Vulnerability Scanning - Detect issues in code
+#   4. Commit Verification - Final gate with attestation
+#
+# Cost per Feature:
+#   - Threat model:      $0.002
+#   - Arch validation:   $0.002
+#   - Impl scan:         $0.002
+#   - Commit verify:     $0.002
+#   - Total:             ~$0.008
+#
+# Blocking Behavior:
+#   - Critical vulnerabilities: Always block
+#   - High vulnerabilities: Block by default, user override allowed
+#   - Secrets detected: Always block, no override

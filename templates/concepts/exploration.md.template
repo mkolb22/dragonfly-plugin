@@ -1,0 +1,257 @@
+---
+name: exploration
+type: concept
+model: opus
+purpose: "Explore multiple solution paths with evaluation and backtracking for complex decisions"
+---
+
+# Exploration Concept
+
+The Exploration concept implements Tree-of-Thoughts (ToT) reasoning for complex problems where multiple valid approaches exist and require careful evaluation before commitment.
+
+## Research Foundation
+
+Based on:
+- **Structured Chain-of-Thought (2025)**: Multi-step reasoning for code generation
+- **RPM-MCTS**: Monte Carlo Tree Search for evaluating intermediate steps
+- **Graph of Thoughts**: Non-linear reasoning with branch merging
+
+## When to Use
+
+Use Exploration when:
+- Problem has multiple valid solutions with different trade-offs
+- Decision has high impact and is difficult to reverse
+- Past simple approaches have failed
+- Requirements are ambiguous and need clarification through exploration
+- Complex debugging requires systematic investigation
+
+Do NOT use when:
+- Solution is straightforward and obvious
+- Time-sensitive tasks where quick decision is better than optimal
+- Low-impact decisions
+
+## Actions
+
+### branch_explore
+
+Explore multiple solution paths in parallel, evaluate each, and select the best.
+
+**Inputs:**
+- `problem`: Description of the problem to solve
+- `constraints`: List of constraints that must be satisfied
+- `max_branches`: Maximum number of paths to explore (default: 3)
+- `depth`: How deep to explore each path (default: 2)
+- `evaluation_criteria`: Criteria for scoring paths
+
+**Process:**
+
+1. **Problem Decomposition**
+   - Break problem into sub-goals
+   - Identify decision points
+   - Map dependencies between decisions
+
+2. **Branch Generation**
+   - For each major decision point, generate alternative approaches
+   - Each branch represents a coherent solution strategy
+   - Branches should be meaningfully different, not minor variations
+
+3. **Branch Evaluation**
+   - Evaluate each branch against criteria
+   - Identify risks and trade-offs
+   - Estimate implementation effort
+   - Score on 1-10 scale
+
+4. **Path Selection**
+   - Select highest-scoring path
+   - If scores are close, consider risk-adjusted selection
+   - Document why other paths were rejected
+
+**Output Format:**
+```yaml
+exploration_id: "exp-001"
+problem: "Design authentication system"
+branches:
+  - path_id: "path-1"
+    name: "JWT with Redis sessions"
+    steps:
+      - "Implement JWT token generation"
+      - "Set up Redis for session storage"
+      - "Create refresh token rotation"
+    score: 8.5
+    rationale: "Scalable, industry standard"
+    risks:
+      - "Redis dependency adds complexity"
+    trade_offs:
+      - "Stateless vs stateful hybrid"
+
+  - path_id: "path-2"
+    name: "OAuth2 with passport.js"
+    steps:
+      - "Configure passport strategies"
+      - "Implement OAuth flow"
+      - "Store tokens in database"
+    score: 7.2
+    rationale: "Well-tested library ecosystem"
+    risks:
+      - "Tied to passport.js abstractions"
+
+  - path_id: "path-3"
+    name: "Session-based with secure cookies"
+    steps:
+      - "Implement session middleware"
+      - "Configure secure cookie settings"
+      - "Add CSRF protection"
+    score: 6.8
+    rationale: "Simple, no tokens to manage"
+    risks:
+      - "Scaling challenges with multiple servers"
+
+selected_path: "path-1"
+confidence: 0.85
+next_steps:
+  - "Proceed with JWT + Redis implementation"
+  - "Set up Redis infrastructure first"
+rejected_paths_summary: |
+  OAuth2/passport.js adds unnecessary abstraction for our use case.
+  Pure sessions don't scale well for our distributed architecture.
+```
+
+### evaluate_path
+
+Deeply evaluate a single solution path before committing.
+
+**Inputs:**
+- `path_id`: ID of the path to evaluate
+- `depth`: How many steps ahead to analyze
+- `focus_areas`: Specific concerns to investigate
+
+**Output Format:**
+```yaml
+path_id: "path-1"
+evaluation:
+  feasibility: 9  # Can we actually build this?
+  maintainability: 8  # Will it be easy to maintain?
+  scalability: 9  # Will it scale with our needs?
+  security: 8  # Are there security concerns?
+  complexity: 7  # How complex is implementation?
+
+detailed_analysis:
+  strengths:
+    - "Industry standard approach"
+    - "Good library support"
+  weaknesses:
+    - "Requires Redis infrastructure"
+  unknowns:
+    - "Performance under high load"
+
+recommendation: "proceed"  # proceed | reconsider | abandon
+conditions:
+  - "Ensure Redis high availability"
+  - "Plan for token rotation strategy"
+```
+
+### backtrack
+
+Abandon current path and return to a previous decision point.
+
+**Inputs:**
+- `current_path`: The path being abandoned
+- `failure_reason`: Why this path failed
+- `backtrack_to`: Which decision point to return to
+
+**Process:**
+1. Document why current path failed
+2. Extract learnings for future avoidance
+3. Restore context to previous decision point
+4. Re-evaluate remaining paths with new information
+5. Select alternative path
+
+**Output Format:**
+```yaml
+backtrack:
+  from_path: "path-1"
+  failure_reason: "Redis adds too much operational complexity for team"
+  learning: "Avoid infrastructure dependencies without ops team buy-in"
+  restored_to: "decision-point-1"
+
+re_evaluation:
+  paths_remaining: ["path-2", "path-3"]
+  adjusted_scores:
+    path-2: 7.8  # Bumped up due to simpler ops
+    path-3: 7.0  # Still scaling concerns
+  new_selection: "path-2"
+  confidence: 0.72
+```
+
+### merge_paths
+
+Combine insights from multiple paths into a hybrid solution.
+
+**Inputs:**
+- `paths`: List of paths to merge
+- `merge_strategy`: How to combine ("best_of_each" | "sequential" | "fallback")
+
+**Output Format:**
+```yaml
+merged_path:
+  name: "Hybrid JWT + OAuth"
+  components:
+    - from: "path-1"
+      element: "JWT token structure"
+    - from: "path-2"
+      element: "Passport OAuth strategies"
+  score: 8.8
+  rationale: "Combines strengths of both approaches"
+```
+
+## Integration with Workflow
+
+### With Architecture Concept
+- Exploration triggers when architecture complexity is high
+- Results feed into architecture decisions
+- Documented in architecture rationale
+
+### With Quality Concept
+- Quality can request exploration for identified issues
+- Exploration findings inform quality criteria
+
+### With Retrospective Concept
+- Backtrack learnings stored for future reference
+- Pattern matching against past explorations
+
+## Configuration
+
+```yaml
+# .claude/config.yaml
+exploration:
+  default_branches: 3
+  default_depth: 2
+  min_score_difference: 1.0  # Require clear winner
+  backtrack_threshold: 3     # Max backtracks before escalation
+  confidence_threshold: 0.7  # Minimum confidence to proceed
+```
+
+## Metrics
+
+Track exploration effectiveness:
+- Exploration frequency per feature
+- Backtrack rate
+- First-path success rate
+- Time in exploration vs implementation
+
+Stored in: `koan/metrics/exploration.yaml`
+
+## State Storage
+
+Exploration trees stored in: `koan/explorations/`
+
+```yaml
+# koan/explorations/exp-001.yaml
+exploration_id: "exp-001"
+created_at: "2025-12-07T23:30:00Z"
+problem: "Authentication system design"
+status: "completed"
+branches: [...]
+selected_path: "path-1"
+learnings: [...]
+```

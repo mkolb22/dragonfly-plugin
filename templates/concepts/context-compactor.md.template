@@ -1,0 +1,393 @@
+---
+name: context-compactor
+type: concept
+model: sonnet
+purpose: "Manage context window by intelligently compacting completed work"
+---
+
+# Context Compactor Concept
+
+The Context Compactor manages context window health by integrating Claude Code's native `/compact` command with Zen's superior retention rules. This hybrid approach provides:
+
+- Zen's research-backed retention strategies (what to keep vs summarize)
+- Claude Code's optimized compaction engine (fast, accurate)
+- Pre-compact checkpointing for safety
+- Context health monitoring and auto-compaction
+- Enabling 250+ turn sessions without context degradation
+
+## Architecture: Native Integration with Smart Retention
+
+**Key Design Principle:** Use native `/compact` for the actual compaction, but Zen controls WHAT to compact based on workflow state and retention rules.
+
+```
+Context Health Monitor → Retention Rules → Pre-compact Hook → Native /compact
+     (80% warning)         (what to keep)     (checkpoint)       (actual work)
+```
+
+## Research Foundation
+
+Based on:
+- **JetBrains Research (2025)**: Observation masking with window of latest 10 turns
+- **Anthropic Context Engineering**: Compaction and structured note-taking
+- **Context-Folding Agents**: Sub-trajectory summarization
+- **Claude Code Native**: Fast, accurate compaction with retention hints
+
+## Actions
+
+### prepare_compact
+
+Prepare for native `/compact` by creating checkpoint and applying retention rules.
+
+**Inputs:**
+- `trigger`: "manual" | "threshold_warning" | "threshold_critical" | "phase_complete"
+- `current_context_tokens`: Estimated token count
+- `workflow_state`: Current story/phase/files in progress
+
+**Process:**
+1. Load retention rules from `koan/context/retention-rules.yaml`
+2. Identify critical context based on rules:
+   - Active story and architecture decisions
+   - In-progress implementations
+   - Recent test failures
+   - Security requirements
+3. Create pre-compact checkpoint with critical context
+4. Emit `pre-compact` event for hooks
+5. Delegate to native `/compact` command
+6. Track compaction metrics
+
+**Output Format:**
+```yaml
+compact_preparation:
+  checkpoint_id: "ckpt-pre-compact-1769640000"
+  critical_context_preserved:
+    active_story: "story-042"
+    architecture_decisions: ["arch-042"]
+    files_in_progress: ["src/auth.ts", "tests/auth.test.ts"]
+    test_failures: []
+    security_requirements: ["OAuth2 token security"]
+  retention_summary:
+    always_retain_count: 5
+    summarize_count: 12
+    drop_count: 8
+  ready_for_compact: true
+```
+
+### check_context_health
+
+Monitor context usage and trigger warnings/auto-compaction.
+
+**Inputs:**
+- `current_tokens`: Estimated or actual token count
+- `budget_tokens`: Maximum context window (default: 200000)
+
+**Process:**
+1. Calculate usage percentage
+2. Check against thresholds (80%, 90%)
+3. If >= 80%: Emit warning + suggest `/compact`
+4. If >= 90%: Auto-checkpoint + recommend immediate compaction
+5. Track health metrics over time
+
+**Output Format:**
+```yaml
+context_health:
+  usage_tokens: 165000
+  budget_tokens: 200000
+  usage_percentage: 82.5
+  status: "warning"  # healthy | warning | critical
+  recommendation: "Consider running /compact to reduce context"
+  auto_checkpoint_created: true
+  checkpoint_id: "ckpt-safety-1769640100"
+```
+
+### apply_retention_rules
+
+Apply intelligent retention rules before compaction.
+
+**Inputs:**
+- `workflow_state`: Current workflow position (story/arch/impl/quality/commit)
+- `retention_rules`: Loaded from `koan/context/retention-rules.yaml`
+
+**Process:**
+1. Categorize all context items by retention policy:
+   - **always_retain**: Keep verbatim (active work, recent errors)
+   - **summarize**: Compress to key points (completed phases, discussions)
+   - **drop**: Safe to remove (verbose outputs, intermediate searches)
+2. Create retention hints for native `/compact`
+3. Ensure workflow continuity across compaction
+
+**Retention Categories:**
+
+**Always Retain (HIGH priority):**
+- Current story ID and requirements
+- Active architecture decisions (current story only)
+- Files currently being modified
+- Recent test failures (< 1 hour)
+- Security requirements for current feature
+- Critical errors not yet resolved
+
+**Summarize (MEDIUM priority):**
+- Completed implementation details (tests passing)
+- Resolved discussions and decisions
+- Historical architecture (previous stories)
+- Successful test runs
+- Code review comments (addressed)
+
+**Drop (LOW priority):**
+- Verbose tool outputs (full file reads, long search results)
+- Intermediate search iterations
+- Exploratory paths not taken
+- Resolved errors
+- Duplicate information
+
+**Output Format:**
+```yaml
+retention_applied:
+  always_retain:
+    - type: "story_active"
+      id: "story-042"
+      reason: "Current active story"
+    - type: "architecture_decision"
+      id: "arch-042"
+      reason: "Active architecture for current story"
+    - type: "file_in_progress"
+      path: "src/auth.ts"
+      reason: "Currently being implemented"
+
+  summarize:
+    - type: "completed_phase"
+      phase: "code-analysis"
+      summary: "Analyzed existing auth patterns, found passport.js usage"
+    - type: "resolved_discussion"
+      topic: "Token storage approach"
+      decision: "Use PostgreSQL with encrypted columns"
+
+  drop:
+    - type: "verbose_output"
+      source: "file_read"
+      reason: "Full package.json content (not needed)"
+    - type: "search_iteration"
+      query: "oauth implementations"
+      reason: "Found answer, intermediate results not needed"
+```
+
+### create_mini_checkpoint
+
+Create a lightweight checkpoint for recovery.
+
+**Inputs:**
+- `checkpoint_type`: "pre_operation" | "phase_complete" | "manual"
+- `include_state`: Include current workflow state
+- `include_recent_files`: Number of recently modified files to track
+
+**Output Format:**
+```yaml
+checkpoint:
+  id: "ckpt-20251207-231500"
+  type: "pre_operation"
+  context_tokens: 52000
+  workflow_state:
+    current_phase: "implementation"
+    story_id: "story-042"
+    files_in_progress: ["src/auth.ts"]
+  recent_context_summary: |
+    Working on OAuth implementation.
+    Architecture decided on passport.js.
+    Currently implementing token refresh.
+```
+
+### restore_checkpoint
+
+Restore context from a checkpoint.
+
+**Inputs:**
+- `checkpoint_type`: "latest" | "specific"
+- `checkpoint_id`: Specific checkpoint ID (if type is "specific")
+- `restore_mode`: "full" | "state_only" | "context_only"
+
+**Process:**
+1. Load checkpoint data
+2. Restore workflow state
+3. Inject summary of work done since checkpoint
+4. Resume from checkpoint state
+
+### apply_retention_policy
+
+Apply smart retention rules during folding.
+
+**Inputs:**
+- `retention_rules`: Array of rules with type, priority, and summary format
+
+**Retention Priority Levels:**
+- **high**: Keep in full or with minimal summarization
+- **medium**: Keep key details, summarize context
+- **low**: Heavily summarize or omit if space constrained
+
+**Default Retention Rules:**
+1. Error messages (high) - Keep full error with location
+2. Architectural decisions (high) - Keep decision + rationale
+3. File modifications (medium) - Keep path + change type
+4. Search results (low) - Keep only what was selected
+5. Exploration paths (low) - Keep only final chosen path
+
+## Token Estimation
+
+Uses a simple heuristic for token estimation:
+- Average 4 characters per token
+- Add 10% overhead for formatting
+- Track actual vs estimated for calibration
+
+```typescript
+function estimateTokens(text: string): number {
+  const chars = text.length;
+  const baseTokens = chars / 4;
+  return Math.ceil(baseTokens * 1.1);
+}
+```
+
+## Native `/compact` Integration
+
+### How It Works
+
+1. **Context Health Monitor** tracks token usage continuously
+2. **Warning at 80%** suggests running `/compact`
+3. **Auto-checkpoint at 90%** creates safety checkpoint
+4. **Pre-compact hook** runs before `/compact`:
+   - Loads retention rules
+   - Creates checkpoint with critical context
+   - Emits event for tracking
+5. **Native `/compact`** does the actual compaction
+6. **Post-compact verification** ensures workflow continuity
+
+### Advantages of Hybrid Approach
+
+| Aspect | Zen Provides | Native Provides |
+|--------|-------------|-----------------|
+| **Retention logic** | Research-backed rules, workflow-aware | N/A |
+| **Compaction engine** | N/A | Fast, accurate, optimized |
+| **Safety** | Pre-compact checkpoints | Built-in safeguards |
+| **Monitoring** | Proactive warnings, auto-checkpoint | Token counting |
+| **Recovery** | Workflow state preservation | Session continuity |
+
+**Result:** Best of both worlds - Zen's intelligence + Native's performance
+
+## Integration Points
+
+### With Native `/compact`
+- Pre-compact hook saves critical context
+- Retention rules guide what to preserve
+- Post-compact verification checks workflow state
+- Metrics track compaction effectiveness
+
+### With Checkpoint System
+- Auto-checkpoint at 90% usage
+- Pre-compact safety checkpoint
+- Recovery points for workflow continuity
+- Syncs with `/checkpoint` and `/restore` commands
+
+### With Workflow System
+- Phase-aware retention (keep active, summarize completed)
+- Story-scoped context preservation
+- File-in-progress tracking
+- Maintains workflow continuity across compactions
+
+### With Event System
+- Emits `context-threshold` events at 80%, 90%
+- Emits `pre-compact` event before compaction
+- Emits `post-compact` event with metrics
+- Enables hook automation
+
+## Configuration
+
+Default thresholds (can be customized in `.claude/config.yaml`):
+
+```yaml
+context_folding:
+  auto_fold_threshold: 80000  # tokens
+  critical_threshold: 120000  # tokens
+  tool_call_threshold: 30     # calls since last fold
+  preserve_recent_default: 10 # turns
+  summarize_window_default: 20 # turns
+```
+
+## Metrics
+
+Track compaction effectiveness:
+- Context usage trends (tokens over time)
+- Compaction frequency and triggers
+- Compression ratios achieved
+- Workflow continuity (no breaks after compact)
+- Recovery frequency
+- Session length enabled
+
+Stored in: `koan/health/context-metrics.yaml`
+
+Example metrics:
+```yaml
+context_metrics:
+  session_id: "session-2026-01-30"
+  compactions:
+    - timestamp: "2026-01-30T15:00:00Z"
+      trigger: "threshold_warning"
+      tokens_before: 165000
+      tokens_after: 75000
+      compression_ratio: 0.45
+      critical_context_preserved: 5
+      workflow_phase: "implementation"
+      continuity_verified: true
+
+  health_checks:
+    - timestamp: "2026-01-30T14:30:00Z"
+      usage_percentage: 82.5
+      status: "warning"
+      action: "checkpoint_created"
+    - timestamp: "2026-01-30T15:01:00Z"
+      usage_percentage: 37.5
+      status: "healthy"
+      action: "none"
+
+  summary:
+    total_compactions: 3
+    avg_compression_ratio: 0.48
+    max_usage_reached: 89.2
+    workflow_breaks: 0
+    session_duration_minutes: 180
+```
+
+## Example Usage
+
+### Scenario: Approaching Context Limit
+
+```yaml
+# Context reaches 80% during implementation
+Context Health Check:
+  usage: 160000 / 200000 tokens (80%)
+  status: warning
+  action: checkpoint_created
+  checkpoint: ckpt-safety-1769640100
+  recommendation: "Consider /compact after current task"
+
+# User continues work, reaches 90%
+Context Health Check:
+  usage: 180000 / 200000 tokens (90%)
+  status: critical
+  action: auto_checkpoint
+  checkpoint: ckpt-pre-compact-1769640200
+  recommendation: "Recommend /compact now to prevent context overflow"
+
+# User runs /compact
+Pre-compact Hook:
+  1. Load retention rules
+  2. Identify critical context (story-042, arch-042, src/auth.ts)
+  3. Create checkpoint with critical context
+  4. Emit pre-compact event
+
+Native /compact:
+  [Claude Code performs compaction]
+
+Post-compact Verification:
+  workflow_state: intact
+  story_id: story-042 (preserved)
+  files_in_progress: ["src/auth.ts"] (preserved)
+  tokens_after: 70000
+  usage: 35% (healthy)
+```

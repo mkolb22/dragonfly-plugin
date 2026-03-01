@@ -1,0 +1,62 @@
+---
+name: context
+type: concept
+model: sonnet
+state_location: "koan/context/"
+execution: task-tool
+cost_tier: low
+purpose: "Manage context window usage and compression"
+---
+
+# Context Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/context-concept.md`.
+
+**Model Assignment**: Sonnet 4.5 (context management and compression)
+**Cost per Action**: ~$0.003
+**State Location**: `koan/context/`
+**Never Calls**: No other concepts (pure context management)
+
+## Quick Reference
+
+### Actions
+- `monitor()` - Tracks current context window usage
+- `compress()` - Reduces context by summarizing
+- `checkpoint()` - Saves current state for restoration
+- `restore(checkpoint_id)` - Restores from checkpoint
+
+### State File Format
+```yaml
+# koan/context/context-{id}.yaml
+context_id: "ctx-001"
+status: "healthy"  # healthy, warning, critical
+summary: "One-line summary"
+
+details:
+  usage_percent: 45
+  tokens_used: 90000
+  tokens_available: 200000
+  checkpoints: []
+  compressions: 0
+  metadata:
+    created_at: "ISO-8601"
+    concept: "context"
+    model: "sonnet"
+```
+
+### Integration
+- **Triggered by**: Automatic monitoring, `/checkpoint` command
+- **Triggers**: Compression when usage >= 75%, checkpoint before compression
+
+## Full Documentation
+
+See `.claude/agents/context-concept.md` for:
+- Context budget management
+- Compression strategies
+- Checkpoint format
+- Restoration process
+- Health monitoring
+
+---
+
+**See also**: [Agent Definition](.claude/agents/context-concept.md)

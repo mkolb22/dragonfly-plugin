@@ -1,0 +1,135 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/hooks/statusline.sh",
+    "padding": 0
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-tool-grounding.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-tool-use.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-tool-structure-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-tool-structure-check.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*-concept",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/subagent-stop.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-compact.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/user-prompt-submit.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/stop.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "mcp__zen-server__*"
+    ],
+    "deny": [
+      "Bash(*rm -rf /*)",
+      "Bash(*rm -rf ~*)",
+      "Bash(*rm -rf $HOME*)",
+      "Bash(*> /dev/sd*)",
+      "Bash(*> /dev/nvme*)",
+      "Bash(*mkfs.*)",
+      "Bash(*dd if=*)",
+      "Bash(*chmod -R 777 /*)",
+      "Bash(*git push --force*origin main*)",
+      "Bash(*git push --force*origin master*)"
+    ],
+    "ask": [
+      "Bash(*rm -rf*)",
+      "Bash(*rm -r *)",
+      "Bash(*git reset --hard*)",
+      "Bash(*git clean -fd*)",
+      "Bash(*git checkout -- .*)",
+      "Bash(*git stash drop*)",
+      "Bash(*git branch -D*)",
+      "Bash(*DROP TABLE*)",
+      "Bash(*DROP DATABASE*)",
+      "Bash(*TRUNCATE*)",
+      "Bash(*--force*)",
+      "Bash(*--hard*)"
+    ]
+  }
+}

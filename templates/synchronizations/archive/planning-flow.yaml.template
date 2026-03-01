@@ -1,0 +1,312 @@
+# Planning Flow Synchronizations
+# Integrates Chain-of-Thought planning into the workflow
+
+version: "1.0.0"
+description: |
+  Adds explicit planning phase before architecture for complex features.
+  Forces structured reasoning through Chain-of-Thought process.
+
+synchronizations:
+  # Complex story triggers planning before architecture
+  story-to-planning:
+    description: Create plan for complex stories before architecture
+    when:
+      concept: story
+      action: create
+      status: "completed"
+    where:
+      query: "story.status == 'ready' AND story.complexity == 'high'"
+    then:
+      concept: planning
+      action: create
+      model: sonnet
+      inputs:
+        context: "{{story.context}}"
+        objective: "{{story.title}}"
+        constraints: "{{story.constraints}}"
+        learnings: "{{active_learnings.architecture}}"
+    outputs:
+      path: "koan/plans/plan-{{id}}.yaml"
+    priority: high
+
+    # SLO Expectations for planning.create
+    slo_expectations:
+      expected_duration_ms: 15000      # 15 seconds for structured planning
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for deep reasoning
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 1500    # Story + constraints + learnings
+      max_context_tokens: 8000         # Warning threshold
+      success_rate_target: 0.90        # 90% of plans succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Planning flows to architecture
+  planning-to-architecture:
+    description: Architecture design informed by plan
+    when:
+      concept: planning
+      action: create
+      status: "completed"
+    where:
+      query: "planning.status == 'ready' AND planning.blockers.length == 0"
+    then:
+      concept: architecture
+      action: design
+      model: opus
+      inputs:
+        story: "{{story}}"
+        plan: "{{planning}}"
+        recommended_approach: "{{planning.step_5_evaluation.recommendation}}"
+        constraints: "{{planning.step_2_constraints}}"
+        success_criteria: "{{planning.step_6_success_criteria}}"
+    outputs:
+      path: "koan/architecture/arch-{{id}}.yaml"
+    priority: high
+
+    # SLO Expectations for architecture.design (with Opus)
+    slo_expectations:
+      expected_duration_ms: 20000      # 20 seconds with Opus deep reasoning
+      max_duration_ms: 90000           # 90 seconds timeout
+      expected_cost_usd: 0.015         # Opus for complex architecture
+      max_cost_usd: 0.050              # Alert if exceeds
+      expected_context_tokens: 3000    # Story + plan + constraints
+      max_context_tokens: 15000        # Warning threshold
+      success_rate_target: 0.95        # 95% of architectures succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 3000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Simple stories skip planning (existing rule)
+  story-to-arch-simple:
+    description: Direct architecture for simple stories
+    when:
+      concept: story
+      action: create
+      status: "completed"
+    where:
+      query: "story.status == 'ready' AND story.complexity != 'high'"
+    then:
+      concept: architecture
+      action: design
+      model: sonnet
+      inputs:
+        story: "{{story}}"
+    outputs:
+      path: "koan/architecture/arch-{{id}}.yaml"
+    priority: medium
+
+    # SLO Expectations for architecture.design (with Sonnet)
+    slo_expectations:
+      expected_duration_ms: 12000      # 12 seconds for simple stories
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.003         # Sonnet for standard architecture
+      max_cost_usd: 0.015              # Alert if exceeds
+      expected_context_tokens: 1100    # Story context only
+      max_context_tokens: 10000        # Warning threshold
+      success_rate_target: 0.95        # 95% of architectures succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 2000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Planning blocked triggers clarification
+  planning-blocked:
+    description: Request clarification when planning is blocked
+    when:
+      concept: planning
+      action: create
+      status: "completed"
+    where:
+      query: "planning.status == 'blocked' OR planning.blockers.length > 0"
+    then:
+      concept: story
+      action: clarify
+      model: sonnet
+      inputs:
+        original_story: "{{story}}"
+        blockers: "{{planning.blockers}}"
+        clarifications_needed: "{{planning.step_3_unknowns.clarifications_needed}}"
+    outputs:
+      path: "koan/stories/story-{{id}}-clarification.yaml"
+    priority: high
+
+    # SLO Expectations for story.clarify
+    slo_expectations:
+      expected_duration_ms: 3000       # 3 seconds for clarification request
+      max_duration_ms: 20000           # 20 seconds timeout
+      expected_cost_usd: 0.000175      # Sonnet for simple task
+      max_cost_usd: 0.001              # Alert if exceeds
+      expected_context_tokens: 800     # Story + blockers
+      max_context_tokens: 3000         # Warning threshold
+      success_rate_target: 0.99        # 99% of clarifications succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 2
+        backoff_ms: 1000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+  # Complex architecture triggers Tree-of-Thoughts exploration
+  story-to-tree-of-thoughts:
+    description: |
+      Trigger Tree-of-Thoughts reasoning when architecture complexity is high,
+      multiple valid approaches exist, or risk assessment is needed.
+      Explores multiple reasoning paths before architecture design.
+    when:
+      concept: story
+      action: create
+      status: "completed"
+    where:
+      query: |
+        (story.status == 'ready') AND
+        (
+          (story.complexity == 'high' AND story.alternative_approaches.length >= 2) OR
+          (story.risk == 'high') OR
+          (story.tags contains 'architecture-decision') OR
+          (story.uncertainty == 'high')
+        )
+    then:
+      concept: tree-of-thoughts
+      action: explore
+      model: opus
+      inputs:
+        problem: "{{story.title}}"
+        context: "{{story.context}}"
+        constraints: "{{story.constraints}}"
+        success_criteria: "{{story.acceptance_criteria}}"
+        alternative_approaches: "{{story.alternative_approaches}}"
+        risk_factors: "{{story.risk_factors}}"
+      outputs:
+        path: "koan/tot/tot-{{id}}.yaml"
+      priority: high
+      slo_expectations:
+        expected_duration_ms: 45000  # Tree exploration can take 30-45 seconds
+        max_duration_ms: 90000
+        expected_cost_usd: 0.015  # Opus for deep reasoning
+        max_cost_usd: 0.050
+        success_rate_target: 0.92
+        on_timeout:
+          action: "retry"
+          max_retries: 2
+          on_exhausted: "escalate"
+
+  # Tree-of-Thoughts flows to architecture
+  tot-to-architecture:
+    description: Architecture design informed by Tree-of-Thoughts exploration
+    when:
+      concept: tree-of-thoughts
+      action: explore
+      status: "completed"
+    where:
+      query: "tot.status == 'complete' AND tot.selected_path != null"
+    then:
+      concept: architecture
+      action: design
+      model: opus
+      inputs:
+        story: "{{story}}"
+        selected_approach: "{{tot.selected_path}}"
+        exploration_rationale: "{{tot.rationale}}"
+        evaluated_alternatives: "{{tot.exploration.branches}}"
+        uncertainties: "{{tot.uncertainties}}"
+        constraints: "{{story.constraints}}"
+      outputs:
+        path: "koan/architecture/arch-{{id}}.yaml"
+      priority: high
+
+    # SLO Expectations for architecture.design (with Opus + ToT)
+    slo_expectations:
+      expected_duration_ms: 20000      # 20 seconds with Opus and ToT context
+      max_duration_ms: 90000           # 90 seconds timeout
+      expected_cost_usd: 0.015         # Opus for complex architecture
+      max_cost_usd: 0.050              # Alert if exceeds
+      expected_context_tokens: 4000    # Story + ToT exploration + alternatives
+      max_context_tokens: 20000        # Warning threshold
+      success_rate_target: 0.95        # 95% of architectures succeed
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 3000
+        on_exhausted: "escalate"
+
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: true
+
+# Complexity detection
+complexity_rules:
+  description: |
+    Rules for determining if a story requires planning phase.
+    Stories are marked as 'high' complexity if any of these apply:
+
+  criteria:
+    - name: multiple_systems
+      description: Story involves 3+ systems or services
+      query: "story.systems.length >= 3"
+
+    - name: security_sensitive
+      description: Story involves authentication, authorization, or sensitive data
+      query: "story.tags contains 'security' OR story.tags contains 'auth'"
+
+    - name: performance_critical
+      description: Story has specific performance requirements
+      query: "story.requirements.performance != null"
+
+    - name: integration_heavy
+      description: Story involves external API integrations
+      query: "story.integrations.length > 0"
+
+    - name: data_migration
+      description: Story involves data structure changes
+      query: "story.tags contains 'migration' OR story.tags contains 'schema-change'"
+
+    - name: high_risk
+      description: Story flagged as high risk
+      query: "story.risk == 'high'"

@@ -1,0 +1,74 @@
+---
+name: architecture
+type: concept
+model: opus
+state_location: "koan/architecture/"
+execution: task-tool
+cost_tier: high
+purpose: "Design system architecture and make technical decisions"
+---
+
+# Architecture Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/architecture-concept.md`.
+
+**Model Assignment**: Opus 4.5 (deep reasoning for complex design decisions)
+**Cost per Action**: ~$0.015
+**State Location**: `koan/architecture/`
+**Never Calls**: No other concepts (pure design work)
+
+## Quick Reference
+
+### Actions
+- `design(story_id, context)` - Creates technical architecture for a requirement
+- `revise(arch_id, feedback)` - Updates architecture based on feedback
+- `evaluate_tradeoffs(options)` - Deep analysis of technical alternatives
+
+### State File Format
+```yaml
+# koan/architecture/arch-{id}.yaml
+arch_id: "arch-001"
+status: "completed"  # draft, in_review, completed, blocked
+summary: "One-line summary of approach"
+
+details:
+  approach: "High-level approach description"
+  decisions:
+    - decision: "Key decision"
+      rationale: "Why this choice"
+      alternatives: []
+  components: []
+  risks: []
+  metadata:
+    created_at: "ISO-8601"
+    concept: "architecture"
+    model: "opus"
+```
+
+### Integration
+- **Triggered by**: `story-to-arch` sync when story.status="ready"
+- **Triggers**: Implementation via `arch-to-impl` sync when risk!="high"
+
+## Why Opus 4.5?
+
+Architecture is the ONLY concept using Opus because it requires:
+- Complex trade-off analysis
+- Novel problem solving
+- Pattern synthesis across domains
+- Risk evaluation
+- Long-term impact assessment
+
+This accounts for ~91% of a typical feature's AI cost, but prevents costly mistakes downstream.
+
+## Full Documentation
+
+See `.claude/agents/architecture-concept.md` for:
+- Sequential thinking process
+- Incremental loading with MCP
+- Decision documentation format
+- Risk assessment guidelines
+- Example architectures
+
+---
+
+**See also**: [Agent Definition](.claude/agents/architecture-concept.md)

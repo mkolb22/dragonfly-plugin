@@ -1,0 +1,369 @@
+# Exploration Flow Synchronization Rules
+# Enables Tree-of-Thoughts reasoning for complex decisions
+#
+# Based on research:
+# - Structured Chain-of-Thought for code generation
+# - RPM-MCTS: Monte Carlo Tree Search for step evaluation
+# - Graph of Thoughts: Non-linear reasoning with merging
+
+version: "1.0.0"
+
+# Global SLO defaults for exploration (expensive but high-value)
+slo_defaults:
+  expected_duration_ms: 15000
+  max_duration_ms: 60000
+  expected_cost_usd: 0.015
+  max_cost_usd: 0.05
+  expected_context_tokens: 5000
+  success_rate_target: 0.90
+  on_timeout:
+    action: "escalate"
+    message: "Exploration timed out - human guidance needed"
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Complex Architecture Exploration
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-complexity-to-explore"
+    description: "Explore multiple approaches for complex architecture"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "starting"
+    where:
+      query: "story.complexity == 'high' OR story.acceptance_criteria.length > 5"
+    then:
+      - concept: "exploration"
+        action: "branch_explore"
+        model: "opus"  # Deep reasoning needed
+        inputs:
+          problem: "${story.description}"
+          constraints: "${story.acceptance_criteria}"
+          max_branches: 3
+          depth: 2
+          evaluation_criteria:
+            - "feasibility"
+            - "maintainability"
+            - "scalability"
+            - "security"
+
+    slo_expectations:
+      expected_duration_ms: 20000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.02
+      max_cost_usd: 0.05
+      expected_context_tokens: 8000
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed with default architecture approach"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Complex story requires exploration of approaches"
+      category: "exploration"
+
+  - id: "explore-to-arch"
+    description: "Feed exploration results into architecture design"
+    when:
+      concept: "exploration"
+      action: "branch_explore"
+      status: "completed"
+    then:
+      - concept: "architecture"
+        action: "design"
+        model: "sonnet"
+        inputs:
+          exploration_result: "${exploration.selected_path}"
+          rejected_paths: "${exploration.rejected_paths_summary}"
+          confidence: "${exploration.confidence}"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.01
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture informed by exploration"
+      category: "design"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Debug Exploration
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "debug-dead-end-to-explore"
+    description: "Explore alternatives when debugging approaches fail"
+    when:
+      concept: "execution-loop"
+      action: "self_debug"
+      status: "failed"
+    where:
+      query: "debug.attempts >= 2"
+    then:
+      - concept: "exploration"
+        action: "branch_explore"
+        model: "opus"
+        inputs:
+          problem: "Debug ${debug.error_type}: ${debug.error_message}"
+          constraints:
+            - "Must not break existing functionality"
+            - "Solution should be minimal"
+          max_branches: 3
+          depth: 2
+          evaluation_criteria:
+            - "likelihood_of_fix"
+            - "risk_of_regression"
+            - "implementation_effort"
+
+    slo_expectations:
+      expected_duration_ms: 15000
+      max_duration_ms: 45000
+      expected_cost_usd: 0.015
+      max_cost_usd: 0.04
+      on_timeout:
+        action: "escalate"
+        message: "Debug exploration timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Standard debugging failed - exploring alternatives"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Backtracking
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-blocked-to-backtrack"
+    description: "Backtrack to earlier decision when implementation is blocked"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "blocked"
+    where:
+      query: "implementation.blocker_type == 'architectural'"
+    then:
+      - concept: "exploration"
+        action: "backtrack"
+        model: "sonnet"
+        inputs:
+          current_path: "${architecture.selected_approach}"
+          failure_reason: "${implementation.blocker_reason}"
+          backtrack_to: "architecture"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.008
+      on_timeout:
+        action: "escalate"
+        message: "Backtracking timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation blocked - backtracking to architecture"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Refactoring Exploration
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "refactor-to-explore"
+    description: "Explore refactoring strategies before major changes"
+    when:
+      concept: "implementation"
+      action: "refactor"
+      status: "starting"
+    where:
+      query: "refactor.scope == 'major' OR refactor.files_affected > 5"
+    then:
+      - concept: "exploration"
+        action: "branch_explore"
+        model: "opus"
+        inputs:
+          problem: "Refactor ${refactor.target}: ${refactor.goal}"
+          constraints:
+            - "Maintain backwards compatibility"
+            - "Minimize test changes"
+          max_branches: 3
+          evaluation_criteria:
+            - "risk"
+            - "effort"
+            - "improvement"
+
+    slo_expectations:
+      expected_duration_ms: 20000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.02
+      max_cost_usd: 0.05
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed with incremental refactoring"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Major refactor requires exploration"
+      category: "exploration"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Confidence-Based Evaluation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "low-confidence-to-evaluate"
+    description: "Evaluate path more deeply when confidence is low"
+    when:
+      concept: "exploration"
+      action: "branch_explore"
+      status: "completed"
+    where:
+      query: "exploration.confidence < 0.7"
+    then:
+      - concept: "exploration"
+        action: "evaluate_path"
+        model: "opus"
+        inputs:
+          path_id: "${exploration.selected_path.path_id}"
+          depth: 3
+          focus_areas:
+            - "unknowns"
+            - "risks"
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.01
+      max_cost_usd: 0.03
+      on_timeout:
+        action: "proceed"
+        message: "Proceeding with low-confidence path"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Low confidence - deeper evaluation needed"
+      category: "validation"
+
+  - id: "close-scores-to-merge"
+    description: "Consider hybrid approach when paths have similar scores"
+    when:
+      concept: "exploration"
+      action: "branch_explore"
+      status: "completed"
+    where:
+      query: "abs(exploration.branches[0].score - exploration.branches[1].score) < 1.0"
+    then:
+      - concept: "exploration"
+        action: "merge_paths"
+        model: "opus"
+        inputs:
+          paths:
+            - "${exploration.branches[0].path_id}"
+            - "${exploration.branches[1].path_id}"
+          merge_strategy: "best_of_each"
+
+    slo_expectations:
+      expected_duration_ms: 8000
+      max_duration_ms: 25000
+      expected_cost_usd: 0.008
+      max_cost_usd: 0.025
+      on_timeout:
+        action: "skip"
+        fallback: "Use highest-scoring path"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Close scores suggest hybrid might be optimal"
+      category: "optimization"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Learning from Exploration
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "exploration-to-memory"
+    description: "Store exploration learnings in semantic memory"
+    when:
+      concept: "exploration"
+      action: ["branch_explore", "backtrack"]
+      status: "completed"
+    then:
+      - concept: "retrospective"
+        action: "extract_pattern"
+        model: "sonnet"
+        inputs:
+          source: "exploration"
+          data: "${exploration}"
+          pattern_type: "decision_pattern"
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.005
+      on_timeout:
+        action: "skip"
+        fallback: "Learning deferred"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Learn from exploration decisions"
+      category: "learning"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Escalation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "max-backtracks-escalate"
+    description: "Escalate to human if exploration keeps failing"
+    when:
+      concept: "exploration"
+      action: "backtrack"
+      status: "completed"
+    where:
+      query: "exploration.backtrack_count >= 3"
+    then:
+      - concept: "story"
+        action: "add_note"
+        model: "sonnet"
+        inputs:
+          note: |
+            ## Exploration Exhausted
+
+            Multiple approaches have been tried and abandoned:
+            ${exploration.abandoned_paths.map(p => '- ' + p.name + ': ' + p.failure_reason).join('\n')}
+
+            This may indicate:
+            - Requirements are conflicting
+            - Problem needs reframing
+            - Human domain expertise needed
+
+            Please review and provide guidance.
+          severity: "blocker"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 5000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Max backtracks exceeded - human input needed"
+      category: "escalation"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Exploration Flow Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# This synchronization file enables:
+# - Tree-of-Thoughts exploration for complex decisions
+# - Branch-and-bound search with evaluation criteria
+# - Backtracking when implementation hits blockers
+# - Hybrid path merging when scores are close
+# - Learning from exploration decisions
+# - Automatic escalation when exploration exhausted
+#
+# Uses Opus for deep reasoning (exploration, evaluation)
+# Uses Sonnet for routine operations (backtrack, learning)
+#
+# Expected exploration cost: $0.015-0.05 per complex decision

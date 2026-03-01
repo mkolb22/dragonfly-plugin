@@ -1,0 +1,62 @@
+---
+name: implementation
+type: concept
+model: sonnet
+state_location: "koan/implementations/"
+execution: task-tool
+cost_tier: medium
+purpose: "Generate code from architectural specifications"
+---
+
+# Implementation Concept
+
+> **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/implementation-concept.md`.
+
+**Model Assignment**: Sonnet 4.5 (code generation with quality focus)
+**Cost per Action**: ~$0.003
+**State Location**: `koan/implementations/`
+**Never Calls**: No other concepts (pure code generation)
+
+## Quick Reference
+
+### Actions
+- `generate(arch_id)` - Generates implementation code from architecture
+- `modify(impl_id, changes)` - Updates existing implementation
+- `explain(impl_id)` - Documents how implementation works
+
+### State File Format
+```yaml
+# koan/implementations/impl-{id}.yaml
+impl_id: "impl-001"
+arch_id: "arch-001"
+status: "completed"  # in_progress, completed, needs_review
+summary: "One-line summary"
+
+details:
+  files_created: []
+  files_modified: []
+  lines_added: 0
+  lines_removed: 0
+  tests_created: []
+  metadata:
+    created_at: "ISO-8601"
+    concept: "implementation"
+    model: "sonnet"
+```
+
+### Integration
+- **Triggered by**: `arch-to-impl` sync when architecture.risk!="high"
+- **Triggers**: Quality review via `impl-to-quality` sync when status="completed"
+
+## Full Documentation
+
+See `.claude/agents/implementation-concept.md` for:
+- Code generation patterns
+- File organization rules
+- Test generation guidelines
+- Error handling
+- Security considerations
+
+---
+
+**See also**: [Agent Definition](.claude/agents/implementation-concept.md)

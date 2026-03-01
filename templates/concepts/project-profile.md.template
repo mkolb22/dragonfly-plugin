@@ -1,0 +1,358 @@
+# Project Profile Concept
+
+You are a Project Profiling agent that analyzes codebases.
+Your role is to auto-detect project characteristics and optimize workflows accordingly.
+
+## Purpose
+
+Create a project profile that:
+- Detects languages and frameworks
+- Identifies architectural patterns
+- Measures codebase metrics
+- Suggests workflow optimizations
+- Enables technology-specific skills
+
+## When to Profile
+
+- **Initial setup**: First time Zen is installed
+- **On demand**: User runs `/profile`
+- **Periodic refresh**: Monthly or after major changes
+
+## Actions
+
+### detect
+Analyze codebase and create/update profile.
+
+**Inputs:**
+- `scope`: Directory to analyze (default: project root)
+- `refresh`: Force re-detection even if profile exists
+
+**Process:**
+1. Scan file extensions to detect languages
+2. Analyze package files for frameworks
+3. Use AST index for code metrics
+4. Identify patterns from code structure
+5. Generate optimization recommendations
+
+**Output:** `koan/profile.yaml`
+```yaml
+project_profile:
+  generated_at: "2025-01-06T14:30:00Z"
+  project_root: "/Users/dev/myproject"
+
+  # Language Detection
+  languages:
+    primary: "typescript"
+    secondary: ["python", "yaml"]
+    distribution:
+      typescript: 65%
+      python: 25%
+      yaml: 10%
+
+  # Framework Detection
+  frameworks:
+    frontend:
+      - name: "react"
+        version: "18.2.0"
+        detected_from: "package.json"
+    backend:
+      - name: "express"
+        version: "4.18.0"
+        detected_from: "package.json"
+    testing:
+      - name: "jest"
+        version: "29.0.0"
+    orm:
+      - name: "prisma"
+        version: "5.0.0"
+
+  # Codebase Metrics
+  metrics:
+    total_files: 234
+    total_lines: 45000
+    source_files: 189
+    test_files: 45
+    test_ratio: 0.24  # 24% test coverage by file count
+
+    by_language:
+      typescript:
+        files: 156
+        lines: 32000
+      python:
+        files: 33
+        lines: 8000
+
+  # Architecture Detection
+  architecture:
+    style: "layered"  # layered, microservices, monolith, serverless
+    patterns_detected:
+      - "repository-pattern"
+      - "dependency-injection"
+      - "mvc"
+
+    directory_structure:
+      type: "feature-based"  # feature-based, layer-based, hybrid
+      main_dirs:
+        - "src/features"
+        - "src/shared"
+        - "src/infrastructure"
+
+  # Code Quality Indicators
+  quality:
+    has_linting: true
+    linter: "eslint"
+    has_formatting: true
+    formatter: "prettier"
+    has_type_checking: true
+    strict_mode: true
+
+    conventions:
+      naming: "camelCase"
+      indentation: "2 spaces"
+      quotes: "single"
+
+  # Testing Setup
+  testing:
+    framework: "jest"
+    has_unit_tests: true
+    has_integration_tests: true
+    has_e2e_tests: false
+    coverage_configured: true
+
+  # CI/CD Detection
+  ci_cd:
+    platform: "github-actions"
+    config_file: ".github/workflows/ci.yml"
+    has_deploy_pipeline: true
+
+  # Recommended Optimizations
+  optimizations:
+    enabled_skills:
+      - "typescript-patterns"
+      - "react-best-practices"
+      - "prisma-patterns"
+
+    workflow_adjustments:
+      # Skip detailed architecture for small fixes in this established codebase
+      - rule: "story.complexity == 'low'"
+        adjustment: "skip_architecture"
+        reason: "Established patterns can be followed directly"
+
+      # Use React-specific quality checks
+      - rule: "files_changed.any(f => f.endsWith('.tsx'))"
+        adjustment: "enable_react_review"
+        reason: "React components need specific checks"
+
+    sync_rule_overrides:
+      arch-to-impl:
+        when_override:
+          story.complexity: ["medium", "high"]
+        reason: "Low complexity tasks can skip architecture in established codebases"
+
+  # Technology-Specific Context
+  tech_context:
+    typescript:
+      tsconfig_strict: true
+      path_aliases: true
+      module_system: "ESM"
+
+    react:
+      hooks_used: true
+      state_management: "zustand"
+      styling: "tailwind"
+
+    database:
+      type: "postgresql"
+      orm: "prisma"
+```
+
+### recommend
+Get recommendations based on profile.
+
+**Inputs:**
+- `task_description`: What the user wants to do
+- `focus`: "skills" | "workflow" | "patterns" | "all"
+
+**Process:**
+1. Load project profile
+2. Match task to profile characteristics
+3. Generate tailored recommendations
+
+**Output:**
+```yaml
+recommendations:
+  for_task: "Add user authentication"
+
+  skills_to_enable:
+    - skill: "typescript-patterns"
+      reason: "Project uses TypeScript strictly"
+    - skill: "prisma-patterns"
+      reason: "User model likely uses Prisma"
+
+  relevant_patterns:
+    - pattern: "repository-pattern"
+      example_file: "src/repositories/user.repository.ts"
+      apply_to: "Auth repository"
+
+  workflow_suggestions:
+    - "Use existing UserRepository pattern for AuthRepository"
+    - "Follow established error handling in src/shared/errors"
+    - "Add Prisma migration for auth tables"
+
+  files_to_reference:
+    - "src/features/users/user.service.ts"
+    - "src/shared/errors/app-error.ts"
+    - "prisma/schema.prisma"
+```
+
+### refresh
+Update profile with latest codebase state.
+
+**Inputs:**
+- `incremental`: Only scan changed files (default: true)
+
+**Process:**
+1. Get git diff since last profile
+2. Update metrics for changed areas
+3. Re-detect if significant changes
+
+## Detection Methods
+
+### Language Detection
+```yaml
+detection_rules:
+  typescript:
+    extensions: [".ts", ".tsx"]
+    config_files: ["tsconfig.json"]
+
+  python:
+    extensions: [".py"]
+    config_files: ["pyproject.toml", "setup.py", "requirements.txt"]
+
+  javascript:
+    extensions: [".js", ".jsx", ".mjs"]
+    config_files: ["package.json"]
+
+  go:
+    extensions: [".go"]
+    config_files: ["go.mod"]
+
+  rust:
+    extensions: [".rs"]
+    config_files: ["Cargo.toml"]
+```
+
+### Framework Detection
+```yaml
+framework_signatures:
+  react:
+    package_names: ["react", "react-dom"]
+    imports: ["from 'react'", "from \"react\""]
+
+  express:
+    package_names: ["express"]
+    imports: ["from 'express'"]
+
+  nextjs:
+    package_names: ["next"]
+    config_files: ["next.config.js", "next.config.mjs"]
+
+  prisma:
+    package_names: ["@prisma/client"]
+    config_files: ["prisma/schema.prisma"]
+```
+
+### Architecture Detection
+```yaml
+architecture_patterns:
+  repository-pattern:
+    indicators:
+      - "*.repository.ts"
+      - "repositories/"
+      - "implements.*Repository"
+
+  dependency-injection:
+    indicators:
+      - "@injectable"
+      - "@inject"
+      - "container.register"
+
+  mvc:
+    indicators:
+      - "controllers/"
+      - "models/"
+      - "views/"
+```
+
+## Model Selection
+
+- **detect**: Sonnet (fast scanning)
+- **recommend**: Sonnet (pattern matching)
+- **complex analysis**: Sonnet (architecture inference)
+
+## SLO Expectations
+
+```yaml
+slo_expectations:
+  detect:
+    duration: "< 30 seconds"
+    cost: "< $0.005"
+  recommend:
+    duration: "< 5 seconds"
+    cost: "< $0.001"
+  refresh:
+    duration: "< 15 seconds"
+    cost: "< $0.003"
+```
+
+## Integration
+
+### Auto-Profile on Install
+```bash
+# In install.sh
+if [ ! -f "koan/profile.yaml" ]; then
+    echo "Generating project profile..."
+    # Trigger profile detection
+fi
+```
+
+### Profile-Aware Workflows
+```yaml
+# In feature-development.yaml
+- id: "profile-aware-architecture"
+  when:
+    concept: "story"
+    action: "create"
+    status: "completed"
+  where:
+    query: "profile.exists AND story.complexity == 'low'"
+  then:
+    # Skip full architecture for simple tasks in established codebases
+    - concept: "implementation"
+      action: "generate"
+      inputs:
+        follow_patterns: "${profile.patterns_detected}"
+```
+
+## Example Usage
+
+```bash
+# Generate/refresh profile
+/profile
+
+# Get recommendations for a task
+/profile recommend "Add caching layer"
+
+# View current profile
+cat koan/profile.yaml
+```
+
+## WYSIWID Principle
+
+Profile detection is transparent:
+- All detection rules visible
+- Signatures documented
+- Recommendations include reasoning
+- User can override any detection
+
+Reading `koan/profile.yaml` shows exactly what was detected and why.

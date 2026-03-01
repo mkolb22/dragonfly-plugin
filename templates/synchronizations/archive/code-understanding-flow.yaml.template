@@ -1,0 +1,533 @@
+# Code Understanding Workflow Synchronizations (Phase 3)
+# Integrates AST-index and semantic-rag MCP servers into the feature development workflow
+#
+# WYSIWID Principle: This YAML defines when MCP servers are invoked for code understanding
+# Read this file to see exactly when indexing, searching, and reference checking happens
+
+version: "1.0.0"
+
+# Global SLO defaults for code understanding (all MCP operations are local/free)
+slo_defaults:
+  expected_duration_ms: 2000
+  max_duration_ms: 30000
+  expected_cost_usd: 0.0
+  max_cost_usd: 0.0
+  expected_context_tokens: 1000
+  success_rate_target: 0.95
+  on_timeout:
+    action: "continue"
+    message: "MCP operation timed out - proceeding without context"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 1: Project Initialization (Sequential)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # When first story is created, build code understanding indexes
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "project-init-ast-index"
+    description: "Build AST index when project is first used"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "project.ast_indexed != true"
+    then:
+      - action: "mcp_call"
+        server: "ast-index"
+        tool: "index_project"
+        inputs:
+          paths: ["${project.source_paths}"]
+          languages: ["${project.languages}"]
+        on_success:
+          - action: "set_flag"
+            flag: "project.ast_indexed"
+            value: true
+          - action: "set_metadata"
+            key: "project.ast_index_updated"
+            value: "${timestamp}"
+
+    # SLO Expectations for AST indexing
+    slo_expectations:
+      expected_duration_ms: 5000       # 5 seconds for typical project
+      max_duration_ms: 60000           # 1 minute timeout
+      expected_cost_usd: 0.0           # MCP server is local, no API costs
+      max_cost_usd: 0.0
+      expected_context_tokens: 100     # Minimal context (just index stats)
+      max_context_tokens: 500
+      success_rate_target: 0.95        # 95% of indexing succeeds
+
+      on_timeout:
+        action: "alert"
+        message: "AST indexing taking too long - check project size"
+        continue: true                 # Don't block workflow
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: false
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "First story created - building AST index for code navigation"
+      phase: 3
+      mcp_server: "ast-index"
+      category: "initialization"
+
+  - id: "project-init-semantic-embeddings"
+    description: "Create semantic embeddings after AST index completes"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "project.ast_indexed == true AND project.semantic_embedded != true"
+    then:
+      - action: "mcp_call"
+        server: "semantic-rag"
+        tool: "embed_project"
+        inputs:
+          paths: ["${project.source_paths}"]
+          incremental: false
+        on_success:
+          - action: "set_flag"
+            flag: "project.semantic_embedded"
+            value: true
+          - action: "set_metadata"
+            key: "project.embeddings_updated"
+            value: "${timestamp}"
+
+    # SLO Expectations for semantic embedding
+    slo_expectations:
+      expected_duration_ms: 15000      # 15 seconds for typical project
+      max_duration_ms: 120000          # 2 minute timeout (embedding is slower)
+      expected_cost_usd: 0.0           # Local embeddings, no API cost
+      max_cost_usd: 0.0
+      expected_context_tokens: 100     # Minimal context
+      max_context_tokens: 500
+      success_rate_target: 0.90        # 90% success (embedding can be finicky)
+
+      on_timeout:
+        action: "alert"
+        message: "Semantic embedding taking too long - check project size"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        investigate: false
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "AST index complete - building semantic embeddings for context retrieval"
+      phase: 3
+      mcp_server: "semantic-rag"
+      category: "initialization"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 2: Architecture Design Context Loading (Sequential)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Before architecture design, load relevant code context
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "arch-semantic-context"
+    description: "Load semantic context before architecture design"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "in_progress"
+    where:
+      query: "project.semantic_embedded == true"
+    then:
+      - action: "mcp_call"
+        server: "semantic-rag"
+        tool: "get_context_for_task"
+        inputs:
+          task: "${story.description}"
+          maxTokens: 4000                # Limit context to 4K tokens
+        on_success:
+          - action: "inject_context"
+            target: "architecture.design"
+            context_type: "semantic_code_context"
+            content: "${mcp_result.context}"
+
+    # SLO Expectations for semantic context loading
+    slo_expectations:
+      expected_duration_ms: 1000       # 1 second for semantic search
+      max_duration_ms: 10000           # 10 seconds timeout
+      expected_cost_usd: 0.0           # Local embeddings
+      max_cost_usd: 0.0
+      expected_context_tokens: 4100    # 4K context + 100 overhead
+      max_context_tokens: 5000
+      success_rate_target: 0.95        # 95% success
+
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+        backoff_ms: 1000
+        on_exhausted: "continue"       # Don't block architecture if context fails
+
+      on_context_exceeded:
+        action: "alert"
+        message: "Semantic context exceeded token limit - reducing maxTokens"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture design starting - loading relevant code context"
+      phase: 3
+      mcp_server: "semantic-rag"
+      optimization: "Reduces architecture design context from 15K to 4K tokens (73% reduction)"
+      category: "context-loading"
+
+  - id: "arch-symbol-lookup"
+    description: "Find related symbols for architecture context"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "in_progress"
+    where:
+      query: "project.ast_indexed == true AND story.mentions_symbols == true"
+    then:
+      - action: "mcp_call"
+        server: "ast-index"
+        tool: "find_symbol"
+        inputs:
+          query: "${story.symbol_names}"
+          limit: 10
+        on_success:
+          - action: "inject_context"
+            target: "architecture.design"
+            context_type: "symbol_definitions"
+            content: "${mcp_result.symbols}"
+
+    # SLO Expectations for symbol lookup
+    slo_expectations:
+      expected_duration_ms: 500        # 500ms for symbol lookup
+      max_duration_ms: 5000            # 5 seconds timeout
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 1000    # Symbol definitions
+      max_context_tokens: 2000
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "continue"             # Symbol lookup is optional
+        message: "Symbol lookup timed out - proceeding without symbol context"
+
+      on_context_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Story mentions specific symbols - loading definitions for context"
+      phase: 3
+      mcp_server: "ast-index"
+      category: "context-loading"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 3: Implementation Reference Checking (Sequential)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # During implementation, find similar code patterns
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-find-similar-patterns"
+    description: "Find similar code patterns before implementation"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "in_progress"
+    where:
+      query: "project.semantic_embedded == true AND architecture.patterns.length > 0"
+    then:
+      - action: "mcp_call"
+        server: "semantic-rag"
+        tool: "semantic_search"
+        inputs:
+          query: "${architecture.patterns[0].description}"
+          limit: 3
+          threshold: 0.7
+        on_success:
+          - action: "inject_context"
+            target: "implementation.generate"
+            context_type: "similar_patterns"
+            content: "${mcp_result.results}"
+
+    # SLO Expectations for pattern search
+    slo_expectations:
+      expected_duration_ms: 800        # 800ms for pattern search
+      max_duration_ms: 8000            # 8 seconds timeout
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 2000    # Pattern examples
+      max_context_tokens: 3000
+      success_rate_target: 0.90
+
+      on_timeout:
+        action: "continue"
+        message: "Pattern search timed out - proceeding with architecture patterns only"
+
+      on_context_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Architecture specifies patterns - finding existing examples"
+      phase: 3
+      mcp_server: "semantic-rag"
+      optimization: "Helps implementation follow existing code patterns"
+      category: "intelligence"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase 4: Quality Review with Reference Analysis (Sequential)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # During quality review, check symbol references for breaking changes
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "quality-check-references"
+    description: "Check references when implementation modifies public symbols"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "in_progress"
+    where:
+      query: "project.ast_indexed == true AND implementation.modified_public_symbols.length > 0"
+    then:
+      - action: "mcp_call"
+        server: "ast-index"
+        tool: "find_references"
+        inputs:
+          file: "${implementation.modified_public_symbols[0].file}"
+          symbol: "${implementation.modified_public_symbols[0].name}"
+        on_success:
+          - action: "inject_context"
+            target: "quality.review"
+            context_type: "symbol_references"
+            content: "${mcp_result.references}"
+          - action: "set_flag"
+            flag: "quality.breaking_change_risk"
+            value: "${mcp_result.references.length > 0}"
+
+    # SLO Expectations for reference checking
+    slo_expectations:
+      expected_duration_ms: 300        # 300ms for reference lookup
+      max_duration_ms: 5000            # 5 seconds timeout
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 1500    # Reference locations
+      max_context_tokens: 2500
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "alert"
+        message: "Reference check timed out - manual review recommended"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation modifies public symbols - checking for breaking changes"
+      phase: 3
+      mcp_server: "ast-index"
+      safety: "Prevents accidental breaking changes to public APIs"
+      category: "validation"
+
+  - id: "quality-check-call-graph"
+    description: "Analyze call graph for modified functions"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "in_progress"
+    where:
+      query: "project.ast_indexed == true AND implementation.modified_functions.length > 0"
+    then:
+      - action: "mcp_call"
+        server: "ast-index"
+        tool: "get_call_graph"
+        inputs:
+          file: "${implementation.modified_functions[0].file}"
+          symbol: "${implementation.modified_functions[0].name}"
+          depth: 2
+        on_success:
+          - action: "inject_context"
+            target: "quality.review"
+            context_type: "call_graph"
+            content: "${mcp_result.graph}"
+
+    # SLO Expectations for call graph analysis
+    slo_expectations:
+      expected_duration_ms: 500        # 500ms for call graph
+      max_duration_ms: 10000           # 10 seconds timeout
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 2000    # Call graph structure
+      max_context_tokens: 3000
+      success_rate_target: 0.90
+
+      on_timeout:
+        action: "continue"
+        message: "Call graph analysis timed out - skipping dependency analysis"
+
+      on_context_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation modifies functions - analyzing dependencies"
+      phase: 3
+      mcp_server: "ast-index"
+      safety: "Identifies potential side effects of function changes"
+      category: "validation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Incremental Index Updates (Automatic)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Keep indexes fresh after implementation changes
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "impl-update-ast-index"
+    description: "Update AST index after implementation completes"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "project.ast_indexed == true AND implementation.files_changed.length > 0"
+    then:
+      - action: "mcp_call"
+        server: "ast-index"
+        tool: "index_project"
+        inputs:
+          paths: "${implementation.files_changed.map(f => f.path)}"
+          incremental: true
+        on_success:
+          - action: "set_metadata"
+            key: "project.ast_index_updated"
+            value: "${timestamp}"
+
+    # SLO Expectations for incremental indexing
+    slo_expectations:
+      expected_duration_ms: 1000       # 1 second for incremental update
+      max_duration_ms: 15000           # 15 seconds timeout
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 100
+      max_context_tokens: 500
+      success_rate_target: 0.95
+
+      on_timeout:
+        action: "alert"
+        message: "Incremental AST indexing slow - may need full rebuild"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation complete - updating AST index with new/changed files"
+      phase: 3
+      mcp_server: "ast-index"
+      category: "maintenance"
+
+  - id: "impl-update-embeddings"
+    description: "Update semantic embeddings after implementation completes"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "project.semantic_embedded == true AND implementation.files_changed.length > 0"
+    then:
+      - action: "mcp_call"
+        server: "semantic-rag"
+        tool: "embed_project"
+        inputs:
+          paths: "${implementation.files_changed.map(f => f.path)}"
+          incremental: true
+        on_success:
+          - action: "set_metadata"
+            key: "project.embeddings_updated"
+            value: "${timestamp}"
+
+    # SLO Expectations for incremental embedding
+    slo_expectations:
+      expected_duration_ms: 3000       # 3 seconds for incremental embedding
+      max_duration_ms: 30000           # 30 seconds timeout
+      expected_cost_usd: 0.0
+      max_cost_usd: 0.0
+      expected_context_tokens: 100
+      max_context_tokens: 500
+      success_rate_target: 0.90
+
+      on_timeout:
+        action: "alert"
+        message: "Incremental embedding slow - may need full rebuild"
+        continue: true
+
+      on_context_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Implementation complete - updating semantic embeddings with new/changed code"
+      phase: 3
+      mcp_server: "semantic-rag"
+      category: "maintenance"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Code Understanding Workflow Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Initialization (First Story):
+#   Story.create → ast-index.index_project → semantic-rag.embed_project
+#
+# Architecture Design:
+#   Architecture.design (in_progress) → semantic-rag.get_context_for_task
+#                                     → ast-index.find_symbol (if symbols mentioned)
+#
+# Implementation:
+#   Implementation.generate (in_progress) → semantic-rag.semantic_search (find patterns)
+#
+# Quality Review:
+#   Quality.review (in_progress) → ast-index.find_references (check breaking changes)
+#                                → ast-index.get_call_graph (analyze dependencies)
+#
+# Index Maintenance:
+#   Implementation.generate (completed) → ast-index.index_project (incremental)
+#                                       → semantic-rag.embed_project (incremental)
+#
+# Performance Impact:
+#   - Initial indexing: ~20 seconds (one-time cost)
+#   - Architecture context: 73% token reduction (15K → 4K)
+#   - Incremental updates: ~4 seconds per implementation
+#   - Quality checks: Identifies breaking changes automatically
+#
+# Cost Impact:
+#   - All MCP servers use local processing (no API costs)
+#   - Storage: ~10MB for typical project (index + embeddings)
+#   - No ongoing operational costs
+#
+# WYSIWID Compliance:
+#   - All MCP server invocations visible in sync rules
+#   - When/where MCP tools are used is declaratively defined
+#   - SLO expectations make performance targets explicit
+#   - Provenance tracks which MCP server provided context
+#
+# Integration with Phases:
+#   - Phase 1 (Core): MCP servers provide context to reduce token usage
+#   - Phase 2 (Intelligence): Planning/verification can use code context
+#   - Phase 3 (Code Understanding): This file defines the integration
+#   - Phase 4 (Advanced): Tree-of-Thoughts can explore indexed code paths
+#   - Phase 5 (SLOs): All MCP operations monitored for performance
+#

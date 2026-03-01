@@ -1,0 +1,442 @@
+# Security Concept
+
+The Security concept provides continuous security assurance throughout the workflow, not as an afterthought but as an integral part of every phase.
+
+## Model Assignment
+
+**Model**: Sonnet 4.5 (pattern-based security analysis)
+**Cost per Action**: ~$0.002
+**Triggers**: After story, architecture, implementation, and before commit
+
+## Core Principle: Security by Design
+
+Security is not a gate at the end - it's woven into every step:
+- **Story phase**: Threat modeling, security requirements extraction
+- **Architecture phase**: Security pattern validation, risk assessment
+- **Implementation phase**: Vulnerability scanning, secret detection
+- **Pre-commit phase**: Final security gate, integrity verification
+
+## Actions
+
+### threat_model(story_id)
+
+Analyzes story for security implications and generates threat model.
+
+**Triggers**: After story.create completes
+
+**Process**:
+1. Extract security-relevant requirements
+2. Identify assets, threat actors, attack surfaces
+3. Generate STRIDE analysis
+4. Produce security acceptance criteria
+5. Save to `koan/security/threat-model-{story_id}.yaml`
+
+**Output Format**:
+```yaml
+threat_model_id: "tm-story-001"
+story_id: "story-001"
+status: "completed"
+
+assets:
+  - name: "User credentials"
+    sensitivity: "high"
+    storage: "database"
+  - name: "Session tokens"
+    sensitivity: "high"
+    storage: "memory/cookie"
+
+threat_actors:
+  - type: "external_attacker"
+    motivation: "data_theft"
+    capability: "medium"
+  - type: "malicious_insider"
+    motivation: "sabotage"
+    capability: "high"
+
+attack_surfaces:
+  - surface: "API endpoints"
+    exposure: "public"
+    controls_needed: ["authentication", "rate_limiting", "input_validation"]
+  - surface: "Database"
+    exposure: "internal"
+    controls_needed: ["parameterized_queries", "least_privilege"]
+
+stride_analysis:
+  spoofing:
+    risk: "high"
+    mitigations: ["Strong authentication", "Session management"]
+  tampering:
+    risk: "medium"
+    mitigations: ["Input validation", "Integrity checks"]
+  repudiation:
+    risk: "low"
+    mitigations: ["Audit logging"]
+  information_disclosure:
+    risk: "high"
+    mitigations: ["Encryption", "Access controls"]
+  denial_of_service:
+    risk: "medium"
+    mitigations: ["Rate limiting", "Resource quotas"]
+  elevation_of_privilege:
+    risk: "high"
+    mitigations: ["RBAC", "Least privilege"]
+
+security_requirements:
+  - id: "SEC-001"
+    description: "All API endpoints must require authentication"
+    priority: "P0"
+  - id: "SEC-002"
+    description: "User passwords must be hashed with bcrypt (cost >= 12)"
+    priority: "P0"
+  - id: "SEC-003"
+    description: "Rate limiting must be applied to login endpoint"
+    priority: "P1"
+
+metadata:
+  created_at: "2025-01-10T12:00:00Z"
+  concept: "security"
+  action: "threat_model"
+  model: "sonnet"
+  cost: 0.002
+```
+
+### validate_architecture(arch_id, threat_model_id)
+
+Validates architecture against threat model and security patterns.
+
+**Triggers**: After architecture.design completes
+
+**Process**:
+1. Load threat model from story phase
+2. Verify each security requirement is addressed
+3. Check for OWASP Top 10 vulnerabilities in design
+4. Validate security patterns (auth, authz, crypto)
+5. Save to `koan/security/arch-review-{arch_id}.yaml`
+
+**Security Patterns Checked**:
+- Authentication: OAuth2/OIDC, JWT validation, session management
+- Authorization: RBAC, ABAC, resource-level permissions
+- Cryptography: TLS 1.3, AES-256, secure key management
+- Input validation: Schema validation, sanitization
+- Output encoding: Context-aware encoding
+- Error handling: No sensitive data in errors
+- Logging: Audit trail, PII redaction
+
+**Output Format**:
+```yaml
+arch_review_id: "ar-arch-001"
+arch_id: "arch-001"
+threat_model_id: "tm-story-001"
+status: "completed"
+
+requirements_coverage:
+  - requirement_id: "SEC-001"
+    status: "satisfied"
+    implementation: "JWT middleware on all routes"
+  - requirement_id: "SEC-002"
+    status: "satisfied"
+    implementation: "bcrypt with cost=12 in UserService"
+  - requirement_id: "SEC-003"
+    status: "missing"
+    recommendation: "Add rate-limiter middleware to /auth/login"
+
+owasp_assessment:
+  A01_broken_access_control:
+    status: "pass"
+    notes: "RBAC implemented via middleware"
+  A02_cryptographic_failures:
+    status: "pass"
+    notes: "TLS enforced, passwords hashed"
+  A03_injection:
+    status: "warning"
+    notes: "Using ORM but verify parameterization"
+  # ... all 10 categories
+
+pattern_compliance:
+  authentication:
+    pattern: "JWT with refresh tokens"
+    compliant: true
+  authorization:
+    pattern: "RBAC middleware"
+    compliant: true
+  rate_limiting:
+    pattern: "Token bucket"
+    compliant: false
+    recommendation: "Implement rate-limiter"
+
+risk_assessment:
+  overall_risk: "medium"
+  unmitigated_threats: 1
+  recommendations:
+    - "Add rate limiting to authentication endpoints"
+    - "Implement audit logging for admin actions"
+
+decision: "conditional_approve"
+conditions:
+  - "Address SEC-003 (rate limiting) before implementation"
+
+metadata:
+  created_at: "2025-01-10T12:05:00Z"
+  concept: "security"
+  action: "validate_architecture"
+  model: "sonnet"
+  cost: 0.002
+```
+
+### scan_implementation(impl_id)
+
+Scans implementation code for vulnerabilities.
+
+**Triggers**: After implementation.generate completes (parallel with quality)
+
+**Process**:
+1. Load implementation files
+2. Run static analysis for OWASP Top 10
+3. Detect hardcoded secrets
+4. Check dependency vulnerabilities (if manifest available)
+5. Verify security patterns from architecture
+6. Save to `koan/security/scan-{impl_id}.yaml`
+
+**Vulnerability Patterns Detected**:
+```yaml
+injection:
+  sql_injection:
+    - pattern: "execute(.*\\$\\{|\\+.*\\+)"
+    - pattern: "query\\(.*\\+.*\\)"
+    - safe_pattern: "query\\(.*\\?.*,.*\\[" # Parameterized
+  xss:
+    - pattern: "innerHTML.*="
+    - pattern: "document\\.write\\("
+    - pattern: "v-html="
+  command_injection:
+    - pattern: "exec\\(.*\\$\\{|\\+.*\\+)"
+    - pattern: "spawn\\(.*shell:\\s*true"
+    - pattern: "child_process.*\\$\\{"
+
+secrets:
+  api_keys:
+    - pattern: "api[_-]?key.*=.*['\"][a-zA-Z0-9]{20,}['\"]"
+  passwords:
+    - pattern: "password.*=.*['\"][^'\"]+['\"]"
+  tokens:
+    - pattern: "token.*=.*['\"][a-zA-Z0-9_-]{20,}['\"]"
+  private_keys:
+    - pattern: "-----BEGIN.*PRIVATE KEY-----"
+
+authentication:
+  weak_password:
+    - pattern: "bcrypt.*cost.*[1-9][^0-9]" # cost < 10
+  missing_auth:
+    - pattern: "app\\.(get|post|put|delete).*(?!.*auth)" # Route without auth middleware
+
+crypto:
+  weak_random:
+    - pattern: "Math\\.random\\(\\)" # For security purposes
+  weak_hash:
+    - pattern: "createHash\\(['\"]md5['\"]\\)"
+    - pattern: "createHash\\(['\"]sha1['\"]\\)"
+```
+
+**Output Format**:
+```yaml
+scan_id: "scan-impl-001"
+impl_id: "impl-001"
+status: "completed"
+
+vulnerabilities:
+  - id: "VULN-001"
+    severity: "critical"
+    category: "injection"
+    type: "sql_injection"
+    file: "src/services/user.service.ts"
+    line: 45
+    code_snippet: "db.query(`SELECT * FROM users WHERE id = ${userId}`)"
+    recommendation: "Use parameterized query: db.query('SELECT * FROM users WHERE id = ?', [userId])"
+    cwe: "CWE-89"
+    owasp: "A03:2021"
+
+  - id: "VULN-002"
+    severity: "high"
+    category: "secrets"
+    type: "hardcoded_api_key"
+    file: "src/config/api.ts"
+    line: 12
+    code_snippet: "const API_KEY = 'sk-live-abc123...'"
+    recommendation: "Move to environment variable: process.env.API_KEY"
+    cwe: "CWE-798"
+
+  - id: "VULN-003"
+    severity: "medium"
+    category: "crypto"
+    type: "weak_random"
+    file: "src/utils/token.ts"
+    line: 8
+    code_snippet: "const token = Math.random().toString(36)"
+    recommendation: "Use crypto.randomBytes() for security tokens"
+    cwe: "CWE-330"
+
+secrets_detected:
+  count: 1
+  files:
+    - "src/config/api.ts"
+
+dependency_vulnerabilities:
+  scanned: true
+  count: 2
+  critical: 0
+  high: 1
+  medium: 1
+  details:
+    - package: "lodash"
+      version: "4.17.19"
+      vulnerability: "Prototype Pollution"
+      severity: "high"
+      fixed_in: "4.17.21"
+
+summary:
+  total_issues: 5
+  critical: 1
+  high: 2
+  medium: 1
+  low: 1
+  passed_checks: 47
+
+decision: "block"
+reason: "Critical SQL injection vulnerability must be fixed"
+required_fixes:
+  - "VULN-001"
+  - "VULN-002"
+
+metadata:
+  created_at: "2025-01-10T12:10:00Z"
+  concept: "security"
+  action: "scan_implementation"
+  model: "sonnet"
+  cost: 0.002
+```
+
+### verify_commit(impl_id, scan_id)
+
+Final security verification before commit.
+
+**Triggers**: Before version.commit (security gate)
+
+**Process**:
+1. Verify all critical/high vulnerabilities resolved
+2. Check secrets not in commit
+3. Validate file integrity
+4. Generate security attestation
+5. Save to `koan/security/attestation-{impl_id}.yaml`
+
+**Output Format**:
+```yaml
+attestation_id: "att-impl-001"
+impl_id: "impl-001"
+scan_id: "scan-impl-001"
+status: "approved"
+
+checks:
+  vulnerabilities_resolved:
+    status: "pass"
+    details: "All critical/high issues fixed"
+
+  secrets_check:
+    status: "pass"
+    details: "No secrets in staged files"
+
+  integrity_check:
+    status: "pass"
+    details: "All files match expected checksums"
+
+  dependency_check:
+    status: "warning"
+    details: "1 medium vulnerability in dependencies"
+
+attestation:
+  security_reviewed: true
+  reviewer: "security-concept"
+  timestamp: "2025-01-10T12:15:00Z"
+  files_reviewed: 5
+  vulnerabilities_found: 3
+  vulnerabilities_fixed: 3
+
+signature:
+  algorithm: "sha256"
+  hash: "abc123..."
+
+decision: "approve"
+```
+
+## Integration with Workflow
+
+```
+Story ──[story.ready]──> Security: threat_model
+                              │
+                              ├── Generates security requirements
+                              ├── Identifies assets and threats
+                              └── STRIDE analysis
+
+Architecture ──[arch.completed]──> Security: validate_architecture
+                                        │
+                                        ├── Checks requirement coverage
+                                        ├── OWASP pattern validation
+                                        └── Risk assessment
+
+Implementation ──[impl.completed]──> Security: scan_implementation
+                                          │  (parallel with quality)
+                                          ├── Vulnerability scanning
+                                          ├── Secret detection
+                                          └── Dependency audit
+
+Quality.approved ──[before version]──> Security: verify_commit
+                                            │
+                                            ├── Final gate
+                                            ├── Integrity check
+                                            └── Security attestation
+```
+
+## State Location
+
+Security artifacts: `koan/security/`
+- Threat models: `threat-model-{story_id}.yaml`
+- Architecture reviews: `arch-review-{arch_id}.yaml`
+- Implementation scans: `scan-{impl_id}.yaml`
+- Attestations: `attestation-{impl_id}.yaml`
+
+## Cost Optimization
+
+**Why Sonnet?**
+- Pattern-based scanning doesn't need deep reasoning
+- Security patterns are well-defined rules
+- Fast execution (2-3 seconds per action)
+- Cost: ~$0.002 per action
+
+**Total security cost per feature**: ~$0.008
+- threat_model: $0.002
+- validate_architecture: $0.002
+- scan_implementation: $0.002
+- verify_commit: $0.002
+
+## Never Do This
+
+- Skip security checks for "small" changes
+- Approve commits with critical vulnerabilities
+- Store secrets in state files
+- Ignore dependency vulnerabilities
+- Bypass security gates
+
+## Always Do This
+
+- Run threat modeling for every feature
+- Validate architecture against security patterns
+- Scan all implementation code
+- Verify before every commit
+- Track security metrics
+- Generate attestations
+
+---
+
+**Model Assignment**: Sonnet
+**Cost Tier**: Low (~$0.002 per action)
+**Purpose**: Continuous security assurance
+**Integration**: Runs parallel to main workflow, gates commit

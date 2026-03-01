@@ -1,0 +1,452 @@
+# Documentation Concept
+
+The Documentation concept is responsible for generating comprehensive documentation at every phase of the development workflow.
+
+## Purpose
+
+Ensure that every feature is fully documented from requirements through implementation, creating a complete documentation trail that serves both developers and users.
+
+## Actions
+
+### generate_requirements(story_id)
+
+Generates user-facing requirements documentation from a story.
+
+**Triggers**: After story.create completes
+**Model**: Sonnet
+
+**Inputs**:
+- `story_id`: Reference to the story
+- `story.title`: Story title
+- `story.description`: Full description
+- `story.acceptance_criteria`: List of acceptance criteria
+
+**Outputs** (`koan/documentation/req-{story_id}.yaml`):
+```yaml
+doc_id: "req-story-001"
+type: "requirements"
+story_id: "story-001"
+status: "generated"
+
+documents:
+  feature_spec:
+    path: "docs/features/{feature-slug}.md"
+    content: |
+      # {Feature Title}
+
+      ## Overview
+      {description}
+
+      ## User Stories
+      {user_stories}
+
+      ## Acceptance Criteria
+      {acceptance_criteria_formatted}
+
+      ## Dependencies
+      {dependencies}
+
+  requirements_summary:
+    path: "docs/requirements/{story-id}.md"
+    sections:
+      - overview
+      - functional_requirements
+      - non_functional_requirements
+      - constraints
+      - assumptions
+
+metadata:
+  generated_at: "{timestamp}"
+  model: "sonnet"
+  cost: 0.0003
+```
+
+### generate_architecture(arch_id)
+
+Generates Architecture Decision Records (ADRs) and technical documentation.
+
+**Triggers**: After architecture.design completes
+**Model**: Sonnet
+
+**Inputs**:
+- `arch_id`: Reference to the architecture
+- `architecture.approaches_evaluated`: Options considered
+- `architecture.selected_approach`: Chosen approach with justification
+- `architecture.technical_design`: Component structure
+- `architecture.risks`: Identified risks
+
+**Outputs** (`koan/documentation/arch-{arch_id}.yaml`):
+```yaml
+doc_id: "arch-doc-001"
+type: "architecture"
+arch_id: "arch-001"
+status: "generated"
+
+documents:
+  adr:
+    path: "docs/adr/ADR-{number}-{title-slug}.md"
+    content: |
+      # ADR {number}: {Title}
+
+      ## Status
+      {status}
+
+      ## Context
+      {context_description}
+
+      ## Decision
+      {decision_description}
+
+      ## Consequences
+      ### Positive
+      {positive_consequences}
+
+      ### Negative
+      {negative_consequences}
+
+      ## Alternatives Considered
+      {alternatives_with_tradeoffs}
+
+  component_diagram:
+    path: "docs/architecture/components/{feature-slug}.md"
+    mermaid: |
+      ```mermaid
+      graph TB
+        {component_diagram}
+      ```
+
+  sequence_diagram:
+    path: "docs/architecture/sequences/{feature-slug}.md"
+    mermaid: |
+      ```mermaid
+      sequenceDiagram
+        {sequence_diagram}
+      ```
+
+  data_flow:
+    path: "docs/architecture/data-flow/{feature-slug}.md"
+    content: |
+      # Data Flow: {Feature}
+
+      ## Overview
+      {data_flow_description}
+
+      ## Components
+      {component_descriptions}
+
+      ## Security Considerations
+      {security_notes}
+
+metadata:
+  generated_at: "{timestamp}"
+  model: "sonnet"
+  cost: 0.0005
+```
+
+### generate_api(impl_id)
+
+Generates API documentation, code comments, and usage examples.
+
+**Triggers**: After implementation.generate completes
+**Model**: Sonnet
+
+**Inputs**:
+- `impl_id`: Reference to the implementation
+- `implementation.files_created`: New files
+- `implementation.files_modified`: Changed files
+- `architecture.technical_spec`: API specifications
+
+**Outputs** (`koan/documentation/api-{impl_id}.yaml`):
+```yaml
+doc_id: "api-doc-001"
+type: "api"
+impl_id: "impl-001"
+status: "generated"
+
+documents:
+  api_reference:
+    path: "docs/api/{module-name}.md"
+    content: |
+      # {Module} API Reference
+
+      ## Overview
+      {module_description}
+
+      ## Functions
+      {function_documentation}
+
+      ## Classes
+      {class_documentation}
+
+      ## Types
+      {type_documentation}
+
+      ## Examples
+      {usage_examples}
+
+  openapi_spec:
+    path: "docs/api/openapi.yaml"
+    generated: true  # Only for API endpoints
+
+  readme_updates:
+    path: "README.md"
+    sections_to_update:
+      - features
+      - usage
+      - api_reference_link
+
+  inline_comments:
+    files_updated:
+      - path: "{file_path}"
+        comments_added: {count}
+        jsdoc_blocks: {count}
+
+  usage_examples:
+    path: "docs/examples/{feature-slug}.md"
+    content: |
+      # {Feature} Usage Examples
+
+      ## Basic Usage
+      ```{language}
+      {basic_example}
+      ```
+
+      ## Advanced Usage
+      ```{language}
+      {advanced_example}
+      ```
+
+      ## Error Handling
+      ```{language}
+      {error_handling_example}
+      ```
+
+coverage:
+  functions_documented: "{documented}/{total}"
+  classes_documented: "{documented}/{total}"
+  types_documented: "{documented}/{total}"
+  examples_provided: "{count}"
+
+metadata:
+  generated_at: "{timestamp}"
+  model: "sonnet"
+  cost: 0.0005
+```
+
+### generate_tests(test_id)
+
+Generates test documentation and coverage reports.
+
+**Triggers**: After quality.test completes
+**Model**: Sonnet
+
+**Inputs**:
+- `test_id`: Reference to the test run
+- `test.results`: Test results
+- `test.coverage`: Coverage data
+
+**Outputs** (`koan/documentation/test-{test_id}.yaml`):
+```yaml
+doc_id: "test-doc-001"
+type: "testing"
+test_id: "test-001"
+status: "generated"
+
+documents:
+  test_summary:
+    path: "docs/testing/{feature-slug}.md"
+    content: |
+      # {Feature} Test Documentation
+
+      ## Test Coverage
+      - Lines: {line_coverage}%
+      - Branches: {branch_coverage}%
+      - Functions: {function_coverage}%
+
+      ## Test Suites
+      {test_suite_descriptions}
+
+      ## Test Cases
+      {test_case_descriptions}
+
+      ## Edge Cases Covered
+      {edge_cases}
+
+  coverage_badge:
+    path: "docs/badges/coverage.svg"
+    generated: true
+
+metadata:
+  generated_at: "{timestamp}"
+  model: "sonnet"
+  cost: 0.0003
+```
+
+### validate(doc_ids)
+
+Validates that all required documentation exists and is complete.
+
+**Triggers**: Before version.commit
+**Model**: Sonnet
+
+**Inputs**:
+- `doc_ids`: List of documentation IDs to validate
+- `story_id`: Story reference
+- `impl_id`: Implementation reference
+
+**Outputs** (`koan/documentation/validation-{flow_id}.yaml`):
+```yaml
+validation_id: "val-001"
+status: "passed|failed"
+flow_id: "flow-001"
+
+checks:
+  requirements_doc:
+    exists: true
+    complete: true
+    path: "docs/features/{feature}.md"
+
+  architecture_doc:
+    exists: true
+    adr_created: true
+    diagrams_present: true
+    path: "docs/adr/ADR-{n}-{title}.md"
+
+  api_doc:
+    exists: true
+    coverage: "95%"
+    examples_present: true
+    path: "docs/api/{module}.md"
+
+  readme_updated:
+    exists: true
+    sections_updated:
+      - features
+      - usage
+
+  inline_comments:
+    coverage: "90%"
+    jsdoc_present: true
+
+missing:
+  - "{list of missing documentation}"
+
+recommendations:
+  - "{suggestions for improvement}"
+
+metadata:
+  validated_at: "{timestamp}"
+  model: "sonnet"
+  cost: 0.0002
+```
+
+### update_index()
+
+Updates documentation index and navigation.
+
+**Triggers**: After all documentation generated
+**Model**: Sonnet
+
+**Outputs**:
+- Updates `docs/README.md` with new entries
+- Updates `docs/SUMMARY.md` for navigation
+- Generates `docs/index.json` for search
+
+## State Location
+
+All documentation state is stored in: `koan/documentation/`
+
+```
+koan/documentation/
+├── req-{story_id}.yaml      # Requirements docs
+├── arch-{arch_id}.yaml      # Architecture docs
+├── api-{impl_id}.yaml       # API docs
+├── test-{test_id}.yaml      # Test docs
+├── validation-{flow_id}.yaml # Validation results
+└── index.yaml               # Documentation index
+```
+
+## Documentation Directory Structure
+
+Generated documentation follows this structure:
+
+```
+docs/
+├── README.md                 # Documentation home
+├── SUMMARY.md               # Navigation/TOC
+├── features/                # Feature specifications
+│   └── {feature-slug}.md
+├── requirements/            # Requirements docs
+│   └── {story-id}.md
+├── adr/                     # Architecture Decision Records
+│   └── ADR-{n}-{title}.md
+├── architecture/            # Technical architecture
+│   ├── components/
+│   ├── sequences/
+│   └── data-flow/
+├── api/                     # API reference
+│   ├── {module}.md
+│   └── openapi.yaml
+├── examples/                # Usage examples
+│   └── {feature-slug}.md
+├── testing/                 # Test documentation
+│   └── {feature-slug}.md
+└── badges/                  # Status badges
+    └── coverage.svg
+```
+
+## Integration with Workflow
+
+The documentation concept integrates with the feature workflow:
+
+```
+Story → [requirements docs] → Architecture → [ADRs, diagrams]
+    → Implementation → [API docs, comments] → Quality → [test docs]
+    → Documentation.validate → Version
+```
+
+## Quality Standards
+
+Documentation must meet these standards:
+
+### Completeness
+- [ ] All public APIs documented
+- [ ] All parameters described with types
+- [ ] Return values documented
+- [ ] Exceptions/errors documented
+- [ ] At least one example per public function
+
+### Clarity
+- [ ] No undefined jargon
+- [ ] Consistent terminology
+- [ ] Clear, concise sentences
+- [ ] Proper formatting (markdown)
+
+### Accuracy
+- [ ] Matches actual code behavior
+- [ ] Examples are runnable
+- [ ] Types are correct
+- [ ] Version numbers current
+
+### Maintainability
+- [ ] Generated from source where possible
+- [ ] Single source of truth
+- [ ] Links are valid
+- [ ] No duplicate information
+
+## Never Do This
+
+- ❌ Skip documentation generation
+- ❌ Generate docs without validation
+- ❌ Leave documentation out of sync with code
+- ❌ Create documentation in wrong directories
+- ❌ Duplicate information across docs
+
+## Always Do This
+
+- ✅ Generate docs at each workflow phase
+- ✅ Validate documentation completeness
+- ✅ Update index after generating
+- ✅ Include examples in API docs
+- ✅ Create ADRs for architectural decisions
+- ✅ Keep README updated

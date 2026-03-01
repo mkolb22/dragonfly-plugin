@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://zen.wysiwid.dev/schemas/agent.json",
+  "title": "Zen Agent Definition",
+  "description": "Schema for Zen WYSIWID agent YAML frontmatter",
+  "type": "object",
+  "required": ["name", "type", "model", "description"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*-concept$",
+      "description": "Agent name (must end with -concept)"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["workflow", "utility", "integration"],
+      "default": "workflow",
+      "description": "Agent type"
+    },
+    "execution": {
+      "type": "string",
+      "enum": ["task-tool", "direct", "background"],
+      "default": "task-tool",
+      "description": "How this agent is executed"
+    },
+    "model": {
+      "type": "string",
+      "enum": ["haiku", "sonnet", "opus"],
+      "description": "Claude model to use"
+    },
+    "color": {
+      "type": "string",
+      "enum": ["blue", "green", "purple", "red", "yellow", "orange", "cyan"],
+      "description": "Display color for UI"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Brief description of what this agent does"
+    },
+    "tools": {
+      "type": "string",
+      "default": "*",
+      "description": "Tools available to this agent (* for all)"
+    },
+    "cost_per_action": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated cost per action in USD"
+    },
+    "optimization_level": {
+      "type": "string",
+      "enum": ["baseline", "phase1", "phase2", "phase3"],
+      "description": "Optimization phase applied"
+    },
+    "expected_context_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Expected context window usage in tokens"
+    },
+    "baseline_context_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Baseline context usage before optimization"
+    },
+    "context_reduction": {
+      "type": "string",
+      "pattern": "^\\d+%$",
+      "description": "Context reduction percentage"
+    },
+    "expected_duration_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Expected execution time in seconds"
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Component-scoped hooks",
+      "properties": {
+        "Stop": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["command"] },
+              "command": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Skills this agent uses"
+    }
+  }
+}

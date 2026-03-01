@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-compact.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/stop.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "mcp__zen-server__*"
+    ],
+    "deny": [
+      "Bash(*rm -rf /*)",
+      "Bash(*rm -rf ~*)",
+      "Bash(*rm -rf $HOME*)",
+      "Bash(*> /dev/sd*)",
+      "Bash(*> /dev/nvme*)",
+      "Bash(*mkfs.*)",
+      "Bash(*dd if=*)",
+      "Bash(*chmod -R 777 /*)",
+      "Bash(*git push --force*origin main*)",
+      "Bash(*git push --force*origin master*)"
+    ],
+    "ask": [
+      "Bash(*rm -rf*)",
+      "Bash(*rm -r *)",
+      "Bash(*git reset --hard*)",
+      "Bash(*git clean -fd*)",
+      "Bash(*git checkout -- .*)",
+      "Bash(*git stash drop*)",
+      "Bash(*git branch -D*)",
+      "Bash(*DROP TABLE*)",
+      "Bash(*DROP DATABASE*)",
+      "Bash(*TRUNCATE*)",
+      "Bash(*--force*)",
+      "Bash(*--hard*)"
+    ]
+  }
+}

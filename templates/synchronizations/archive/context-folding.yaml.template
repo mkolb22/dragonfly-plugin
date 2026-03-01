@@ -1,0 +1,353 @@
+# Context Folding Synchronization Rules
+# Automatically manages context window by compacting completed trajectories
+#
+# Based on research:
+# - JetBrains Research: Agents running 250+ turns need smart context management
+# - Anthropic Context Engineering: Compaction, structured note-taking
+# - Context-Folding LLM Agents: Fold sub-trajectories into summaries
+
+version: "1.0.0"
+
+# Global SLO defaults for context folding
+slo_defaults:
+  expected_duration_ms: 3000
+  max_duration_ms: 15000
+  expected_cost_usd: 0.002
+  max_cost_usd: 0.01
+  expected_context_tokens: 2000
+  success_rate_target: 0.98
+  on_timeout:
+    action: "skip"
+    fallback: "Continue without folding - monitor context manually"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Automatic Threshold-Based Folding
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "auto-fold-on-context-threshold"
+    description: "Automatically fold context when token threshold exceeded"
+    when:
+      event: "tool_call_completed"
+    where:
+      query: "context.estimated_tokens > 80000"
+    then:
+      - concept: "context"
+        action: "fold_trajectory"
+        model: "sonnet"
+        inputs:
+          preserve_recent: 10     # Keep last 10 turns verbatim
+          summarize_window: 20    # Summarize 20 turns at a time
+          retain_artifacts: true  # Keep file paths, decisions, errors
+          compression_level: "standard"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.01
+      expected_context_tokens: 3000
+      on_timeout:
+        action: "skip"
+        fallback: "Continue without folding"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Context threshold exceeded - automatic folding triggered"
+      category: "context-management"
+
+  - id: "aggressive-fold-on-critical-threshold"
+    description: "Aggressive folding when context is critically high"
+    when:
+      event: "tool_call_completed"
+    where:
+      query: "context.estimated_tokens > 120000"
+    then:
+      - concept: "context"
+        action: "fold_trajectory"
+        model: "sonnet"
+        inputs:
+          preserve_recent: 5      # Keep only last 5 turns
+          summarize_window: 30    # Larger summary windows
+          retain_artifacts: true
+          compression_level: "aggressive"
+          create_checkpoint: true  # Save state before aggressive fold
+
+    slo_expectations:
+      expected_duration_ms: 8000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.005
+      max_cost_usd: 0.015
+      expected_context_tokens: 5000
+      on_timeout:
+        action: "escalate"
+        message: "Critical context threshold - folding timed out"
+      on_cost_exceeded:
+        action: "proceed"
+        message: "High cost acceptable for critical context management"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Critical context threshold - aggressive folding with checkpoint"
+      category: "context-management"
+
+  - id: "fold-on-tool-count"
+    description: "Fold context when tool call count exceeds threshold"
+    when:
+      event: "tool_call_completed"
+    where:
+      query: "context.tool_calls_since_fold > 30"
+    then:
+      - concept: "context"
+        action: "fold_trajectory"
+        model: "sonnet"
+        inputs:
+          preserve_recent: 10
+          summarize_window: 15
+          retain_artifacts: true
+          compression_level: "standard"
+
+    slo_expectations:
+      expected_duration_ms: 4000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 2500
+      on_timeout:
+        action: "skip"
+        fallback: "Defer folding to next threshold"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Tool call count threshold exceeded"
+      category: "context-management"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Checkpoint Management
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "checkpoint-before-complex-op"
+    description: "Create checkpoint before operations that might fail"
+    when:
+      concept: ["architecture", "implementation"]
+      action: ["design", "generate"]
+      status: "starting"
+    where:
+      query: "context.estimated_tokens > 50000"
+    then:
+      - concept: "context"
+        action: "create_mini_checkpoint"
+        model: "sonnet"
+        inputs:
+          checkpoint_type: "pre_operation"
+          include_state: true
+          include_recent_files: 5
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 8000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without checkpoint"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Checkpoint before complex operation for recovery"
+      category: "checkpointing"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Phase-Based Folding
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "fold-after-phase-completion"
+    description: "Fold completed phase context to make room for next phase"
+    when:
+      concept: ["story", "architecture", "implementation", "quality"]
+      status: "completed"
+    where:
+      query: "context.estimated_tokens > 40000"
+    then:
+      - concept: "context"
+        action: "fold_phase"
+        model: "sonnet"
+        inputs:
+          completed_phase: "${concept.name}"
+          preserve_outputs: true   # Keep the phase outputs
+          summarize_process: true  # Summarize how we got there
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 12000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 2000
+      on_timeout:
+        action: "skip"
+        fallback: "Continue without phase folding"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Phase completed - folding phase context"
+      category: "workflow"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Smart Retention Policies
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "smart-retention-policy"
+    description: "Apply smart retention when folding - keep what matters"
+    when:
+      concept: "context"
+      action: "fold_trajectory"
+      status: "starting"
+    then:
+      - concept: "context"
+        action: "apply_retention_policy"
+        model: "sonnet"
+        inputs:
+          retention_rules:
+            - type: "error_messages"
+              priority: "high"
+              summary: "Keep full error with file:line"
+            - type: "architectural_decisions"
+              priority: "high"
+              summary: "Keep decision + rationale"
+            - type: "file_modifications"
+              priority: "medium"
+              summary: "Keep file path + change type"
+            - type: "search_results"
+              priority: "low"
+              summary: "Keep only selected results"
+            - type: "exploration_paths"
+              priority: "low"
+              summary: "Keep final path only"
+
+    slo_expectations:
+      expected_duration_ms: 1500
+      max_duration_ms: 5000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      expected_context_tokens: 1000
+      on_timeout:
+        action: "skip"
+        fallback: "Use default retention"
+      on_cost_exceeded:
+        action: "proceed"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Applying smart retention during fold"
+      category: "optimization"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Recovery
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "recover-from-checkpoint"
+    description: "Restore from checkpoint if context becomes corrupted or too compressed"
+    when:
+      concept: "context"
+      action: "fold_trajectory"
+      status: "failed"
+    then:
+      - concept: "context"
+        action: "restore_checkpoint"
+        model: "sonnet"
+        inputs:
+          checkpoint_type: "latest"
+          restore_mode: "full"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.005
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "escalate"
+        message: "Checkpoint restore failed - manual intervention needed"
+      on_cost_exceeded:
+        action: "proceed"
+        message: "Recovery is critical"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Folding failed - restoring from checkpoint"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Proactive Folding
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - id: "proactive-fold-for-complex-task"
+    description: "Proactively fold before starting complex multi-step task"
+    when:
+      concept: "story"
+      action: "create"
+      status: "completed"
+    where:
+      query: "story.estimated_complexity == 'high' AND context.estimated_tokens > 30000"
+    then:
+      - concept: "context"
+        action: "fold_trajectory"
+        model: "sonnet"
+        inputs:
+          preserve_recent: 5
+          summarize_window: 20
+          retain_artifacts: true
+          compression_level: "standard"
+
+    slo_expectations:
+      expected_duration_ms: 4000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.008
+      expected_context_tokens: 2500
+      on_timeout:
+        action: "proceed"
+        message: "Proactive fold timed out - starting task anyway"
+      on_cost_exceeded:
+        action: "alert"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Proactive fold before complex task"
+      category: "optimization"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Context Folding Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Threshold Triggers:
+# - 80K tokens: Standard folding (keep 10 turns)
+# - 120K tokens: Aggressive folding (keep 5 turns, checkpoint)
+# - 30+ tool calls: Count-based folding
+# - 40K+ at phase end: Phase folding
+# - 30K+ before complex task: Proactive folding
+#
+# Retention Priorities:
+# - HIGH: Error messages, architectural decisions
+# - MEDIUM: File modifications
+# - LOW: Search results, exploration paths
+#
+# Cost per fold: ~$0.002
+# Expected context savings: 60-80%

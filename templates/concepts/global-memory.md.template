@@ -1,0 +1,222 @@
+# Global Memory Concept
+
+Cross-project memory that persists user preferences, patterns, and learnings across all projects.
+
+## Purpose
+
+While project-level memory (`koan/memory/`) stores project-specific context, global memory stores:
+- User coding style preferences
+- Common architectural patterns used
+- Technology-specific knowledge
+- Cross-project learnings
+- Personal workflow optimizations
+
+## Storage Location
+
+Global memory is stored at:
+```
+~/.zen/global-memory/
+├── preferences.yaml       # User preferences
+├── patterns/              # Common patterns library
+├── technologies/          # Technology-specific knowledge
+├── learnings/             # Cross-project learnings
+└── workflows/             # Workflow optimizations
+```
+
+## Memory Types
+
+### 1. Preferences
+User coding style and tool preferences.
+
+```yaml
+# ~/.zen/global-memory/preferences.yaml
+coding_style:
+  indentation: 2 spaces
+  quotes: single
+  semicolons: false
+  trailing_commas: es5
+  max_line_length: 100
+
+documentation:
+  style: JSDoc
+  detail_level: moderate
+  include_examples: true
+
+testing:
+  framework_preference: vitest
+  coverage_target: 80%
+  test_style: arrange-act-assert
+
+git:
+  commit_style: conventional
+  branch_naming: feature/issue-description
+  squash_preference: true
+```
+
+### 2. Patterns
+Reusable architectural and code patterns.
+
+```yaml
+# ~/.zen/global-memory/patterns/error-handling.yaml
+name: Error Handling Pattern
+description: Consistent error handling across projects
+language: typescript
+
+pattern: |
+  class AppError extends Error {
+    constructor(
+      message: string,
+      public code: string,
+      public statusCode: number = 500,
+      public isOperational: boolean = true
+    ) {
+      super(message);
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
+
+usage_notes:
+  - Use for all application-level errors
+  - isOperational=true for expected errors, false for bugs
+  - Include error code for client handling
+
+used_in_projects:
+  - project-a
+  - project-b
+  - project-c
+```
+
+### 3. Technologies
+Technology-specific knowledge and gotchas.
+
+```yaml
+# ~/.zen/global-memory/technologies/postgresql.yaml
+technology: PostgreSQL
+version_range: "14+"
+
+gotchas:
+  - title: Connection pooling
+    issue: Default connections limited to 100
+    solution: Use PgBouncer for high-traffic apps
+
+  - title: JSON vs JSONB
+    issue: JSON stores as text, JSONB as binary
+    solution: Always use JSONB unless preserving formatting
+
+best_practices:
+  - Always use parameterized queries
+  - Create indexes for foreign keys
+  - Use EXPLAIN ANALYZE for query optimization
+  - Prefer BIGINT for IDs (future-proofing)
+
+common_queries:
+  - name: Upsert pattern
+    query: |
+      INSERT INTO table (id, data)
+      VALUES ($1, $2)
+      ON CONFLICT (id) DO UPDATE
+      SET data = EXCLUDED.data
+```
+
+### 4. Cross-Project Learnings
+Learnings that apply beyond a single project.
+
+```yaml
+# ~/.zen/global-memory/learnings/api-design.yaml
+category: API Design
+source_projects:
+  - project-a (2024-06)
+  - project-b (2024-09)
+
+learnings:
+  - id: GL001
+    insight: Always version APIs from the start
+    context: Had to retrofit versioning in project-a, caused breaking changes
+    recommendation: Use /v1/ prefix even for initial release
+
+  - id: GL002
+    insight: Rate limiting should be per-user AND per-endpoint
+    context: Project-b had per-endpoint only, one user could DOS specific endpoints
+    recommendation: Implement both layers in middleware
+
+  - id: GL003
+    insight: Pagination should use cursor-based, not offset
+    context: Offset pagination caused performance issues at scale
+    recommendation: Use cursor-based with encrypted cursors
+```
+
+### 5. Workflow Optimizations
+Optimizations for common development workflows.
+
+```yaml
+# ~/.zen/global-memory/workflows/debugging.yaml
+workflow: Debugging
+optimizations:
+
+  - name: Error reproduction
+    steps:
+      - Capture exact input that caused error
+      - Check error logs for stack trace
+      - Identify the failing code path
+      - Write failing test FIRST
+      - Fix and verify test passes
+    notes: "Writing test first prevents regression"
+
+  - name: Performance investigation
+    steps:
+      - Profile in production-like environment
+      - Identify top 3 bottlenecks
+      - Address largest bottleneck first
+      - Re-profile after each change
+      - Document findings for future reference
+    tools:
+      - Node.js: clinic, 0x
+      - Python: py-spy, cProfile
+      - General: flame graphs
+```
+
+## Commands
+
+### `/global-remember`
+Add knowledge to global memory.
+
+```
+/global-remember "Always use BIGINT for PostgreSQL IDs" --category=technologies --tech=postgresql
+```
+
+### `/global-recall`
+Retrieve from global memory.
+
+```
+/global-recall "PostgreSQL best practices"
+/global-recall --category=patterns --tag=error-handling
+```
+
+### `/global-sync`
+Sync learnings from current project to global memory.
+
+```
+/global-sync  # Prompts for learnings to sync
+```
+
+## Integration with Project Memory
+
+1. **Initialization**: When starting a new project, relevant global memory is suggested
+2. **Learning Promotion**: Project learnings can be promoted to global if broadly applicable
+3. **Conflict Resolution**: Project-specific overrides global if explicitly set
+
+```yaml
+# In project's koan/memory/preferences.yaml
+# Override global preference for this project
+extends: global
+overrides:
+  coding_style:
+    indentation: 4 spaces  # This project uses 4 spaces
+```
+
+## Privacy
+
+- Global memory is stored locally only (~/.zen/)
+- No data is sent to external services
+- User controls what gets saved
+- Can be encrypted with `zen encrypt-memory`

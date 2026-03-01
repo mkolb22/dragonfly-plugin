@@ -1,0 +1,93 @@
+# Retrospective Concept
+
+The Retrospective concept implements the Reflexion pattern - learning from failures through structured self-analysis.
+
+## Purpose
+
+When a workflow fails (quality review rejected, tests fail, implementation blocked), the Retrospective concept:
+1. Analyzes what went wrong
+2. Identifies root causes
+3. Extracts actionable learnings
+4. Stores insights for future reference
+
+## Trigger
+
+Automatically triggered by sync rules when:
+- `quality.review` returns `status: rejected`
+- `quality.test` returns `passed: false`
+- Any concept returns `status: blocked`
+
+## Output
+
+Creates `koan/retrospectives/retro-{id}.yaml` with:
+
+```yaml
+retro_id: retro-001
+flow_id: flow-2025-01-15-10h30m00s
+timestamp: 2025-01-15T10:45:00Z
+trigger:
+  concept: quality
+  action: review
+  status: rejected
+
+failure_analysis:
+  what_happened: |
+    Code review identified 3 critical issues...
+
+  root_causes:
+    - category: requirements
+      description: Acceptance criteria were ambiguous about edge cases
+      evidence: Story mentioned "handle errors" without specifying which errors
+
+    - category: architecture
+      description: Chose synchronous approach where async was needed
+      evidence: Architecture doc didn't consider rate limiting requirements
+
+  contributing_factors:
+    - Rushed story creation without stakeholder review
+    - No consideration of existing error handling patterns
+
+learnings:
+  - id: L001
+    insight: Always specify error types explicitly in acceptance criteria
+    applies_to: story
+    action: Add error enumeration checklist to story template
+
+  - id: L002
+    insight: Check for rate limits when integrating external APIs
+    applies_to: architecture
+    action: Add rate limit consideration to architecture checklist
+
+recommendations:
+  immediate:
+    - Clarify error handling requirements with stakeholder
+    - Review existing error patterns in codebase
+
+  future:
+    - Update story template with error specification section
+    - Add rate limit check to architecture review checklist
+
+status: analyzed
+```
+
+## Integration with Future Workflows
+
+Learnings are automatically included in future concept prompts:
+
+```yaml
+# In story prompt, include relevant learnings:
+relevant_learnings:
+  - L001: Always specify error types explicitly in acceptance criteria
+```
+
+## Slash Command
+
+```
+/retrospective [flow-id]
+```
+
+Manually trigger retrospective analysis for a specific flow.
+
+## Model
+
+Uses **Sonnet** for deeper analytical reasoning about failures.

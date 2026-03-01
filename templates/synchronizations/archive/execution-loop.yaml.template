@@ -1,0 +1,336 @@
+# Execution Loop Synchronization Rules
+# Enables self-repair and iterative refinement of code
+#
+# Based on research:
+# - ReVeal: Self-Evolving Code Agents (19+ inference turns possible)
+# - The Art of Repair: 78% improvement with iterative patching
+
+version: "1.0.0"
+
+# Global SLO defaults for execution loop (verification can be slow)
+slo_defaults:
+  expected_duration_ms: 15000
+  max_duration_ms: 120000
+  expected_cost_usd: 0.003
+  max_cost_usd: 0.015
+  expected_context_tokens: 3000
+  success_rate_target: 0.85
+  on_timeout:
+    action: "skip"
+    message: "Execution loop timed out - manual intervention may be needed"
+  on_cost_exceeded:
+    action: "alert"
+    continue: true
+
+synchronizations:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Verification Trigger
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Trigger verification after implementation completes
+  - id: "impl-to-verify"
+    description: "Verify implementation with execution and tests after completion"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.has_tests == true OR implementation.testable == true"
+    then:
+      - concept: "execution-loop"
+        action: "run_with_verification"
+        model: "sonnet"
+        inputs:
+          code: "${implementation.code}"
+          language: "${implementation.language}"
+          testCommand: "${implementation.test_command}"
+          maxIterations: 3
+
+    slo_expectations:
+      expected_duration_ms: 30000
+      max_duration_ms: 180000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.015
+      expected_context_tokens: 4000
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed to quality review without verification"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Self-repair loop verifies implementation before quality review"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Self-Repair Flow
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Handle verification failure - trigger repair
+  - id: "verify-failed-repair"
+    description: "When verification fails, generate repair suggestions"
+    when:
+      concept: "execution-loop"
+      action: "run_with_verification"
+      status: "failed"
+    where:
+      query: "execution.requiresManualRepair == true"
+    then:
+      - concept: "execution-loop"
+        action: "self_debug"
+        model: "sonnet"  # Use smarter model for diagnosis
+        inputs:
+          code: "${execution.code}"
+          error: "${execution.lastError}"
+          language: "${execution.language}"
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 45000
+      expected_cost_usd: 0.004
+      max_cost_usd: 0.012
+      expected_context_tokens: 3500
+      on_timeout:
+        action: "escalate"
+        message: "Debug diagnosis timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Diagnosis needed for failed verification"
+      category: "recovery"
+
+  # After successful diagnosis, attempt implementation repair
+  - id: "diagnosis-to-impl-repair"
+    description: "Apply repair suggestion to fix implementation"
+    when:
+      concept: "execution-loop"
+      action: "self_debug"
+      status: "completed"
+    then:
+      - concept: "implementation"
+        action: "repair"
+        model: "sonnet"
+        inputs:
+          original_code: "${diagnosis.code}"
+          error_info: "${diagnosis.diagnosis}"
+          repair_suggestion: "${diagnosis.repairSuggestion}"
+          strategy: "${diagnosis.strategy}"
+
+    slo_expectations:
+      expected_duration_ms: 15000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.005
+      max_cost_usd: 0.015
+      expected_context_tokens: 4000
+      on_timeout:
+        action: "escalate"
+        message: "Repair application timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Applying diagnosed repair to implementation"
+      category: "recovery"
+
+  # After repair, re-verify
+  - id: "repair-to-reverify"
+    description: "Re-run verification after repair attempt"
+    when:
+      concept: "implementation"
+      action: "repair"
+      status: "completed"
+    then:
+      - concept: "execution-loop"
+        action: "run_with_verification"
+        model: "sonnet"
+        inputs:
+          code: "${implementation.repaired_code}"
+          language: "${implementation.language}"
+          testCommand: "${implementation.test_command}"
+          maxIterations: 2  # Fewer iterations on retry
+
+    slo_expectations:
+      expected_duration_ms: 20000
+      max_duration_ms: 120000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.01
+      expected_context_tokens: 3000
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without re-verification"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verify repair was successful"
+      category: "validation"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Escalation
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Maximum repair attempts exceeded - escalate to human
+  - id: "max-repairs-exceeded"
+    description: "Escalate to human when max repair attempts reached"
+    when:
+      concept: "execution-loop"
+      action: "run_with_verification"
+      status: "failed"
+    where:
+      query: "execution.totalIterations >= 3 AND execution.requiresManualRepair == true"
+    then:
+      - concept: "implementation"
+        action: "add_note"
+        model: "sonnet"
+        inputs:
+          note: |
+            ## Manual Repair Required
+
+            Automated repair failed after ${execution.totalIterations} attempts.
+
+            ### Last Error
+            ${execution.lastError}
+
+            ### Repair Suggestions Tried
+            ${execution.repairSuggestions}
+
+            ### Recommended Next Steps
+            1. Review the error carefully
+            2. Check related code for context
+            3. Consider if the approach needs fundamental rethinking
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      expected_context_tokens: 1500
+      on_timeout:
+        action: "proceed"
+        message: "Note generation timed out but escalation continues"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Escalating to human after max repair attempts"
+      category: "recovery"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Test-Driven Development
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Test-driven development flow
+  - id: "tdd-generate-tests-first"
+    description: "Generate tests before implementation when TDD mode is enabled"
+    when:
+      concept: "architecture"
+      action: "design"
+      status: "completed"
+    where:
+      query: "architecture.development_mode == 'tdd'"
+    then:
+      - concept: "test-generator"
+        action: "generate_unit_tests"
+        model: "sonnet"
+        inputs:
+          specification: "${architecture.component_specs}"
+          language: "${architecture.language}"
+          framework: "${architecture.test_framework}"
+
+    slo_expectations:
+      expected_duration_ms: 20000
+      max_duration_ms: 90000
+      expected_cost_usd: 0.004
+      max_cost_usd: 0.012
+      expected_context_tokens: 3500
+      on_timeout:
+        action: "skip"
+        fallback: "Proceed without TDD - generate tests after implementation"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "TDD: Generate tests before implementation"
+      category: "core"
+
+  # After test generation, proceed to implementation
+  - id: "tests-to-impl"
+    description: "Implement code to pass the generated tests"
+    when:
+      concept: "test-generator"
+      action: "generate_unit_tests"
+      status: "completed"
+    then:
+      - concept: "implementation"
+        action: "generate"
+        model: "sonnet"
+        inputs:
+          tests: "${test_generator.tests}"
+          specification: "${test_generator.specification}"
+          goal: "Write code that passes all generated tests"
+
+    slo_expectations:
+      expected_duration_ms: 30000
+      max_duration_ms: 180000
+      expected_cost_usd: 0.006
+      max_cost_usd: 0.02
+      expected_context_tokens: 5000
+      on_timeout:
+        action: "escalate"
+        message: "TDD implementation timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "TDD: Implement to pass tests"
+      category: "core"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Quality Refinement
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # Iterative refinement for quality improvements
+  - id: "quality-refinement-needed"
+    description: "When quality review suggests improvements, iteratively refine"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "review.status == 'approved_with_suggestions' AND review.suggestions.length > 0"
+    then:
+      - concept: "execution-loop"
+        action: "iterative_refine"
+        model: "sonnet"
+        inputs:
+          code: "${implementation.code}"
+          language: "${implementation.language}"
+          goals: "${review.suggestions}"
+          testCommand: "${implementation.test_command}"
+          maxPasses: 3
+
+    slo_expectations:
+      expected_duration_ms: 45000
+      max_duration_ms: 180000
+      expected_cost_usd: 0.006
+      max_cost_usd: 0.02
+      expected_context_tokens: 5000
+      on_timeout:
+        action: "skip"
+        fallback: "Accept current implementation without refinements"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Iteratively refine based on review suggestions"
+      category: "optimization"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Execution Loop Summary
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Self-Repair Cycle:
+#   Implementation → Verify → (fail) → Debug → Repair → Re-verify
+#                      ↓
+#                  (success)
+#                      ↓
+#                 Quality Review
+#
+# TDD Mode:
+#   Architecture (TDD) → Generate Tests → Implementation → Verify
+#
+# Max repair attempts: 3
+# Expected self-repair success rate: 78% (based on research)

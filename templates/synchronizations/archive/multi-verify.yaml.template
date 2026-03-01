@@ -1,0 +1,346 @@
+# Multi-Agent Verification Synchronization Rules
+# Enables parallel verification agents for high-quality code review
+#
+# Based on research:
+# - Anthropic Multi-Agent Research: 90.2% improvement with orchestrator-worker
+# - Multi-agent consensus catches errors single agents miss
+# - Parallel verification for security, correctness, performance
+
+synchronizations:
+  # Parallel verification for high-risk implementations
+  - id: "high-risk-parallel-verify"
+    description: "Run multiple verification agents in parallel for high-risk code"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.risk_level in ['high', 'critical'] OR architecture.risk != 'low'"
+    then:
+      parallel: true
+      actions:
+        - concept: "quality"
+          action: "review_security"
+          model: "sonnet"
+          inputs:
+            code: "${implementation.code}"
+            focus: "security"
+            checklist:
+              - "Input validation"
+              - "Authentication/authorization"
+              - "SQL injection"
+              - "XSS prevention"
+              - "Secrets handling"
+
+        - concept: "quality"
+          action: "review_correctness"
+          model: "sonnet"
+          inputs:
+            code: "${implementation.code}"
+            focus: "correctness"
+            checklist:
+              - "Logic errors"
+              - "Edge cases"
+              - "Error handling"
+              - "Type safety"
+              - "Contract compliance"
+
+        - concept: "quality"
+          action: "review_performance"
+          model: "sonnet"
+          inputs:
+            code: "${implementation.code}"
+            focus: "performance"
+            checklist:
+              - "Algorithm complexity"
+              - "Memory usage"
+              - "Database queries"
+              - "Network calls"
+              - "Caching opportunities"
+
+    slo_expectations:
+      expected_duration_ms: 10000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.003
+      max_cost_usd: 0.01
+      success_rate_target: 0.95
+      on_timeout:
+        action: "warn"
+        continue: true
+      on_failure:
+        action: "escalate"
+        fallback: "Single-agent review"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "High-risk implementation requires multi-agent verification"
+
+  # Synthesize parallel review results
+  - id: "synthesize-parallel-reviews"
+    description: "Combine results from parallel verification agents"
+    when:
+      concept: "quality"
+      action: ["review_security", "review_correctness", "review_performance"]
+      status: "completed"
+    where:
+      query: "parallel.all_completed == true"
+    then:
+      - concept: "verification-synthesizer"
+        action: "synthesize"
+        model: "sonnet"
+        inputs:
+          security_review: "${parallel.review_security}"
+          correctness_review: "${parallel.review_correctness}"
+          performance_review: "${parallel.review_performance}"
+          require_consensus: true
+          threshold: 0.8
+
+    slo_expectations:
+      expected_duration_ms: 3000
+      max_duration_ms: 15000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      success_rate_target: 0.98
+      on_timeout:
+        action: "retry"
+        max_retries: 1
+      on_failure:
+        action: "escalate"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Synthesizing parallel verification results"
+
+  # Handle consensus failure
+  - id: "consensus-failure"
+    description: "Escalate when verification agents disagree"
+    when:
+      concept: "verification-synthesizer"
+      action: "synthesize"
+      status: "completed"
+    where:
+      query: "synthesis.consensus_reached == false"
+    then:
+      - concept: "exploration"
+        action: "branch_explore"
+        model: "opus"
+        inputs:
+          problem: "Verification agents disagree on: ${synthesis.disagreements}"
+          constraints:
+            - "Must resolve disagreements"
+            - "Safety-critical issues take priority"
+          max_branches: 2
+
+    slo_expectations:
+      expected_duration_ms: 15000
+      max_duration_ms: 90000
+      expected_cost_usd: 0.02
+      max_cost_usd: 0.05
+      success_rate_target: 0.90
+      on_timeout:
+        action: "escalate"
+        message: "Consensus resolution timed out"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Verification consensus not reached"
+
+  # Dual verification for API changes
+  - id: "api-change-dual-verify"
+    description: "Verify API changes from multiple perspectives"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.changes_api == true"
+    then:
+      parallel: true
+      actions:
+        - concept: "quality"
+          action: "review_backwards_compatibility"
+          model: "sonnet"
+          inputs:
+            code: "${implementation.code}"
+            previous_api: "${implementation.previous_api}"
+            focus: "breaking_changes"
+
+        - concept: "quality"
+          action: "review_api_design"
+          model: "sonnet"
+          inputs:
+            code: "${implementation.code}"
+            focus: "api_quality"
+            checklist:
+              - "REST conventions"
+              - "Error responses"
+              - "Documentation"
+              - "Versioning"
+
+    slo_expectations:
+      expected_duration_ms: 8000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.006
+      success_rate_target: 0.95
+      on_timeout:
+        action: "warn"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "API changes require compatibility and design verification"
+
+  # Database migration verification
+  - id: "migration-dual-verify"
+    description: "Verify database migrations for safety and performance"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.includes_migration == true"
+    then:
+      parallel: true
+      actions:
+        - concept: "quality"
+          action: "review_migration_safety"
+          model: "sonnet"
+          inputs:
+            migration: "${implementation.migration}"
+            focus: "data_safety"
+            checklist:
+              - "Data loss prevention"
+              - "Rollback capability"
+              - "Constraint validity"
+
+        - concept: "quality"
+          action: "review_migration_performance"
+          model: "sonnet"
+          inputs:
+            migration: "${implementation.migration}"
+            focus: "performance"
+            checklist:
+              - "Lock duration"
+              - "Table size impact"
+              - "Index usage"
+
+    slo_expectations:
+      expected_duration_ms: 8000
+      max_duration_ms: 30000
+      expected_cost_usd: 0.002
+      max_cost_usd: 0.006
+      success_rate_target: 0.95
+      on_timeout:
+        action: "warn"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Database migrations require safety and performance verification"
+
+  # Self-verification (same model, different prompt)
+  - id: "self-verification"
+    description: "Verify implementation with different perspective"
+    when:
+      concept: "quality"
+      action: "review"
+      status: "completed"
+    where:
+      query: "review.confidence < 0.8"
+    then:
+      - concept: "quality"
+        action: "review"
+        model: "${review.model}"
+        inputs:
+          code: "${implementation.code}"
+          perspective: "devil_advocate"
+          previous_review: "${review.summary}"
+          instruction: "Find issues the previous review may have missed"
+
+    slo_expectations:
+      expected_duration_ms: 5000
+      max_duration_ms: 20000
+      expected_cost_usd: 0.001
+      max_cost_usd: 0.003
+      success_rate_target: 0.95
+      on_timeout:
+        action: "skip"
+        fallback: "Accept original review"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Low confidence review triggers self-verification"
+
+  # Cross-model verification for critical code
+  - id: "critical-cross-model-verify"
+    description: "Use different models to verify critical code"
+    when:
+      concept: "implementation"
+      action: "generate"
+      status: "completed"
+    where:
+      query: "implementation.criticality == 'critical'"
+    then:
+      parallel: true
+      actions:
+        - concept: "quality"
+          action: "review"
+          model: "sonnet"
+          inputs:
+            code: "${implementation.code}"
+            depth: "thorough"
+
+        - concept: "quality"
+          action: "review"
+          model: "opus"
+          inputs:
+            code: "${implementation.code}"
+            depth: "thorough"
+            focus: "subtle_bugs"
+
+    slo_expectations:
+      expected_duration_ms: 15000
+      max_duration_ms: 60000
+      expected_cost_usd: 0.025
+      max_cost_usd: 0.06
+      success_rate_target: 0.95
+      on_timeout:
+        action: "warn"
+        continue: true
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Critical code verified by multiple models"
+
+  # Require unanimous approval for security-critical
+  - id: "security-unanimous-approval"
+    description: "Require all agents to approve security-critical changes"
+    when:
+      concept: "verification-synthesizer"
+      action: "synthesize"
+      status: "completed"
+    where:
+      query: "implementation.security_critical == true"
+    then:
+      - concept: "quality"
+        action: "check_unanimous"
+        model: "sonnet"
+        inputs:
+          reviews: "${synthesis.all_reviews}"
+          require: "all_approved"
+          on_failure: "block"
+
+    slo_expectations:
+      expected_duration_ms: 2000
+      max_duration_ms: 10000
+      expected_cost_usd: 0.0005
+      max_cost_usd: 0.002
+      success_rate_target: 0.99
+      on_timeout:
+        action: "block"
+        message: "Security verification timed out - blocking"
+
+    provenance:
+      flow_id: "${flow.id}"
+      reason: "Security-critical code requires unanimous approval"
