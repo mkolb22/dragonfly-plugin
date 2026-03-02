@@ -123,4 +123,4 @@ npm run test:run # vitest run
 
 ## License
 
-MIT
+[MIT AND Commons Clause](./LICENSE) — free to use, modify, and distribute. Commercial use requires licensor approval. Copyright © 2026 Michael Kolb.
