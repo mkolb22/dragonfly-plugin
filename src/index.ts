@@ -4,18 +4,18 @@
  * Dragonfly MCP Plugin
  * Sonnet-optimized server providing code intelligence, semantic search, memory, and workflow orchestration
  *
- * Modules:
- * - AST Index (8 tools) - Code intelligence through AST analysis
- * - Semantic RAG (4 tools) - Semantic search with embeddings
- * - Memory (7 tools) - Persistent semantic memory
- * - Framework (11 tools) - Workflow orchestration
- * - State (11 tools) - Health, checkpoints, stories, migration
- * - Evolution (4 tools) - Prompt optimization
+ * Modules (66 tools total):
+ * - AST (7 tools) - Code intelligence through AST analysis
+ * - Semantic (3 tools) - Semantic search with embeddings
+ * - Memory (4 tools) - Persistent semantic memory
+ * - Framework (8 tools) - Workflow orchestration
+ * - State (8 tools) - Health, checkpoints, stories, migration
+ * - Evolve (4 tools) - Prompt optimization
  * - Spec (6 tools) - Specification DSL for code generation
- * - Testing (7 tools) - Test generation, execution, and coverage
- * - Repair (6 tools) - Self-repair and iterative refinement
+ * - Testing (6 tools) - Test generation, execution, and coverage
+ * - Repair (5 tools) - Self-repair and iterative refinement
  * - Knowledge Graph (7 tools) - Entity/relation management with hybrid search + AST bridge
- * - Analytics (7 tools) - Costs, benchmarks, drift, learning, observability
+ * - Analytics (2 tools) - Cost and performance observability
  * - Pipeline (2 tools) - Composition DSL parsing and execution planning
  * - Bridge (4 tools) - Cross-project memory export, import, search
  */

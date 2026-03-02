@@ -4,6 +4,14 @@
   "description": "Dragonfly MCP Plugin — Sonnet-optimized code intelligence, memory, and workflow tools",
   "main": "dist/index.js",
   "type": "module",
+  "files": [
+    "dist/",
+    "templates/",
+    "scripts/"
+  ],
+  "bin": {
+    "dragonfly-init": "./scripts/init.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",

@@ -30,6 +30,15 @@ Sonnet-optimized MCP plugin: 66 tools across 13 modules. Fully standalone — no
 | Pipeline | 2 | `DRAGONFLY_PIPELINE_ENABLED` |
 | Bridge | 4 | `DRAGONFLY_BRIDGE_ENABLED` |
 
+## Installing in a Consuming Project
+
+```bash
+npm install --save-dev @dragonfly/plugin   # or: file:../dragonfly-plugin
+npx dragonfly-init                          # deploys agents, skills, commands, hooks, .mcp.json
+```
+
+`dragonfly-init` is idempotent — it skips files that already exist.
+
 ## Build & Test
 
 ```bash
@@ -65,12 +74,35 @@ DRAGONFLY_DEBUG=true              # enable debug logging
 
 ## Claude Code MCP Config
 
+**Installed as npm dependency (recommended):**
 ```json
 {
   "mcpServers": {
     "dragonfly": {
+      "type": "stdio",
       "command": "node",
-      "args": ["/path/to/dragonfly-plugin/dist/index.js"],
+      "args": [
+        "--no-wasm-tier-up",
+        "--liftoff-only",
+        "node_modules/@dragonfly/plugin/dist/index.js"
+      ]
+    }
+  }
+}
+```
+
+**Run from source (development):**
+```json
+{
+  "mcpServers": {
+    "dragonfly": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "--no-wasm-tier-up",
+        "--liftoff-only",
+        "/path/to/dragonfly-plugin/dist/index.js"
+      ],
       "env": {
         "PROJECT_ROOT": "/path/to/your/project"
       }
@@ -78,3 +110,5 @@ DRAGONFLY_DEBUG=true              # enable debug logging
   }
 }
 ```
+
+The `--no-wasm-tier-up` and `--liftoff-only` flags are required for tree-sitter WASM stability.
