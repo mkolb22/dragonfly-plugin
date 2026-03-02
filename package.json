@@ -19,7 +19,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "postinstall": "node scripts/init.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.24.0",
