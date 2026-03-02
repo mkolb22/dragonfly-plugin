@@ -32,8 +32,6 @@ skills:
   # P2 - Enhancement
   - code-coverage-analysis         # Security test coverage
   # Operational
-  - smart-retry
-  - workflow-replay
 ---
 
 # Security Concept
@@ -43,18 +41,6 @@ skills:
 **Model**: Sonnet (pattern-based security analysis)
 **Cost per Action**: ~$0.002
 **Never Calls**: No other concepts (pure security analysis)
-
-## Activation Sequence
-
-When invoked, I execute the Security concept:
-
-1. Load security concept template
-2. Activate Sonnet model
-3. Perform security action (threat_model, validate_architecture, scan, verify)
-4. Check against OWASP patterns and security rules
-5. Return structured results to parent workflow
-
----
 
 ## Purpose
 
@@ -224,32 +210,6 @@ Final security gate before version control.
 - Vulnerabilities found/fixed
 - Integrity hash of approved files
 
-## State Management
-
-Security results are returned to the parent workflow session and persisted via `zen_event_log` MCP tool. Use `zen_checkpoint_save` for milestone security reviews.
-
-## Integration with Workflow
-
-```
-Story ──────────────┬──> Code-Analysis
-                    └──> Security: threat_model (parallel)
-                              │
-Architecture ───────────────> Security: validate_architecture
-                              │
-                    ┌─────────┴─────────┐
-                    │                   │
-Implementation ─────┼──> Quality.review │
-                    └──> Security: scan (parallel)
-                              │
-Quality.approved ──────────> Security: verify_commit
-                              │
-                    ┌─────────┴─────────┐
-                    │                   │
-               [approved]          [blocked]
-                    │                   │
-               Version.commit    Fix vulnerabilities
-```
-
 ## Blocking Behavior
 
 Security concept can **block** workflow progression:
@@ -268,76 +228,6 @@ Security concept can **block** workflow progression:
    - Requires explicit user approval via AskUserQuestion
    - Records justification in attestation
    - Flags in provenance for audit
-
-## Cost Optimization
-
-**Why Sonnet?**
-- Security patterns are well-defined rules
-- Pattern matching doesn't need deep reasoning
-- Fast execution (2-3 seconds per action)
-- Consistent, reproducible results
-
-**Total security cost per feature**: ~$0.008
-- threat_model: $0.002
-- validate_architecture: $0.002
-- scan_implementation: $0.002
-- verify_commit: $0.002
-
-## Example Usage
-
-```
-Story Concept completed: story-001 "Add user authentication"
-
-[Sync triggers: security-threat-model (parallel with code-analysis)]
-
-Security Concept - Threat Model (Sonnet):
-  ✓ Assets identified: 3 (credentials, sessions, PII)
-  ✓ Threat actors: 2 (external, insider)
-  ✓ STRIDE analysis: 2 high-risk areas
-  ✓ Security requirements: 5 generated
-  ✓ Threat model complete
-  Cost: $0.002
-  Duration: 2.5 seconds
-
-[Architecture completes]
-[Sync triggers: security-validate-architecture]
-
-Security Concept - Architecture Validation (Sonnet):
-  ✓ Requirements coverage: 5/5 addressed
-  ✓ OWASP assessment: All passed
-  ✓ Pattern compliance: 4/4 patterns
-  ✓ Decision: approved
-  ✓ Architecture review complete
-  Cost: $0.002
-  Duration: 3 seconds
-
-[Implementation completes]
-[Sync triggers: security-scan-implementation (parallel with quality)]
-
-Security Concept - Implementation Scan (Sonnet):
-  ✓ Files scanned: 8
-  ✓ Vulnerabilities: 2 (0 critical, 1 high, 1 medium)
-  ✓ Secrets: None detected
-  ✓ Decision: conditional (fix high before commit)
-  ✓ Scan complete
-  Cost: $0.002
-  Duration: 3 seconds
-
-[High vulnerability fixed, quality approved]
-[Sync triggers: security-verify-commit]
-
-Security Concept - Commit Verification (Sonnet):
-  ✓ Vulnerabilities resolved: All critical/high fixed
-  ✓ Secrets check: Passed
-  ✓ Integrity check: Passed
-  ✓ Attestation generated
-  ✓ Decision: approved
-  ✓ Attestation generated
-  Cost: $0.002
-  Duration: 2 seconds
-
-Total Security Cost: $0.008
-```
 
 ## Never Do This
 

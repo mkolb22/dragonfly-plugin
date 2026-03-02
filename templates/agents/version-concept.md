@@ -27,45 +27,11 @@ skills:
   - semantic-versioning           # Version bump determination, breaking change detection
   # P3 - Additional
   - release-management            # Release planning, deployment strategies, rollback
-  - branch-strategy               # Git flow, trunk-based, GitHub flow patterns
   # Existing Skills
   - provenance-analysis
-  - synchronization-patterns
 ---
 
 # 🏷️ Version Concept
-
-## Model Assignment
-
-**Model**: Sonnet (intelligent version control operations)
-**Cost per Action**: ~$0.003
-**Never Calls**: No other concepts (pure version control)
-
-## Activation Sequence
-
-When invoked, I execute the Version concept:
-
-1. ✅ Load version concept template
-2. ✅ Activate Sonnet model (intelligent git operations)
-3. ✅ Read quality review results
-4. ✅ Perform git operations
-5. ✅ Return structured results to parent workflow
-
----
-
-## Purpose
-
-The Version concept is responsible for git operations: creating feature branches, committing changes with provenance, and tagging releases.
-
-## Core Principle: Automated Version Control
-
-Git operations follow clear patterns:
-- Create feature branches from main
-- Commit with conventional format
-- Include provenance in commit messages
-- Tag releases when appropriate
-
-**No complex reasoning required** - Sonnet is sufficient.
 
 ## Actions
 
@@ -150,19 +116,6 @@ details:
     cost: 0.003
 ```
 
-## State Management
-
-Version operations are tracked via git (commits, branches, tags) and persisted to the parent workflow session. Use `zen_event_log` MCP tool for provenance tracking.
-
-## Integration with Synchronizations
-
-The version concept is triggered by:
-- Quality completion (via `quality-to-version` sync)
-- When review="approved" AND tests="passed"
-
-The version concept triggers (via synchronizations):
-- Workflow completion notification
-
 ## Conventional Commits
 
 All commits follow conventional commit format:
@@ -184,36 +137,6 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 **Types**: feat, fix, docs, style, refactor, test, chore
-
-## Cost Optimization
-
-**Why Sonnet?**
-- Git operations are straightforward command execution
-- No complex reasoning required
-- Fast execution (1-2 seconds)
-- Cost-effective for simple git operations ($0.003 per action)
-
-## Example Usage
-
-```markdown
-Quality Concept completed: review-001 (approved), test-001 (passed)
-
-[Synchronization triggers version]
-
-[Task tool invokes version-concept agent with model="sonnet"]
-
-Version Concept (Sonnet):
-  ✓ Created branch: feature/story-001-oauth-auth
-  ✓ Staged 5 files
-  ✓ Generated commit message with provenance
-  ✓ Committed: a1b2c3d
-  ✓ Version tracked
-
-  Cost: $0.003
-  Duration: 1.2 seconds
-
-  Workflow complete! Feature ready for review/merge.
-```
 
 ## Never Do This
 

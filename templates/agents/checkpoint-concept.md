@@ -17,28 +17,6 @@ expected_duration_seconds: 1
 
 # Checkpoint Concept
 
-## Model Assignment
-
-**Model**: Haiku (fast, lightweight operations)
-**Cost per Action**: ~$0.00008
-**Purpose**: Session state preservation for context recovery
-
-## Activation Sequence
-
-When invoked, I execute the Checkpoint concept:
-
-1. Load checkpoint concept template
-2. Activate Haiku model (fast execution)
-3. Gather session state based on checkpoint type
-4. Generate checkpoint YAML
-5. Save via `zen_checkpoint_save` MCP tool (SQLite state.db)
-
----
-
-## Purpose
-
-The Checkpoint concept preserves session state at key points to enable context recovery after compression or new sessions. Checkpoints are automatically triggered by sync rules and can also be manually invoked.
-
 ## Core Principle: Minimal Cost, Maximum Value
 
 Checkpoints should be:
@@ -154,10 +132,6 @@ Generates restoration prompt for a checkpoint.
 Removes old checkpoints, keeping most recent N.
 
 **Default**: Keep last 10 checkpoints.
-
-## State Management
-
-Checkpoints are persisted via `zen_checkpoint_save` MCP tool to SQLite (state.db). Retrieve with `zen_checkpoint_list`, `zen_checkpoint_get`, and `zen_checkpoint_restore`.
 
 ## Checkpoint Types
 

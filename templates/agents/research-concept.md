@@ -33,29 +33,6 @@ skills:
 
 # Research Concept
 
-## Model Assignment
-
-**Model**: Sonnet (efficient research and synthesis)
-**Cost per Action**: ~$0.02-0.06 depending on depth
-**Never Calls**: Other concepts during research (pure analysis)
-
-## Activation Sequence
-
-When invoked, I execute the Research concept:
-
-1. Load research concept template
-2. Activate Sonnet model
-3. Search academic sources (WebSearch)
-4. Analyze current implementation (MCP tools)
-5. Synthesize findings into recommendations
-6. Return structured results to parent workflow
-
----
-
-## Purpose
-
-The Research concept ensures decisions are grounded in evidence. It searches academic papers, documentation, and best practices before architecture begins.
-
 ## Core Principle: Research Before You Recommend
 
 Don't guess at solutions. Find evidence first:
@@ -154,37 +131,6 @@ Validate a proposal against research.
 
 **Output**: Validation results returned to parent workflow
 
-## State Management
-
-Research results are returned to the parent workflow session and passed to the architecture concept. Use `memory_store` MCP tool for persisting key research findings across sessions.
-
-## Integration with Workflow
-
-```
-Story ──[complexity != trivial]──> Research
-                                      │
-                                 [completed]
-                                      │
-              ┌───────────────────────▼───────────────────────┐
-              │   Architecture (with evidence-based context)  │
-              └───────────────────────────────────────────────┘
-```
-
-## When to Skip Research
-
-Research is skipped for:
-- `story.complexity == "trivial"` (typo fixes, config changes)
-- Explicit `/feature --skip-research` flag
-- Time-critical production fixes (research after)
-
-## Depth Levels
-
-| Depth | Duration | Sources | Cost | Use Case |
-|-------|----------|---------|------|----------|
-| quick | 5 min | 2-3 papers, 1-2 docs | ~$0.01 | Simple features |
-| standard | 15 min | 5-10 papers, 3-5 docs | ~$0.03 | Most features |
-| thorough | 30 min | 10+ papers, 5+ docs | ~$0.06 | Major decisions |
-
 ## Example Search Patterns
 
 For technical decisions:
@@ -196,31 +142,6 @@ For implementation:
 - "{framework} official documentation"
 - "{tool} migration guide"
 - "{pattern} anti-patterns research"
-
-## Example Usage
-
-```
-[Story created: story-015 "Add context compression"]
-
-Research Concept (Sonnet):
-  Searches:
-    ✓ WebSearch: "LLM context compression 2025 arxiv"
-    ✓ WebSearch: "agent memory systems benchmark"
-    ✓ semantic_search: "context" in codebase
-
-  Results:
-    ✓ Found 8 relevant papers
-    ✓ Key finding: ACON achieves 26-54% compression
-    ✓ Current gap: No adaptive thresholds
-    ✓ Generated 4 recommendations
-    ✓ Research complete
-
-  Cost: $0.028
-  Duration: 12 minutes
-
-[Sync triggers: research-to-architecture]
-  → Architecture receives evidence-based context
-```
 
 ## Never Do This
 

@@ -41,22 +41,6 @@ skills:
 **Cost per Action**: ~$0.003
 **Never Calls**: No other concepts (pure context management)
 
-## Activation Sequence
-
-When invoked, I execute the Context concept:
-
-1. ✅ Load context concept template
-2. ✅ Activate Sonnet model (intelligent context management)
-3. ✅ Monitor context usage
-4. ✅ Compress or snapshot as needed
-5. ✅ Save state via `zen_checkpoint_save` MCP tool
-
----
-
-## Purpose
-
-The Context concept is responsible for managing the context window: monitoring usage, compressing historical context, and creating snapshots for long workflows.
-
 ## Core Principle: Active Context Management
 
 Context management uses clear strategies:

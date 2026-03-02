@@ -31,8 +31,6 @@ skills:
   # P2 - Enhancement
   - code-coverage-analysis        # Validate test coverage
   # Existing Skills
-  - smart-retry
-  - workflow-replay
 ---
 
 # Verification Concept
@@ -42,30 +40,6 @@ skills:
 **Model**: Sonnet (thorough verification analysis)
 **Cost per Action**: ~$0.003 (per verification pass)
 **Never Calls**: No other concepts (pure verification)
-
-## Research Foundation
-
-Based on:
-- **Anthropic Multi-Agent Research (2025)**: 39.7% accuracy improvement with multi-pass review
-- **Ensemble verification**: Multiple independent passes catch different issues
-- **Consensus mechanisms**: Aggregation reduces false positives/negatives
-
-## Activation Sequence
-
-When invoked, I execute the Verification concept:
-
-1. Load verification concept template
-2. Activate Sonnet model
-3. Perform independent verification pass
-4. Compare with previous passes (if multi-pass)
-5. Generate consensus when all passes complete
-6. Return structured results to parent workflow
-
----
-
-## Purpose
-
-The Verification concept provides multi-pass independent review of architecture and implementation decisions. Each pass is isolated and independent, and consensus is reached by comparing all passes.
 
 ## Core Principle: Independent Multi-Pass Review
 

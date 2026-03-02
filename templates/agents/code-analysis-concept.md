@@ -34,28 +34,6 @@ skills:
 
 # Code Analysis Concept
 
-## Model Assignment
-
-**Model**: Sonnet (fast context gathering)
-**Cost per Action**: ~$0.0002
-**Never Calls**: No other concepts (pure analysis)
-
-## Activation Sequence
-
-When invoked, I execute the Code Analysis concept:
-
-1. Load code-analysis concept template
-2. Activate Sonnet model
-3. Use MCP tools to gather context
-4. Generate analysis report
-5. Return structured results to parent workflow
-
----
-
-## Purpose
-
-The Code Analysis concept bridges story capture and architecture design by analyzing the existing codebase. It finds patterns, similar implementations, and structural information to inform architectural decisions.
-
 ## Core Principle: Context Before Design
 
 Architecture decisions should be informed by existing code:
@@ -159,24 +137,6 @@ skipped: true
 reason: "MCP servers not available"
 ```
 
-## State Management
-
-Analysis results are returned to the parent workflow session and passed to the architecture concept. Use `zen_event_log` MCP tool for analysis provenance tracking.
-
-## Integration with Workflow
-
-```
-Story ──[story-to-code-analysis]──> Code Analysis
-                                        │
-                    ┌───────────────────┴───────────────────┐
-                    │                                       │
-              [completed]                             [skipped]
-                    │                                       │
-    ┌───────────────▼───────────────┐                      │
-    │   Architecture (with context) │◄─────────────────────┘
-    └───────────────────────────────┘
-```
-
 ## Fallback Behavior
 
 If MCP servers are not available:
@@ -184,38 +144,6 @@ If MCP servers are not available:
 2. Set `skipped: true` flag
 3. Architecture proceeds via fallback sync rule
 4. No error - graceful degradation
-
-## Cost Optimization
-
-**Why Sonnet?**
-- MCP tools do the heavy lifting
-- Minimal AI reasoning needed
-- Fast execution (2-3 seconds)
-- Very low cost (~$0.0002)
-
-## Example Usage
-
-```
-[Story created: story-001 "Add OAuth with Microsoft"]
-
-Code Analysis Concept (Sonnet):
-  MCP Tools Called:
-    ✓ semantic_search("OAuth Microsoft authentication")
-    ✓ find_symbol("OAuth")
-    ✓ get_file_symbols("src/services/oauth-google.ts")
-
-  Results:
-    ✓ Found 3 existing patterns
-    ✓ Found 2 similar implementations
-    ✓ Generated 4 recommendations
-    ✓ Analysis complete
-
-  Cost: $0.0002
-  Duration: 2.1 seconds
-
-[Sync triggers: code-analysis-to-arch]
-  → Architecture receives context
-```
 
 ## Never Do This
 
