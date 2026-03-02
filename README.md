@@ -5,7 +5,7 @@ Sonnet-optimized MCP plugin for Claude Code: 66 tools across 13 modules covering
 ## Installation
 
 ```bash
-npm install --save-dev @dragonfly/plugin
+npm install --save-dev @dragonflymcp/plugin
 ```
 
 The `postinstall` script runs automatically and deploys all agents, skills, commands, hooks, and `.mcp.json` into your project. Restart Claude Code to activate.
@@ -102,7 +102,7 @@ The init script writes this to `.mcp.json`:
       "args": [
         "--no-wasm-tier-up",
         "--liftoff-only",
-        "node_modules/@dragonfly/plugin/dist/index.js"
+        "node_modules/@dragonflymcp/plugin/dist/index.js"
       ]
     }
   }

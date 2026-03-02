@@ -6,7 +6,7 @@
       "args": [
         "--no-wasm-tier-up",
         "--liftoff-only",
-        "node_modules/@dragonfly/plugin/dist/index.js"
+        "node_modules/@dragonflymcp/plugin/dist/index.js"
       ]
     }
   }

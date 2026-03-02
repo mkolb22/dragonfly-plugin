@@ -1,5 +1,5 @@
 {
-  "name": "@dragonfly/plugin",
+  "name": "@dragonflymcp/plugin",
   "version": "1.0.0",
   "description": "Dragonfly MCP Plugin — Sonnet-optimized code intelligence, memory, and workflow tools",
   "main": "dist/index.js",

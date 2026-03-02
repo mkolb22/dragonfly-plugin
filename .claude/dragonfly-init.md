@@ -29,7 +29,7 @@ The plugin is installed in `node_modules` but never activated.
       "args": [
         "--no-wasm-tier-up",
         "--liftoff-only",
-        "node_modules/@dragonfly/plugin/dist/index.js"
+        "node_modules/@dragonflymcp/plugin/dist/index.js"
       ]
     }
   }
@@ -225,7 +225,7 @@ customized agent, skill, command, or hook files.
 To force-reinstall a specific file, delete it and re-run:
 ```bash
 rm .claude/agents/implementation-concept.md
-node node_modules/@dragonfly/plugin/scripts/init.js
+node node_modules/@dragonflymcp/plugin/scripts/init.js
 ```
 
 ---
@@ -234,7 +234,7 @@ node node_modules/@dragonfly/plugin/scripts/init.js
 
 ```bash
 # After npm install (also runs automatically via postinstall):
-node node_modules/@dragonfly/plugin/scripts/init.js
+node node_modules/@dragonflymcp/plugin/scripts/init.js
 
 # Or via npx if installed globally:
 npx dragonfly-init
@@ -265,4 +265,4 @@ Dragonfly setup complete. Restart Claude Code to activate the MCP server.
 
 ---
 
-*Last updated: 2026-03-01. Written against @dragonfly/plugin v1.0.0.*
+*Last updated: 2026-03-01. Written against @dragonflymcp/plugin v1.0.0.*

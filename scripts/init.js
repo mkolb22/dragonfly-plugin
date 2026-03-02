@@ -2,7 +2,7 @@
 /**
  * dragonfly-init — one-shot setup for consuming projects
  *
- * Run from the project root after installing @dragonfly/plugin:
+ * Run from the project root after installing @dragonflymcp/plugin:
  *   npx dragonfly-init
  *
  * Steps:
@@ -22,7 +22,7 @@ import {
 } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkgRoot = join(__dirname, '..');   // node_modules/@dragonfly/plugin
+const pkgRoot = join(__dirname, '..');   // node_modules/@dragonflymcp/plugin
 
 // When running as a postinstall hook, npm sets INIT_CWD to the directory
 // where `npm install` was invoked (the consuming project root). Use it
@@ -55,7 +55,7 @@ if (existsSync(mcpPath)) {
         args: [
           '--no-wasm-tier-up',
           '--liftoff-only',
-          'node_modules/@dragonfly/plugin/dist/index.js',
+          'node_modules/@dragonflymcp/plugin/dist/index.js',
         ],
       },
     },

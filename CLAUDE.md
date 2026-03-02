@@ -6,7 +6,7 @@ Sonnet-optimized MCP plugin: 66 tools across 13 modules. Fully standalone — no
 
 | Item | Value |
 |------|-------|
-| Package | `@dragonfly/plugin` |
+| Package | `@dragonflymcp/plugin` |
 | Server name | `dragonfly-server` |
 | Tool prefix | `dragonfly_` (framework/state/spec/analytics/bridge/pipeline) |
 | Data directory | `data/` (gitignored, created on first run) |
@@ -33,7 +33,7 @@ Sonnet-optimized MCP plugin: 66 tools across 13 modules. Fully standalone — no
 ## Installing in a Consuming Project
 
 ```bash
-npm install --save-dev @dragonfly/plugin   # or: file:../dragonfly-plugin
+npm install --save-dev @dragonflymcp/plugin   # or: file:../dragonfly-plugin
 npx dragonfly-init                          # deploys agents, skills, commands, hooks, .mcp.json
 ```
 
@@ -84,7 +84,7 @@ DRAGONFLY_DEBUG=true              # enable debug logging
       "args": [
         "--no-wasm-tier-up",
         "--liftoff-only",
-        "node_modules/@dragonfly/plugin/dist/index.js"
+        "node_modules/@dragonflymcp/plugin/dist/index.js"
       ]
     }
   }

@@ -1,7 +1,7 @@
 # Dragonfly Plugin — Session Memory
 
 ## Key Facts
-- Package: `@dragonfly/plugin`, server: `dragonfly-server`, 66 tools / 13 modules
+- Package: `@dragonflymcp/plugin`, server: `dragonfly-server`, 66 tools / 13 modules
 - `dist/` is gitignored but included via `"files"` in package.json for npm publish
 - Init script: `scripts/init.js` (bin: `dragonfly-init`) — idempotent, automates all setup
 
@@ -33,7 +33,7 @@ Issues that were in the *consuming project* (autonops), not this plugin:
     "dragonfly": {
       "type": "stdio",
       "command": "node",
-      "args": ["--no-wasm-tier-up", "--liftoff-only", "node_modules/@dragonfly/plugin/dist/index.js"]
+      "args": ["--no-wasm-tier-up", "--liftoff-only", "node_modules/@dragonflymcp/plugin/dist/index.js"]
     }
   }
 }
