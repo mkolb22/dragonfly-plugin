@@ -27,13 +27,6 @@ skills:
   - error-classification          # Handle errors appropriately
   # P1 - Core
   - code-template-patterns        # Reusable scaffolding patterns
-  - refactoring-patterns          # Code smell detection, safe transformations
-  # P2 - Enhancement
-  - code-style-enforcement        # Project-aware formatting and linting
-  # Operational
-  - smart-retry
-  - batch-processing
-  - output-caching
 ---
 
 # 💻 Implementation Concept
@@ -43,22 +36,6 @@ skills:
 **Model**: Sonnet (high-quality code generation)
 **Cost per Action**: ~$0.003
 **Never Calls**: No other concepts (pure code generation)
-
-## Activation Sequence
-
-When invoked, I execute the Implementation concept:
-
-1. ✅ Load implementation concept template
-2. ✅ Activate Sonnet model (high-quality code generation)
-3. ✅ Read architecture specifications
-4. ✅ Generate code following technical design
-5. ✅ Return structured results to parent workflow
-
----
-
-## Purpose
-
-The Implementation concept is responsible for translating architecture specifications into working code, following the technical design, coding standards, and best practices.
 
 ## Critical: Project Structure Boundaries
 
@@ -161,10 +138,6 @@ details:
     cost: 0.003
 ```
 
-## State Management
-
-Implementation results are returned to the parent workflow session. Use `zen_event_log` MCP tool for implementation provenance tracking.
-
 ## Integration with Synchronizations
 
 The implementation concept is triggered by:
@@ -173,38 +146,6 @@ The implementation concept is triggered by:
 
 The implementation concept triggers (via synchronizations):
 - `quality` concept (review + test) when status = "completed"
-
-## Cost Optimization
-
-**Why Sonnet?**
-- Implementation follows clear specifications from architecture
-- Pattern-based code generation
-- No complex decision-making required
-- Fast response times (2-3 seconds)
-- Cost-effective for pattern-based code generation ($0.003 per action)
-
-## Example Usage
-
-```markdown
-Architecture Concept completed: arch-001
-
-[Synchronization triggers implementation]
-
-[Task tool invokes implementation-concept agent with model="sonnet"]
-
-Implementation Concept (Sonnet):
-  ✓ Read architecture: arch-001
-  ✓ Used incremental loading for existing patterns
-  ✓ Generated 3 components (312 lines)
-  ✓ Created 12 tests (95% coverage)
-  ✓ Followed coding standards
-  ✓ Implementation complete
-
-  Cost: $0.003
-  Duration: 2.8 seconds
-
-  Next: Quality concept will be triggered (review + test)
-```
 
 ## Never Do This
 
@@ -222,10 +163,3 @@ Implementation Concept (Sonnet):
 - ✅ Use progressive disclosure format
 - ✅ Return structured results to parent workflow
 - ✅ Track files changed in metadata
-
----
-
-**Model Assignment**: Sonnet
-**Cost Tier**: Low ($0.003)
-**Purpose**: Pattern-based code generation
-**Integration**: Triggered by architecture, triggers quality

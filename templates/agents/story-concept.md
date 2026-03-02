@@ -27,9 +27,6 @@ skills:
   - story-decomposition           # INVEST criteria, task breakdown, dependency mapping
   - acceptance-criteria-generation # Given-When-Then templates, coverage checklist
   - semantic-memory               # Remember patterns from previous stories
-  # P2 - Enhancement
-  - effort-estimation             # Story points, T-shirt sizing, three-point estimation
-  - requirement-prioritization    # MoSCoW, RICE scoring, value/effort matrices
 ---
 
 # 📋 Story Concept
@@ -39,21 +36,6 @@ skills:
 **Model**: Sonnet (thorough analysis for story clarity)
 **Cost per Action**: ~$0.003
 **Never Calls**: No other concepts (pure input processing)
-
-## Activation Sequence
-
-When invoked, I execute the Story concept:
-
-1. ✅ Load story concept template
-2. ✅ Activate Sonnet model (thorough story analysis)
-3. ✅ Process requirement capture
-4. ✅ Save story via `zen_story_save` MCP tool
-
----
-
-## Purpose
-
-The Story concept is responsible for capturing user requirements, breaking them down into clear acceptance criteria, and validating that they're ready for architecture and implementation.
 
 ## Core Principle: Polymorphic Independence
 
@@ -91,12 +73,10 @@ Captures a new user requirement.
 **Output Format** (YAML with Progressive Disclosure):
 
 ```yaml
-# === SUMMARY (first 5 lines - quick scanning) ===
 story_id: "story-001"
 status: "ready"
 summary: "User can authenticate via OAuth2 with Google provider"
 
-# === FULL DETAILS (load only if needed) ===
 details:
   title: "Add OAuth authentication"
   description: |
@@ -181,35 +161,6 @@ The story concept triggers (via synchronizations):
 - `architecture` concept when status = "ready"
 - User notification when status = "needs_clarification"
 
-## Cost Optimization
-
-**Why Sonnet (not Opus)?**
-MAP-Elites evolution (Feb 2026) on the Real-Time Collaborative Editing benchmark proved:
-- Sonnet scored 0.95 vs Opus 0.95 — identical quality, first agent with zero model gap
-- Both captured 7/7 expected elements, identical acceptance criteria structure
-- Cost: $0.003 vs $0.015 (5x savings)
-- Story capture is so template-driven that extra reasoning capacity provides zero uplift
-
-## Example Usage
-
-```markdown
-User: /feature "Add dark mode support"
-
-[Task tool invokes story-concept agent with model="sonnet"]
-
-Story Concept (Sonnet):
-  ✓ Parsed requirement
-  ✓ Generated 4 acceptance criteria
-  ✓ No ambiguities found
-  ✓ Status: ready
-  ✓ Saved: story-001 (via zen_story_save)
-
-  Cost: $0.003
-  Duration: 1.2 seconds
-
-  Next: Architecture concept will be triggered via story-to-arch sync
-```
-
 ## Validation Rules
 
 Story is "ready" when:
@@ -254,10 +205,3 @@ All YAML output MUST follow these rules to prevent silent parse failures:
 2. **Avoid nested quotes in unquoted list items.** If a list item (`- ...`) contains embedded double quotes, wrap the entire value in double quotes and escape the inner quotes, or remove the inner quotes.
 3. **Use block scalars for long text.** Multi-line strings and strings with special characters should use `|` (literal) or `>` (folded) block scalar syntax.
 4. **Validate output parses.** Before saving, mentally verify the YAML is valid — unquoted `@scope/package` or unmatched `"` will cause silent load failures downstream.
-
----
-
-**Model Assignment**: Sonnet
-**Cost Tier**: Low ($0.003)
-**Purpose**: Efficient requirement capture
-**Integration**: Triggered by user, triggers architecture

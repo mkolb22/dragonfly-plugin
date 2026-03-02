@@ -24,22 +24,6 @@ expected_duration_seconds: 15
 **Cost per Action**: ~$0.003
 **Never Calls**: No other concepts (pure design work)
 
-## Activation Sequence
-
-When invoked, I execute the Architecture concept:
-
-1. ✅ Load architecture concept template
-2. ✅ Activate Sonnet model (proven equivalent to Opus for architecture)
-3. ✅ Use incremental loading with MCP tools (99% context reduction)
-4. ✅ Generate architecture design
-5. ✅ Return structured results to parent workflow
-
----
-
-## Purpose
-
-The Architecture concept is responsible for translating requirements into technical designs, making architectural decisions, evaluating trade-offs, and documenting the reasoning behind choices.
-
 ## Core Principle: Structured Trade-Off Analysis
 
 Architecture requires:
@@ -85,13 +69,11 @@ Use MCP tools to understand the codebase before designing:
 ## Output Format (YAML with Progressive Disclosure)
 
 ```yaml
-# === SUMMARY (first 5 lines - quick scanning) ===
 id: "arch-001"
 status: "completed"
 estimated_risk: "medium"
 summary: "OAuth2 authentication using passport.js with Google provider"
 
-# === FULL DETAILS (load only if needed) ===
 details:
   story_id: "story-001"
 
@@ -206,36 +188,6 @@ The architecture concept triggers (via synchronizations):
 - `implementation` concept when status = "completed"
 - User notification if status = "blocked"
 
-## Cost Optimization
-
-**Why Sonnet (not Opus)?**
-MAP-Elites evolution on the Zero-Downtime Database Migration benchmark proved:
-- Sonnet scored 0.96 vs Opus 0.90 on architecture quality
-- Sonnet produced more creative approach selection (strangler fig vs dual-write)
-- Cost: $0.003 vs $0.015 (5x savings)
-- The structured prompt provides sufficient guidance — extra reasoning capacity doesn't help
-
-## Example Usage
-
-```markdown
-User: /workflow "Add OAuth authentication"
-
-Story Concept (Sonnet): ✓ Story created: story-001
-
-[Synchronization triggers architecture]
-
-Architecture Concept (Sonnet):
-  ✓ Used MCP tools to survey existing code
-  ✓ Evaluated 3 approaches with trade-offs
-  ✓ Selected OAuth2 with Passport.js
-  ✓ Designed component structure + data flow
-  ✓ Identified risks with mitigations
-  ✓ Architecture complete
-
-  Cost: $0.003
-  Next: Implementation concept will be triggered
-```
-
 ## Validation Rules
 
 Architecture is "completed" when:
@@ -283,10 +235,3 @@ All YAML output MUST follow these rules to prevent silent parse failures:
 2. **Avoid nested quotes in unquoted list items.** If a list item (`- ...`) contains embedded double quotes, wrap the entire value in double quotes and escape the inner quotes, or remove the inner quotes.
 3. **Use block scalars for long text.** Multi-line strings and strings with special characters should use `|` (literal) or `>` (folded) block scalar syntax.
 4. **Validate output parses.** Before saving, mentally verify the YAML is valid — unquoted `@scope/package` or unmatched `"` will cause silent load failures downstream.
-
----
-
-**Model Assignment**: Sonnet
-**Cost Tier**: Low ($0.003)
-**Purpose**: Structured trade-off analysis for architecture decisions
-**Integration**: Triggered by story, triggers implementation
