@@ -3,6 +3,8 @@
  * 2 MCP tools for workflow timeline visualization and configuration validation.
  */
 
+import { existsSync } from "fs";
+import Database from "better-sqlite3";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { successResponse, errorResponse, args as a } from "../../utils/responses.js";
 import { createDispatcher, createModule } from "../../core/dispatcher.js";
@@ -162,14 +164,12 @@ function validateDb(
   errors: Array<{ db: string; table: string; message: string; severity: string }>,
   warnings: Array<{ db: string; table: string; message: string; severity: string }>,
 ): void {
-  const fs = require("fs");
-  if (!fs.existsSync(dbPath)) {
+  if (!existsSync(dbPath)) {
     errors.push({ db: dbName, table: "", message: `Database file not found: ${dbPath}`, severity: "error" });
     return;
   }
 
   try {
-    const Database = require("better-sqlite3");
     const db = new Database(dbPath, { readonly: true });
 
     try {
