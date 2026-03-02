@@ -11,7 +11,7 @@
     ".claude-plugin/"
   ],
   "bin": {
-    "dragonfly-init": "./scripts/init.js"
+    "dragonfly-init": "scripts/init.js"
   },
   "scripts": {
     "build": "tsc",
@@ -51,7 +51,7 @@
   "homepage": "https://github.com/mkolb22/dragonfly-plugin",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mkolb22/dragonfly-plugin.git"
+    "url": "git+https://github.com/mkolb22/dragonfly-plugin.git"
   },
   "publishConfig": {
     "access": "public"
