@@ -43,7 +43,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "license": "MIT",
+  "license": "MIT AND Commons-Clause",
   "author": {
     "name": "Michael Kolb",
     "url": "https://github.com/mkolb22"
