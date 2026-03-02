@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "dragonfly": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "--no-wasm-tier-up",
+        "--liftoff-only",
+        "node_modules/@dragonfly/plugin/dist/index.js"
+      ]
+    }
+  }
+}

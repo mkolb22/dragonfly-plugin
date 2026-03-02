@@ -15,7 +15,7 @@
  */
 
 import { fileURLToPath } from 'url';
-import { dirname, join, basename } from 'path';
+import { dirname, join, basename, resolve } from 'path';
 import {
   existsSync, mkdirSync, copyFileSync, chmodSync,
   readdirSync, cpSync, writeFileSync,
@@ -23,7 +23,16 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = join(__dirname, '..');   // node_modules/@dragonfly/plugin
-const projectRoot = process.cwd();
+
+// When running as a postinstall hook, npm sets INIT_CWD to the directory
+// where `npm install` was invoked (the consuming project root). Use it
+// preferentially over cwd(), which points to the package dir inside node_modules.
+const projectRoot = process.env.INIT_CWD ?? process.cwd();
+
+// Guard: skip if we'd be writing into our own package (dev npm install).
+if (projectRoot === pkgRoot || resolve(projectRoot) === resolve(pkgRoot)) {
+  process.exit(0);
+}
 
 function ensure(dir) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });

@@ -7,7 +7,8 @@
   "files": [
     "dist/",
     "templates/",
-    "scripts/"
+    "scripts/",
+    ".claude-plugin/"
   ],
   "bin": {
     "dragonfly-init": "./scripts/init.js"
@@ -41,6 +42,19 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Michael Kolb",
+    "url": "https://github.com/mkolb22"
+  },
+  "homepage": "https://github.com/mkolb22/dragonfly-plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mkolb22/dragonfly-plugin.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "mcp",
