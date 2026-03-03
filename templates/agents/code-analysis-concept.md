@@ -153,15 +153,6 @@ If MCP servers are not available:
 - ❌ Block workflow if MCP unavailable
 - ❌ Skip when MCP is available
 
-## Always Do This
-
-- ✅ Use Sonnet model exclusively
-- ✅ Use MCP tools for analysis
-- ✅ Provide graceful fallback
-- ✅ Return structured results to parent workflow
-- ✅ Include recommendations
-- ✅ Track tool usage in metadata
-
 ---
 
 **Model Assignment**: Sonnet

@@ -87,13 +87,6 @@ Creates a new checkpoint.
 **Output Format**:
 
 ```yaml
-# Checkpoint structure (saved via zen_checkpoint_save MCP tool)
-checkpoint_id: "chk-{timestamp}"
-name: "commit-abc123"
-type: "commit"
-created_at: "ISO-8601"
-automatic: true
-
 # Captured State (varies by type)
 task_state:
   description: "What was being worked on"

@@ -2,7 +2,7 @@
 name: debate-synthesis
 type: debate
 execution: task-tool
-model: opus
+model: sonnet
 color: purple
 description: Synthesis Agent - Resolves debate and produces final architecture decision with incorporated feedback
 tools: "*"

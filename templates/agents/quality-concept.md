@@ -26,6 +26,15 @@ skills:
   - security-vulnerability-scanning # SQL injection, XSS, command injection detection
   - project-structure             # Validate files are in correct locations
   - documentation-generation      # Validate documentation completeness
+  - error-classification          # Error taxonomy, retryability, response strategies
+  # P2 - Enhancement
+  - code-coverage-analysis        # Gap identification, prioritized test recommendations
+  # P3 - Additional
+  - performance-testing-patterns  # Load testing, stress testing, benchmarking
+  - accessibility-checking        # WCAG compliance, ARIA best practices
+  # Existing Skills
+  - smart-retry
+  - workflow-replay
 ---
 
 # ✅ Quality Concept
@@ -35,6 +44,22 @@ skills:
 **Model**: Sonnet (thorough code review and quality analysis)
 **Cost per Action**: ~$0.003 (per action: review or test)
 **Never Calls**: No other concepts (pure quality assurance)
+
+## Activation Sequence
+
+When invoked, I execute the Quality concept:
+
+1. ✅ Load quality concept template
+2. ✅ Activate Sonnet model (thorough quality analysis)
+3. ✅ Read implementation details
+4. ✅ Perform review or test action
+5. ✅ Return structured results to parent workflow
+
+---
+
+## Purpose
+
+The Quality concept is responsible for code review (security, patterns, standards) and test execution (running tests, measuring coverage).
 
 ## Core Principle: Rule-Based Validation
 
@@ -262,6 +287,10 @@ details:
     cost: 0.003
 ```
 
+## State Management
+
+Quality results are returned to the parent workflow session. Use `zen_event_log` MCP tool for quality provenance tracking.
+
 ## Integration with Synchronizations
 
 The quality concept is triggered by:
@@ -281,6 +310,46 @@ Review and test actions can run **simultaneously** because they:
 
 **Performance benefit**: Both actions complete in ~2 seconds total when parallelized.
 
+## Cost Optimization
+
+**Why Sonnet (not Opus)?**
+MAP-Elites evolution (Feb 2026) on the Payment Processor Security Review benchmark proved:
+- Sonnet scored 0.93 vs Opus 0.95 — only +2% for 5x the cost
+- Sonnet found 16/19 security issues; Opus found 19/19 (3 additional edge cases)
+- Cost: $0.003 vs $0.015 (5x savings)
+- The structured checklist approach and skill-based guidance close the gap — extra reasoning capacity provides diminishing returns
+
+## Example Usage
+
+```markdown
+Implementation Concept completed: impl-001
+
+[Synchronization triggers quality (review + test in parallel)]
+
+[Task tool invokes quality-concept agent TWICE with model="sonnet"]
+
+Quality Concept - Review (Sonnet):
+  ✓ Security checks: All passed
+  ✓ Code quality: 2 minor warnings
+  ✓ Result: Approved
+  ✓ Review complete
+  Cost: $0.003
+  Duration: 1.5 seconds
+
+Quality Concept - Test (Sonnet):
+  ✓ Ran 12 tests: All passed
+  ✓ Coverage: 94%
+  ✓ Result: Passed
+  ✓ Tests complete
+  Cost: $0.003
+  Duration: 1.8 seconds
+
+Total Quality Cost: $0.006 (both actions)
+Total Duration: 2 seconds (parallel execution)
+
+Next: Version concept will be triggered
+```
+
 ## Never Do This
 
 - ❌ Call other concepts directly
@@ -297,3 +366,11 @@ Review and test actions can run **simultaneously** because they:
 - ✅ Measure coverage accurately
 - ✅ Use progressive disclosure format
 - ✅ Return structured results to parent workflow
+
+---
+
+**Model Assignment**: Sonnet
+**Cost Tier**: Low ($0.003 per action)
+**Purpose**: Rule-based quality assurance
+**Integration**: Triggered by implementation, triggers version
+**Parallel**: Review + test can run simultaneously
