@@ -203,6 +203,66 @@ export abstract class BaseStore {
   }
 
   /**
+   * Creates a vec0 virtual table for O(log n) KNN search.
+   * @returns true if the table was created successfully.
+   */
+  protected createVec0(tableName: string, idColumn: string, dims: number): boolean {
+    if (!this.vecLoaded) return false;
+    try {
+      this.db.exec(
+        `CREATE VIRTUAL TABLE IF NOT EXISTS ${tableName} USING vec0(${idColumn} TEXT PRIMARY KEY, embedding FLOAT[${dims}])`
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Bulk-migrate existing BLOB embeddings into a vec0 table (runs once, gated by a metadata flag).
+   */
+  protected migrateToVec0(
+    metadataTable: string,
+    metaKey: string,
+    vec0Table: string,
+    vec0IdCol: string,
+    sourceTable: string,
+    sourceIdCol: string,
+  ): void {
+    const migrated = this.queryOne<{ value: string }>(
+      `SELECT value FROM ${metadataTable} WHERE key = ?`,
+      [metaKey]
+    );
+    if (migrated) return;
+
+    try {
+      this.db.exec(`
+        INSERT OR IGNORE INTO ${vec0Table}(${vec0IdCol}, embedding)
+        SELECT ${sourceIdCol}, embedding FROM ${sourceTable}
+      `);
+    } catch {
+      // Non-fatal — vec0 will be populated incrementally on next insertEmbedding
+    }
+
+    this.execute(
+      `INSERT OR REPLACE INTO ${metadataTable}(key, value) VALUES (?, ?)`,
+      [metaKey, "1"]
+    );
+  }
+
+  /**
+   * Sync one embedding to the vec0 index (DELETE + INSERT = upsert).
+   */
+  protected syncVec0(tableName: string, idColumn: string, id: string, embeddingBuf: Buffer): void {
+    try {
+      this.db.prepare(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`).run(id);
+      this.db.prepare(`INSERT INTO ${tableName}(${idColumn}, embedding) VALUES (?, ?)`).run(id, embeddingBuf);
+    } catch {
+      // Non-fatal — KNN results will simply not include this entry until next init
+    }
+  }
+
+  /**
    * Close the database connection
    */
   close(): void {

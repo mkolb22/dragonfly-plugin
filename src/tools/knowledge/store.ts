@@ -20,6 +20,8 @@ import type {
 } from "./types.js";
 
 export class KnowledgeStore extends BaseStore {
+  private knnReady = false;
+
   constructor(dbPath: string) {
     super(dbPath);
     this.initTables();
@@ -83,7 +85,16 @@ export class KnowledgeStore extends BaseStore {
         PRIMARY KEY (entity_id, memory_id),
         FOREIGN KEY (entity_id) REFERENCES kg_entities(id) ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS kg_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
     `);
+
+    // vec0 KNN index — lazy init using actual embedding dimension
+    const dimRow = this.queryOne<{ dimensions: number }>(`SELECT dimensions FROM kg_entity_embeddings LIMIT 1`);
+    if (dimRow) this.ensureKnn(dimRow.dimensions);
 
     // Try to create FTS5 table with sync triggers (may fail on some SQLite builds)
     try {
@@ -141,6 +152,11 @@ export class KnowledgeStore extends BaseStore {
       this.clearTable("kg_communities");
       this.clearTable("kg_entities");
     });
+    if (this.knnReady) {
+      this.execute(`DELETE FROM kg_entity_vss`);
+      // Reset migration flag so next insertEmbedding repopulates correctly
+      this.execute(`DELETE FROM kg_metadata WHERE key = 'vec0_migrated'`);
+    }
   }
 
   /**
@@ -219,6 +235,14 @@ export class KnowledgeStore extends BaseStore {
   /**
    * Insert embedding for entity
    */
+  private ensureKnn(dims: number): void {
+    if (this.knnReady) return;
+    if (this.createVec0("kg_entity_vss", "entity_id", dims)) {
+      this.migrateToVec0("kg_metadata", "vec0_migrated", "kg_entity_vss", "entity_id", "kg_entity_embeddings", "entity_id");
+      this.knnReady = true;
+    }
+  }
+
   insertEmbedding(entityId: string, embedding: number[]): void {
     const buffer = numberArrayToBytes(embedding);
     this.execute(
@@ -226,6 +250,10 @@ export class KnowledgeStore extends BaseStore {
        VALUES (?, ?, ?)`,
       [entityId, buffer, embedding.length]
     );
+    if (!this.knnReady) this.ensureKnn(embedding.length);
+    if (this.knnReady) {
+      this.syncVec0("kg_entity_vss", "entity_id", entityId, buffer);
+    }
   }
 
   /**
@@ -272,52 +300,54 @@ export class KnowledgeStore extends BaseStore {
 
   /**
    * Semantic search for entities.
-   * Uses sqlite-vec vec_distance_cosine for NEON-accelerated computation when available.
+   * Priority: vec0 KNN index (O(log n)) → vec_distance_cosine O(n) → JS cosine O(n)
    */
   searchSemantic(queryEmbedding: number[], options: QueryOptions = {}): QueryResult[] {
     const { limit = 20, entityType } = options;
     const threshold = 0.3;
-    const vecAvailable = this.isVecAvailable();
     const queryBuf = float32ToBytes(new Float32Array(queryEmbedding));
+    const overFetch = Math.min(limit * 4, 200);
 
     let sql: string;
     const params: unknown[] = [];
+    let needsSort = false;
+    const postFilterType = this.knnReady ? entityType : undefined;
 
-    if (vecAvailable) {
+    if (this.knnReady) {
+      sql = `
+        SELECT e.*, (1.0 - v.distance) AS similarity
+        FROM kg_entity_vss v
+        JOIN kg_entities e ON e.id = v.entity_id
+        WHERE v.embedding MATCH ? AND k = ?
+        ORDER BY v.distance
+      `;
+      params.push(queryBuf, overFetch);
+    } else if (this.isVecAvailable()) {
       sql = `
         SELECT e.*, (1.0 - vec_distance_cosine(emb.embedding, ?)) AS similarity
-        FROM kg_entities e
-        JOIN kg_entity_embeddings emb ON e.id = emb.entity_id
+        FROM kg_entities e JOIN kg_entity_embeddings emb ON e.id = emb.entity_id
         WHERE (1.0 - vec_distance_cosine(emb.embedding, ?)) > ?
       `;
       params.push(queryBuf, queryBuf, threshold);
-      if (entityType) {
-        sql += ` AND e.entity_type = ?`;
-        params.push(entityType);
-      }
+      if (entityType) { sql += ` AND e.entity_type = ?`; params.push(entityType); }
       sql += ` ORDER BY similarity DESC LIMIT ?`;
       params.push(limit);
     } else {
-      sql = `
-        SELECT e.*, emb.embedding
-        FROM kg_entities e
-        JOIN kg_entity_embeddings emb ON e.id = emb.entity_id
-      `;
-      if (entityType) {
-        sql += ` WHERE e.entity_type = ?`;
-        params.push(entityType);
-      }
+      sql = `SELECT e.*, emb.embedding FROM kg_entities e JOIN kg_entity_embeddings emb ON e.id = emb.entity_id`;
+      if (entityType) { sql += ` WHERE e.entity_type = ?`; params.push(entityType); }
+      needsSort = true;
     }
 
     const rows = this.query<Record<string, unknown>>(sql, params);
     const results: QueryResult[] = [];
 
     for (const row of rows) {
-      const similarity = vecAvailable
+      const similarity = (row.similarity !== undefined)
         ? (row.similarity as number)
         : cosineSimilarity(queryEmbedding, bytesToFloat32(row.embedding as Buffer));
 
-      if (!vecAvailable && similarity <= threshold) continue;
+      if (similarity <= threshold) continue;
+      if (postFilterType && (row.entity_type as string) !== postFilterType) continue;
 
       results.push({
         entity: this.rowToEntity(row),
@@ -329,12 +359,8 @@ export class KnowledgeStore extends BaseStore {
       });
     }
 
-    if (!vecAvailable) {
-      results.sort((a, b) => b.finalScore - a.finalScore);
-      return results.slice(0, limit);
-    }
-
-    return results;
+    if (needsSort) results.sort((a, b) => b.finalScore - a.finalScore);
+    return results.slice(0, limit);
   }
 
   /**

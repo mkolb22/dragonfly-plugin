@@ -2,7 +2,7 @@
   "name": "dragonfly",
   "displayName": "Dragonfly",
   "description": "Sonnet-optimized MCP plugin: 66 tools for code intelligence, semantic search, memory, and workflow orchestration across 13 modules.",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "author": {
     "name": "Michael Kolb",
     "url": "https://github.com/mkolb22"

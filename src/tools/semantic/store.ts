@@ -8,6 +8,8 @@ import type { CodeChunk, SearchResult } from "../../core/types.js";
 import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray, float32ToBytes, bytesToFloat32 } from "../../utils/vectors.js";
 
 export class VectorStore extends BaseStore {
+  private knnReady = false;
+
   constructor(dbPath: string) {
     super(dbPath);
     this.initTables();
@@ -49,6 +51,18 @@ export class VectorStore extends BaseStore {
         value TEXT
       );
     `);
+
+    // vec0 KNN index — lazy init using actual embedding dimension
+    const dimRow = this.queryOne<{ embedding: Buffer }>(`SELECT embedding FROM vec_embeddings LIMIT 1`);
+    if (dimRow) this.ensureKnn(dimRow.embedding.length / 4); // float32 = 4 bytes per dim
+  }
+
+  private ensureKnn(dims: number): void {
+    if (this.knnReady) return;
+    if (this.createVec0("vec_chunks_vss", "chunk_id", dims)) {
+      this.migrateToVec0("vec_metadata", "vec0_migrated", "vec_chunks_vss", "chunk_id", "vec_embeddings", "chunk_id");
+      this.knnReady = true;
+    }
   }
 
   addEmbeddings(
@@ -83,6 +97,11 @@ export class VectorStore extends BaseStore {
           [chunk.id, buffer]
         );
 
+        if (!this.knnReady) this.ensureKnn(embedding.length);
+        if (this.knnReady) {
+          this.syncVec0("vec_chunks_vss", "chunk_id", chunk.id, buffer);
+        }
+
         fileHashes.set(chunk.metadata.file, chunk.hash);
       }
 
@@ -104,56 +123,60 @@ export class VectorStore extends BaseStore {
     filter?: Record<string, string>;
   }): SearchResult[] {
     const { embedding, limit = 5, threshold = 0.3, filter } = options;
-    const vecAvailable = this.isVecAvailable();
     const queryBuf = float32ToBytes(new Float32Array(embedding));
+    const hasFilter = filter?.language || filter?.path || filter?.kind;
+    const overFetch = Math.min(hasFilter ? limit * 4 : limit, 200);
 
     let sql: string;
     const params: unknown[] = [];
+    let needsSort = false;
 
-    if (vecAvailable) {
+    if (this.knnReady) {
+      // vec0 KNN — O(log n) indexed search. Filter applied post-join in JS.
+      sql = `
+        SELECT c.*, (1.0 - v.distance) AS similarity
+        FROM vec_chunks_vss v
+        JOIN vec_chunks c ON c.id = v.chunk_id
+        WHERE v.embedding MATCH ? AND k = ?
+        ORDER BY v.distance
+      `;
+      params.push(queryBuf, overFetch);
+    } else if (this.isVecAvailable()) {
       sql = `
         SELECT c.*, (1.0 - vec_distance_cosine(e.embedding, ?)) AS similarity
-        FROM vec_chunks c
-        JOIN vec_embeddings e ON c.id = e.chunk_id
+        FROM vec_chunks c JOIN vec_embeddings e ON c.id = e.chunk_id
         WHERE (1.0 - vec_distance_cosine(e.embedding, ?)) >= ?
       `;
       params.push(queryBuf, queryBuf, threshold);
-    } else {
-      sql = `
-        SELECT c.*, e.embedding
-        FROM vec_chunks c
-        JOIN vec_embeddings e ON c.id = e.chunk_id
-        WHERE 1=1
-      `;
-    }
-
-    if (filter?.language) {
-      sql += ` AND c.language = ?`;
-      params.push(filter.language);
-    }
-    if (filter?.path) {
-      sql += ` AND c.file LIKE ?`;
-      params.push(`%${filter.path}%`);
-    }
-    if (filter?.kind) {
-      sql += ` AND c.kind = ?`;
-      params.push(filter.kind);
-    }
-
-    if (vecAvailable) {
+      if (filter?.language) { sql += ` AND c.language = ?`; params.push(filter.language); }
+      if (filter?.path) { sql += ` AND c.file LIKE ?`; params.push(`%${filter.path}%`); }
+      if (filter?.kind) { sql += ` AND c.kind = ?`; params.push(filter.kind); }
       sql += ` ORDER BY similarity DESC LIMIT ?`;
-      params.push(limit);
+      params.push(overFetch);
+    } else {
+      sql = `SELECT c.*, e.embedding FROM vec_chunks c JOIN vec_embeddings e ON c.id = e.chunk_id WHERE 1=1`;
+      if (filter?.language) { sql += ` AND c.language = ?`; params.push(filter.language); }
+      if (filter?.path) { sql += ` AND c.file LIKE ?`; params.push(`%${filter.path}%`); }
+      if (filter?.kind) { sql += ` AND c.kind = ?`; params.push(filter.kind); }
+      needsSort = true;
     }
 
     const rows = this.query<Record<string, unknown>>(sql, params);
-
     const results: SearchResult[] = [];
+
     for (const row of rows) {
-      const similarity = vecAvailable
+      const similarity = (row.similarity !== undefined)
         ? (row.similarity as number)
         : cosineSimilarity(embedding, bytesToFloat32(row.embedding as Buffer));
 
-      if (!vecAvailable && similarity < threshold) continue;
+      if (similarity < threshold) continue;
+
+      // Post-filter for KNN path (can't push these into vec0 WHERE)
+      if (this.knnReady) {
+        if (filter?.language && row.language !== filter.language) continue;
+        if (filter?.path && !(row.file as string).includes(filter.path)) continue;
+        if (filter?.kind && row.kind !== filter.kind) continue;
+      }
 
       results.push({
         id: row.id as string,
@@ -170,12 +193,8 @@ export class VectorStore extends BaseStore {
       });
     }
 
-    if (!vecAvailable) {
-      results.sort((a, b) => b.similarity - a.similarity);
-      return results.slice(0, limit);
-    }
-
-    return results;
+    if (needsSort) results.sort((a, b) => b.similarity - a.similarity);
+    return results.slice(0, limit);
   }
 
   getFileHashes(): Record<string, string> {
@@ -247,5 +266,9 @@ export class VectorStore extends BaseStore {
       DELETE FROM vec_chunks;
       DELETE FROM vec_file_hashes;
     `);
+    if (this.knnReady) {
+      this.execute(`DELETE FROM vec_chunks_vss`);
+      this.execute(`DELETE FROM vec_metadata WHERE key = 'vec0_migrated'`);
+    }
   }
 }

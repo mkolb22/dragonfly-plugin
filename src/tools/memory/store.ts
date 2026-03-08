@@ -21,6 +21,8 @@ import type {
 } from "./types.js";
 
 export class MemoryStore extends BaseStore {
+  private knnReady = false;
+
   constructor(dbPath: string) {
     super(dbPath);
     this.initTables();
@@ -95,6 +97,10 @@ export class MemoryStore extends BaseStore {
         value TEXT
       );
     `);
+
+    // vec0 KNN index — lazy init using actual embedding dimension
+    const dimRow = this.queryOne<{ dimensions: number }>(`SELECT dimensions FROM memory_embeddings LIMIT 1`);
+    if (dimRow) this.ensureKnn(dimRow.dimensions);
   }
 
   /**
@@ -143,6 +149,14 @@ export class MemoryStore extends BaseStore {
   /**
    * Insert embedding for a memory
    */
+  private ensureKnn(dims: number): void {
+    if (this.knnReady) return;
+    if (this.createVec0("memory_vss", "memory_id", dims)) {
+      this.migrateToVec0("memory_metadata", "vec0_migrated", "memory_vss", "memory_id", "memory_embeddings", "memory_id");
+      this.knnReady = true;
+    }
+  }
+
   insertEmbedding(memoryId: string, embedding: number[]): void {
     const buffer = numberArrayToBytes(embedding);
     this.execute(
@@ -150,6 +164,10 @@ export class MemoryStore extends BaseStore {
        VALUES (?, ?, ?)`,
       [memoryId, buffer, embedding.length]
     );
+    if (!this.knnReady) this.ensureKnn(embedding.length);
+    if (this.knnReady) {
+      this.syncVec0("memory_vss", "memory_id", memoryId, buffer);
+    }
   }
 
   /**
@@ -213,91 +231,93 @@ export class MemoryStore extends BaseStore {
 
   /**
    * Search memories by embedding similarity.
-   * Uses sqlite-vec vec_distance_cosine for NEON-accelerated computation when available,
-   * with JS fallback for environments without the extension.
+   * Priority: vec0 KNN index (O(log n)) → vec_distance_cosine O(n) → JS cosine O(n)
    */
   searchByEmbedding(queryEmbedding: number[], options: RecallOptions = {}): RecallResult[] {
     const { limit = 5, threshold = 0.4, type, category, tags } = options;
     const queryBuf = float32ToBytes(new Float32Array(queryEmbedding));
-
-    // Try sqlite-vec accelerated path
-    const vecAvailable = this.isVecAvailable();
+    const overFetch = Math.min(tags && tags.length > 0 ? limit * 10 : limit * 4, 200);
 
     let sql: string;
     const params: unknown[] = [];
+    let needsSort = false;
 
-    if (vecAvailable) {
+    if (this.knnReady) {
+      // vec0 KNN — indexed, O(log n). Results pre-sorted by distance ascending.
+      // Over-fetch to absorb post-filters (archived already applied via JOIN).
+      // Note: only the MATCH predicate can appear in vec0's WHERE; other filters go on the joined table.
+      // sqlite-vec requires k = ? in WHERE (not LIMIT ?) for parameterized KNN
+      sql = `
+        SELECT m.*, (1.0 - v.distance) AS similarity
+        FROM memory_vss v
+        JOIN memories m ON m.id = v.memory_id
+        WHERE v.embedding MATCH ? AND k = ? AND m.archived = 0
+        ORDER BY v.distance
+      `;
+      params.push(queryBuf, overFetch);
+    } else if (this.isVecAvailable()) {
+      // vec_distance_cosine full scan — O(n) but NEON-accelerated C computation
       sql = `
         SELECT m.*, (1.0 - vec_distance_cosine(e.embedding, ?)) AS similarity
-        FROM memories m
-        JOIN memory_embeddings e ON m.id = e.memory_id
-        WHERE m.archived = 0
-          AND (1.0 - vec_distance_cosine(e.embedding, ?)) >= ?
+        FROM memories m JOIN memory_embeddings e ON m.id = e.memory_id
+        WHERE m.archived = 0 AND (1.0 - vec_distance_cosine(e.embedding, ?)) >= ?
       `;
       params.push(queryBuf, queryBuf, threshold);
-    } else {
-      sql = `
-        SELECT m.*, e.embedding
-        FROM memories m
-        JOIN memory_embeddings e ON m.id = e.memory_id
-        WHERE m.archived = 0
-      `;
-    }
-
-    if (type) {
-      sql += ` AND m.type = ?`;
-      params.push(type);
-    }
-    if (category) {
-      sql += ` AND m.category = ?`;
-      params.push(category);
-    }
-
-    if (vecAvailable) {
+      if (type) { sql += ` AND m.type = ?`; params.push(type); }
+      if (category) { sql += ` AND m.category = ?`; params.push(category); }
       sql += ` ORDER BY similarity DESC LIMIT ?`;
-      // Over-fetch to allow for tag filtering
-      params.push(tags && tags.length > 0 ? limit * 10 : limit);
+      params.push(overFetch);
+    } else {
+      // Pure JS fallback
+      sql = `SELECT m.*, e.embedding FROM memories m JOIN memory_embeddings e ON m.id = e.memory_id WHERE m.archived = 0`;
+      if (type) { sql += ` AND m.type = ?`; params.push(type); }
+      if (category) { sql += ` AND m.category = ?`; params.push(category); }
+      needsSort = true;
     }
+
+    // For the KNN path, type/category are post-filtered in JS (vec0 WHERE clause is MATCH-only)
+    const postFilterType = this.knnReady ? type : undefined;
+    const postFilterCategory = this.knnReady ? category : undefined;
 
     const rows = this.query<Record<string, unknown>>(sql, params);
     const results: RecallResult[] = [];
 
     for (const row of rows) {
-      const similarity = vecAvailable
+      const similarity = (row.similarity !== undefined)
         ? (row.similarity as number)
         : cosineSimilarity(queryEmbedding, bytesToFloat32(row.embedding as Buffer));
 
-      if (!vecAvailable && similarity < threshold) continue;
+      if (similarity < threshold) continue;
 
       const memory = this.rowToMemory(row);
 
+      if (postFilterType && memory.type !== postFilterType) continue;
+      if (postFilterCategory && memory.category !== postFilterCategory) continue;
+
       if (tags && tags.length > 0) {
         const memoryTags = memory.tags || [];
-        const hasAllTags = tags.every(t => memoryTags.includes(t));
-        if (!hasAllTags) continue;
+        if (!tags.every(t => memoryTags.includes(t))) continue;
       }
 
       results.push({ memory, similarity });
       this.touchMemory(memory.id);
     }
 
-    if (!vecAvailable) {
-      results.sort((a, b) => b.similarity - a.similarity);
-    }
+    if (needsSort) results.sort((a, b) => b.similarity - a.similarity);
 
-    // Add graph context if requested
+    const top = results.slice(0, limit);
+
     if (options.traverseDepth && options.traverseDepth > 0) {
-      const topIds = results.slice(0, limit).map(r => r.memory.id);
+      const topIds = top.map(r => r.memory.id);
       const graphNodes = this.traverseGraph(topIds, options.traverseDepth, limit * 3);
-
-      for (const result of results.slice(0, limit)) {
+      for (const result of top) {
         result.graphContext = graphNodes.filter(n =>
           n.links.some(l => l.sourceId === result.memory.id || l.targetId === result.memory.id)
         );
       }
     }
 
-    return results.slice(0, limit);
+    return top;
   }
 
   /**
