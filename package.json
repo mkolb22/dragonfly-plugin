@@ -1,6 +1,6 @@
 {
   "name": "@dragonflymcp/plugin",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Dragonfly MCP Plugin — Sonnet-optimized code intelligence, memory, and workflow tools",
   "main": "dist/index.js",
   "type": "module",
@@ -24,21 +24,22 @@
     "postinstall": "node scripts/init.js"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@modelcontextprotocol/sdk": "^1.24.0",
     "better-sqlite3": "^11.10.0",
     "fast-glob": "^3.3.3",
-    "web-tree-sitter": "^0.24.7",
+    "sqlite-vec": "^0.1.7-alpha.2",
     "tree-sitter-wasms": "^0.1.13",
-    "@huggingface/transformers": "^3.8.1"
+    "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.19.0",
     "@vitest/coverage-v8": "^3.2.0",
+    "eslint": "^9.39.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.0",
-    "eslint": "^9.39.0"
+    "vitest": "^3.2.0"
   },
   "engines": {
     "node": ">=18.0.0"

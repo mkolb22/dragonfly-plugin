@@ -4,6 +4,7 @@
  */
 
 import Database from "better-sqlite3";
+import * as sqliteVec from "sqlite-vec";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -31,6 +32,7 @@ export const jsonSerialize = (val: unknown): unknown => JSON.stringify(val);
 export abstract class BaseStore {
   protected db: Database.Database;
   protected dbPath: string;
+  private vecLoaded = false;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -45,6 +47,14 @@ export abstract class BaseStore {
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("busy_timeout = 5000");
+
+    // Load sqlite-vec for NEON-accelerated vector distance functions
+    try {
+      sqliteVec.load(this.db);
+      this.vecLoaded = true;
+    } catch {
+      // sqlite-vec unavailable — vector searches fall back to JS cosine similarity
+    }
   }
 
   /**
@@ -183,6 +193,13 @@ export abstract class BaseStore {
     params.push(...whereParams);
     this.execute(`UPDATE ${table} SET ${sets.join(", ")} WHERE ${whereClause}`, params);
     return true;
+  }
+
+  /**
+   * Returns true if sqlite-vec was successfully loaded (NEON-accelerated vector ops available).
+   */
+  protected isVecAvailable(): boolean {
+    return this.vecLoaded;
   }
 
   /**

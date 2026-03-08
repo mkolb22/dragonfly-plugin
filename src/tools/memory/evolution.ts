@@ -5,7 +5,7 @@
 
 import type { MemoryStore } from "./store.js";
 import type { Memory, RelationshipType, EvolveOptions } from "./types.js";
-import { cosineSimilarity, bytesToNumberArray } from "../../utils/vectors.js";
+import { cosineSimilarity, bytesToFloat32 } from "../../utils/vectors.js";
 
 /**
  * Apply confidence evolution based on relationship type
@@ -107,7 +107,7 @@ export async function autoLink(
   const similarities: Array<{ id: string; similarity: number }> = [];
 
   for (const row of candidates) {
-    const otherEmbedding = bytesToNumberArray(row.embedding);
+    const otherEmbedding = bytesToFloat32(row.embedding);
     const similarity = cosineSimilarity(embedding, otherEmbedding);
 
     if (similarity >= threshold) {

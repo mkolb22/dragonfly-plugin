@@ -4,7 +4,7 @@
  */
 
 import { BaseStore } from "../../core/store.js";
-import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray } from "../../utils/vectors.js";
+import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray, float32ToBytes, bytesToFloat32 } from "../../utils/vectors.js";
 import { bfsTraverse } from "../../utils/graph.js";
 import { generateId } from "../../utils/ids.js";
 import type {
@@ -271,44 +271,70 @@ export class KnowledgeStore extends BaseStore {
   }
 
   /**
-   * Semantic search for entities
+   * Semantic search for entities.
+   * Uses sqlite-vec vec_distance_cosine for NEON-accelerated computation when available.
    */
   searchSemantic(queryEmbedding: number[], options: QueryOptions = {}): QueryResult[] {
     const { limit = 20, entityType } = options;
+    const threshold = 0.3;
+    const vecAvailable = this.isVecAvailable();
+    const queryBuf = float32ToBytes(new Float32Array(queryEmbedding));
 
-    let sql = `
-      SELECT e.*, emb.embedding
-      FROM kg_entities e
-      JOIN kg_entity_embeddings emb ON e.id = emb.entity_id
-    `;
+    let sql: string;
     const params: unknown[] = [];
 
-    if (entityType) {
-      sql += ` WHERE e.entity_type = ?`;
-      params.push(entityType);
+    if (vecAvailable) {
+      sql = `
+        SELECT e.*, (1.0 - vec_distance_cosine(emb.embedding, ?)) AS similarity
+        FROM kg_entities e
+        JOIN kg_entity_embeddings emb ON e.id = emb.entity_id
+        WHERE (1.0 - vec_distance_cosine(emb.embedding, ?)) > ?
+      `;
+      params.push(queryBuf, queryBuf, threshold);
+      if (entityType) {
+        sql += ` AND e.entity_type = ?`;
+        params.push(entityType);
+      }
+      sql += ` ORDER BY similarity DESC LIMIT ?`;
+      params.push(limit);
+    } else {
+      sql = `
+        SELECT e.*, emb.embedding
+        FROM kg_entities e
+        JOIN kg_entity_embeddings emb ON e.id = emb.entity_id
+      `;
+      if (entityType) {
+        sql += ` WHERE e.entity_type = ?`;
+        params.push(entityType);
+      }
     }
 
     const rows = this.query<Record<string, unknown>>(sql, params);
     const results: QueryResult[] = [];
 
     for (const row of rows) {
-      const embedding = bytesToNumberArray(row.embedding as Buffer);
-      const similarity = cosineSimilarity(queryEmbedding, embedding);
+      const similarity = vecAvailable
+        ? (row.similarity as number)
+        : cosineSimilarity(queryEmbedding, bytesToFloat32(row.embedding as Buffer));
 
-      if (similarity > 0.3) {
-        results.push({
-          entity: this.rowToEntity(row),
-          finalScore: similarity,
-          semanticScore: similarity,
-          keywordScore: 0,
-          graphScore: 0,
-          communityScore: 0,
-        });
-      }
+      if (!vecAvailable && similarity <= threshold) continue;
+
+      results.push({
+        entity: this.rowToEntity(row),
+        finalScore: similarity,
+        semanticScore: similarity,
+        keywordScore: 0,
+        graphScore: 0,
+        communityScore: 0,
+      });
     }
 
-    results.sort((a, b) => b.finalScore - a.finalScore);
-    return results.slice(0, limit);
+    if (!vecAvailable) {
+      results.sort((a, b) => b.finalScore - a.finalScore);
+      return results.slice(0, limit);
+    }
+
+    return results;
   }
 
   /**

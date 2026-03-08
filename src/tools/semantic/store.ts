@@ -5,7 +5,7 @@
 
 import { BaseStore } from "../../core/store.js";
 import type { CodeChunk, SearchResult } from "../../core/types.js";
-import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray } from "../../utils/vectors.js";
+import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray, float32ToBytes, bytesToFloat32 } from "../../utils/vectors.js";
 
 export class VectorStore extends BaseStore {
   constructor(dbPath: string) {
@@ -104,14 +104,28 @@ export class VectorStore extends BaseStore {
     filter?: Record<string, string>;
   }): SearchResult[] {
     const { embedding, limit = 5, threshold = 0.3, filter } = options;
+    const vecAvailable = this.isVecAvailable();
+    const queryBuf = float32ToBytes(new Float32Array(embedding));
 
-    let sql = `
-      SELECT c.*, e.embedding
-      FROM vec_chunks c
-      JOIN vec_embeddings e ON c.id = e.chunk_id
-      WHERE 1=1
-    `;
+    let sql: string;
     const params: unknown[] = [];
+
+    if (vecAvailable) {
+      sql = `
+        SELECT c.*, (1.0 - vec_distance_cosine(e.embedding, ?)) AS similarity
+        FROM vec_chunks c
+        JOIN vec_embeddings e ON c.id = e.chunk_id
+        WHERE (1.0 - vec_distance_cosine(e.embedding, ?)) >= ?
+      `;
+      params.push(queryBuf, queryBuf, threshold);
+    } else {
+      sql = `
+        SELECT c.*, e.embedding
+        FROM vec_chunks c
+        JOIN vec_embeddings e ON c.id = e.chunk_id
+        WHERE 1=1
+      `;
+    }
 
     if (filter?.language) {
       sql += ` AND c.language = ?`;
@@ -126,34 +140,42 @@ export class VectorStore extends BaseStore {
       params.push(filter.kind);
     }
 
-    const rows = this.query<Record<string, unknown>>(sql, params);
-
-    // Calculate similarities
-    const results: SearchResult[] = [];
-    for (const row of rows) {
-      const storedEmbedding = bytesToNumberArray(row.embedding as Buffer);
-      const similarity = cosineSimilarity(embedding, storedEmbedding);
-
-      if (similarity >= threshold) {
-        results.push({
-          id: row.id as string,
-          content: row.content as string,
-          metadata: {
-            file: row.file as string,
-            language: row.language as string,
-            kind: row.kind as string,
-            name: row.name as string,
-            startLine: row.start_line as number,
-            endLine: row.end_line as number,
-          },
-          similarity,
-        });
-      }
+    if (vecAvailable) {
+      sql += ` ORDER BY similarity DESC LIMIT ?`;
+      params.push(limit);
     }
 
-    // Sort by similarity and limit
-    results.sort((a, b) => b.similarity - a.similarity);
-    return results.slice(0, limit);
+    const rows = this.query<Record<string, unknown>>(sql, params);
+
+    const results: SearchResult[] = [];
+    for (const row of rows) {
+      const similarity = vecAvailable
+        ? (row.similarity as number)
+        : cosineSimilarity(embedding, bytesToFloat32(row.embedding as Buffer));
+
+      if (!vecAvailable && similarity < threshold) continue;
+
+      results.push({
+        id: row.id as string,
+        content: row.content as string,
+        metadata: {
+          file: row.file as string,
+          language: row.language as string,
+          kind: row.kind as string,
+          name: row.name as string,
+          startLine: row.start_line as number,
+          endLine: row.end_line as number,
+        },
+        similarity,
+      });
+    }
+
+    if (!vecAvailable) {
+      results.sort((a, b) => b.similarity - a.similarity);
+      return results.slice(0, limit);
+    }
+
+    return results;
   }
 
   getFileHashes(): Record<string, string> {

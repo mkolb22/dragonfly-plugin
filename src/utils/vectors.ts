@@ -4,9 +4,10 @@
  */
 
 /**
- * Calculate cosine similarity between two vectors
+ * Calculate cosine similarity between two vectors.
+ * Accepts Float32Array for V8 NEON JIT autovectorization.
  */
-export function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: Float32Array | number[], b: Float32Array | number[]): number {
   if (a.length !== b.length) {
     throw new Error(`Vector length mismatch: ${a.length} vs ${b.length}`);
   }

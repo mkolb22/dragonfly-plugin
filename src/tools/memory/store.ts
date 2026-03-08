@@ -4,7 +4,7 @@
  */
 
 import { BaseStore, type FieldMapping, jsonSerialize } from "../../core/store.js";
-import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray } from "../../utils/vectors.js";
+import { cosineSimilarity, numberArrayToBytes, bytesToNumberArray, float32ToBytes, bytesToFloat32 } from "../../utils/vectors.js";
 import { bfsTraverse } from "../../utils/graph.js";
 import { generateId } from "../../utils/ids.js";
 import type {
@@ -212,19 +212,37 @@ export class MemoryStore extends BaseStore {
   }
 
   /**
-   * Search memories by embedding similarity
+   * Search memories by embedding similarity.
+   * Uses sqlite-vec vec_distance_cosine for NEON-accelerated computation when available,
+   * with JS fallback for environments without the extension.
    */
   searchByEmbedding(queryEmbedding: number[], options: RecallOptions = {}): RecallResult[] {
     const { limit = 5, threshold = 0.4, type, category, tags } = options;
+    const queryBuf = float32ToBytes(new Float32Array(queryEmbedding));
 
-    // Build query
-    let sql = `
-      SELECT m.*, e.embedding
-      FROM memories m
-      JOIN memory_embeddings e ON m.id = e.memory_id
-      WHERE m.archived = 0
-    `;
+    // Try sqlite-vec accelerated path
+    const vecAvailable = this.isVecAvailable();
+
+    let sql: string;
     const params: unknown[] = [];
+
+    if (vecAvailable) {
+      sql = `
+        SELECT m.*, (1.0 - vec_distance_cosine(e.embedding, ?)) AS similarity
+        FROM memories m
+        JOIN memory_embeddings e ON m.id = e.memory_id
+        WHERE m.archived = 0
+          AND (1.0 - vec_distance_cosine(e.embedding, ?)) >= ?
+      `;
+      params.push(queryBuf, queryBuf, threshold);
+    } else {
+      sql = `
+        SELECT m.*, e.embedding
+        FROM memories m
+        JOIN memory_embeddings e ON m.id = e.memory_id
+        WHERE m.archived = 0
+      `;
+    }
 
     if (type) {
       sql += ` AND m.type = ?`;
@@ -235,32 +253,37 @@ export class MemoryStore extends BaseStore {
       params.push(category);
     }
 
+    if (vecAvailable) {
+      sql += ` ORDER BY similarity DESC LIMIT ?`;
+      // Over-fetch to allow for tag filtering
+      params.push(tags && tags.length > 0 ? limit * 10 : limit);
+    }
+
     const rows = this.query<Record<string, unknown>>(sql, params);
     const results: RecallResult[] = [];
 
     for (const row of rows) {
-      const embedding = bytesToNumberArray(row.embedding as Buffer);
-      const similarity = cosineSimilarity(queryEmbedding, embedding);
+      const similarity = vecAvailable
+        ? (row.similarity as number)
+        : cosineSimilarity(queryEmbedding, bytesToFloat32(row.embedding as Buffer));
 
-      if (similarity >= threshold) {
-        const memory = this.rowToMemory(row);
+      if (!vecAvailable && similarity < threshold) continue;
 
-        // Filter by tags if specified
-        if (tags && tags.length > 0) {
-          const memoryTags = memory.tags || [];
-          const hasAllTags = tags.every(t => memoryTags.includes(t));
-          if (!hasAllTags) continue;
-        }
+      const memory = this.rowToMemory(row);
 
-        results.push({ memory, similarity });
-
-        // Touch access
-        this.touchMemory(memory.id);
+      if (tags && tags.length > 0) {
+        const memoryTags = memory.tags || [];
+        const hasAllTags = tags.every(t => memoryTags.includes(t));
+        if (!hasAllTags) continue;
       }
+
+      results.push({ memory, similarity });
+      this.touchMemory(memory.id);
     }
 
-    // Sort by similarity
-    results.sort((a, b) => b.similarity - a.similarity);
+    if (!vecAvailable) {
+      results.sort((a, b) => b.similarity - a.similarity);
+    }
 
     // Add graph context if requested
     if (options.traverseDepth && options.traverseDepth > 0) {
