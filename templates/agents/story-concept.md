@@ -2,7 +2,7 @@
 name: story-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: blue
 description: Story Concept - Captures and validates user requirements using Sonnet for thorough story analysis
 tools: "*"

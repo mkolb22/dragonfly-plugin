@@ -2,7 +2,7 @@
 name: compete-control
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: red
 description: Competitive Control Arm - Generates code from spec WITHOUT any zen MCP tools (vanilla Claude Code)
 
