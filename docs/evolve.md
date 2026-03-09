@@ -73,6 +73,7 @@ Initialize an evolution session. Returns generation 0 seed variants for Claude t
 | `population_size` | number | No | `5` | Number of variants per generation |
 | `max_generations` | number | No | `10` | Maximum generations before forced completion |
 | `mutation_rate` | number (0–1) | No | `0.7` | Probability of applying a mutation operator to each variant |
+| `use_memory_test_cases` | boolean | No | `false` | When `true`, appends accumulated `evolve-test-case` memories (repair events captured by the Repair module) to `test_cases`. Uses real project failures as evolution training data. Requires `memoryEnabled: true`. |
 
 **Returns:**
 
@@ -80,16 +81,9 @@ Initialize an evolution session. Returns generation 0 seed variants for Claude t
 {
   "session_id": "evo_a3f7c2",
   "generation": 0,
-  "initial_fitness": null,
-  "seed_variants": [
-    "You are a code reviewer. Focus on correctness first, then style. For each issue found...",
-    "You are an expert code reviewer. Always begin by understanding the intent before critiquing...",
-    "You are a code reviewer. Structure your feedback as: 1) Critical issues 2) Suggestions 3) Praise..."
-  ],
-  "test_cases": [
-    { "input": "Review this function: ...", "expected": "Identifies the off-by-one error" }
-  ],
-  "instructions": "Evaluate each seed variant by running it against all test cases. Score fitness 0.0–1.0 based on how well the variant achieves the expected outputs. Then call evolve_submit with your scored variants."
+  "test_cases_total": 7,
+  "memory_test_cases_loaded": 4,
+  "instructions": "Generate 5 variant prompts for \"code-review-prompt\". Start from this initial prompt: \"...\"\n\nEvaluate each variant against these 7 test case(s):\n  1. Input: \"Review this function: ...\" → Expected: \"Identifies the off-by-one error\"\n  ...\n\nFor each variant, assign a fitness_score from 0.0 to 1.0 based on how well it meets the expected outputs. Then call evolve_submit with the session_id and scored variants."
 }
 ```
 
@@ -188,18 +182,18 @@ Retrieve the winning variant from a completed or converged evolution session. Op
 
 ```json
 {
-  "session_id": "evo_a3f7c2",
-  "concept_name": "code-review-prompt",
-  "best_prompt": "You are an expert code reviewer. Always begin by understanding the intent before critiquing. Structure feedback as: 1) Critical issues that affect correctness 2) Suggestions for improvement 3) What is done well. Be specific and actionable.",
+  "prompt": "You are an expert code reviewer. Always begin by understanding the intent before critiquing. Structure feedback as: 1) Critical issues that affect correctness 2) Suggestions for improvement 3) What is done well. Be specific and actionable.",
   "fitness_score": 0.91,
-  "generation_found": 4,
+  "generation": 4,
   "improvement_pct": 46.8,
+  "initial_prompt": "You are a code reviewer. Find bugs and suggest improvements.",
   "total_variants_evaluated": 25,
-  "skill_path": ".claude/skills/code-review-prompt.md"
+  "skill_saved": true,
+  "skill_path": "/Users/kolb/.dragonfly/content/../.claude/skills/code-review-prompt.md"
 }
 ```
 
-`skill_path` is only present when `save_as_skill: true`.
+`skill_saved` and `skill_path` are only present when `save_as_skill: true`.
 
 ---
 
@@ -287,9 +281,11 @@ Holland's foundational GA framework establishes the schema theorem: short, high-
 
 **Framework module:** Skills saved by `evolve_best` (with `save_as_skill: true`) are written to `.claude/skills/` and immediately available to `dragonfly_get_skills`. This is the primary feedback loop: evolved prompts become framework skills that improve all future concept executions using that prompt.
 
-**Memory module:** Evolved winning prompts are candidates for `memory_store` with `type: "procedural"` — they represent refined procedural knowledge about how to perform a task effectively. The Memory module then makes them retrievable by semantic similarity in future sessions.
+**Memory module:** The `use_memory_test_cases` parameter reads accumulated `evolve-test-case` memories (category `"evolve-test-case"`) from `memory.db` via `MemoryStore.listByCategory()`. These are repair events stored by the Repair module, giving the evolution real project failure data rather than only hand-crafted test cases. Evolved winning prompts are also candidates for `memory_store` with `type: "procedural"`.
 
-**Analytics module:** Evolution sessions and per-generation fitness scores are tracked in the provenance `events` table. The Analytics module can surface evolution history as part of quality trend analysis.
+**Repair module (feedback loop):** The Repair module's `memory-capture.ts` automatically stores every repair event as an `evolve-test-case` memory. When `use_memory_test_cases: true` is passed to `evolve_start`, those entries are loaded and appended to the test cases, turning accumulated bug history into a fitness evaluation dataset. This creates a closed feedback loop: bugs encountered in real workflows improve the Skills that guide future implementations.
+
+**Analytics module:** `dragonfly_learn_patterns` emits an `evolve_hint` when high-confidence patterns (≥10 occurrences, ≥80% success rate) are found, listing which concept Skills are ready for prompt optimization and providing a suggested `evolve_start` workflow.
 
 **State module:** Evolution session state (current generation, variant history, fitness scores) is persisted in `stateDbPath`, enabling sessions to survive plugin restarts and be resumed with `evolve_submit`.
 
@@ -299,8 +295,7 @@ Holland's foundational GA framework establishes the schema theorem: short, high-
 
 | File | Purpose |
 |---|---|
-| `src/tools/evolve/session.ts` | Evolution session lifecycle and state management |
-| `src/tools/evolve/selection.ts` | Tournament selection and elite preservation |
-| `src/tools/evolve/operators.ts` | Crossover and mutation operator implementations |
-| `src/tools/evolve/convergence.ts` | Convergence detection and stopping criteria |
-| `src/tools/evolve/index.ts` | MCP tool registration |
+| `src/tools/evolve/store.ts` | `EvolveStore` — SQLite session + variant persistence, `getBestVariant`, `getVariants`, `insertVariants` |
+| `src/tools/evolve/algorithm.ts` | Tournament selection (k=3), elite preservation, crossover, mutation operators, convergence check, `buildMutationInstructions` |
+| `src/tools/evolve/types.ts` | `TestCase` and related type definitions |
+| `src/tools/evolve/index.ts` | MCP tool registration and all handler logic |

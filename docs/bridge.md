@@ -257,6 +257,18 @@ Inner source is the practice of applying open source development practices withi
 
 **Memory module:** Bridge reads directly from the Memory module's `memories` table in `memoryDbPath`. The `min_confidence` filter maps to the Memory module's confidence field. `dragonfly_bridge_import` with `commit: true` writes into the same `memories` table — imported global memories become first-class local memories indistinguishable from locally stored ones.
 
+**Framework module (auto-export):** When `dragonfly_advance_workflow` detects workflow completion, it automatically calls `BridgeStore.exportMemories()` for the current project and includes a `bridge_export` field in its response:
+```json
+{
+  "bridge_export": {
+    "exported": 12,
+    "project": "my-api",
+    "categories": ["architecture", "decisions", "patterns"]
+  }
+}
+```
+This means every completed workflow pushes the project's accumulated knowledge to the global store without requiring an explicit `dragonfly_bridge_export` call.
+
 **Analytics module:** Bridge export/import operations are recorded in the provenance `events` table, enabling the Analytics module to track cross-project knowledge flow over time.
 
 **Spec module:** Specifications exported via `dragonfly_spec_export` are a complementary knowledge-sharing mechanism. For structured system definitions, `dragonfly_spec_export` is more appropriate than Bridge. For ad-hoc knowledge (debugging discoveries, architectural principles), Bridge is the right channel.

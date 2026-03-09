@@ -181,31 +181,29 @@ Run the test suite and, if tests fail, provide targeted repair suggestions for e
 
 ### `get_repair_history`
 
-Retrieve the history of repair attempts for the current session. Useful for understanding what has been tried, what worked, and what failed — informing future repair strategies.
+Retrieve past repair attempts for a given error type, across all sessions. Returns the stored strategy and suggestion for each historical repair, ranked by most recent. Useful for informing fixes on recurring error types.
 
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `session_id` | string | No | current session | Session to retrieve history for |
+| `errorType` | string | Yes | — | Error type to find historical repairs for (e.g. `"TypeError"`, `"test_failure"`, `"syntax_error"`) |
+| `limit` | number | No | `5` | Maximum repairs to return |
 
 **Returns:**
 
 ```json
 {
-  "session_id": "sess_9f3a12",
-  "attempts": [
+  "errorType": "TypeError",
+  "count": 3,
+  "repairs": [
     {
-      "attempt_id": "rep_001",
-      "tool": "run_with_verification",
-      "error_type": "TypeError",
-      "strategy": "null check insertion",
-      "success": true,
-      "timestamp": "2026-03-09T11:35:00Z"
+      "errorMessage": "Cannot read properties of undefined (reading 'id')",
+      "strategy": "null_check",
+      "suggestion": "Add a null check before accessing .id: if (!user) return null;",
+      "hasFixedCode": false
     }
-  ],
-  "total_attempts": 3,
-  "success_rate": 0.67
+  ]
 }
 ```
 
@@ -261,13 +259,20 @@ GenProg introduced the generate-and-validate paradigm for automated repair: use 
 
 ## Integration with Other Modules
 
-**Testing module:** `run_tests_with_repair` is a direct extension of `run_tests` from the Testing module. When `run_tests` returns failures, `run_tests_with_repair` adds the diagnostic and repair layer. The `sourceFiles` parameter enables cross-module lookup via the AST module's `find_references`.
+**Testing module:** `run_tests_with_repair` is a direct extension of `run_tests` from the Testing module. When `run_tests` returns failures, `run_tests_with_repair` adds the diagnostic and repair layer.
 
 **AST module:** `self_debug` uses `get_symbol_info` with `includeBody: true` and `find_references` to gather context for diagnosis when `contextFiles` are provided. Understanding the full call chain is essential for diagnosing errors that originate in a different layer from where they manifest.
 
-**Framework module:** The `implementation` and `quality` concepts in the workflow invoke the Repair module when execution or test failures are detected. `iterative_refine` is the primary tool for the implementation concept's multi-pass code improvement loop.
+**Framework module:** The `quality` concept in the workflow injects testing guidance when `dragonfly_advance_workflow` activates it. On concept failure, `dragonfly_advance_workflow` includes a `repair_guidance` field in its response, pointing to the most relevant repair strategy. `iterative_refine` is the primary tool for the implementation concept's multi-pass code improvement loop.
 
 **Analytics module:** Repair attempt outcomes are written to the provenance `events` table. The Analytics module tracks repair success rates and most common error types across workflow history, surfacing patterns for `dragonfly_learn_patterns`.
+
+**Evolve module (feedback loop):** Every repair event is automatically captured as an `evolve-test-case` memory entry via `memory-capture.ts`:
+- `self_debug` captures diagnoses with `resolved: false` (confidence 0.6)
+- `run_with_verification` captures confirmed fixes (iteration > 0, success) with `resolved: true` (confidence 0.9)
+- `run_tests_with_repair` captures test-failure + repair-suggestion pairs with `conceptHint: "quality"`
+
+These accumulated entries feed directly into `evolve_start` when `use_memory_test_cases: true` is set, converting real project failures into evolution training data. Over time, this tightens the repair → evolve feedback loop: bugs encountered in the wild improve the Skills that guide future implementations.
 
 ---
 
@@ -275,8 +280,6 @@ GenProg introduced the generate-and-validate paradigm for automated repair: use 
 
 | File | Purpose |
 |---|---|
-| `src/tools/repair/executor.ts` | Code execution with timeout and environment isolation |
-| `src/tools/repair/debugger.ts` | Root cause analysis and fix suggestion |
-| `src/tools/repair/refiner.ts` | Iterative multi-pass improvement loop |
-| `src/tools/repair/history.ts` | Session repair history tracking |
-| `src/tools/repair/index.ts` | MCP tool registration |
+| `src/tools/repair/repairer.ts` | RepairStore (SQLite), strategy selection, repair suggestion generation, code hash |
+| `src/tools/repair/memory-capture.ts` | Fire-and-forget capture of repair events as `evolve-test-case` memory entries |
+| `src/tools/repair/index.ts` | MCP tool registration and all handler logic |

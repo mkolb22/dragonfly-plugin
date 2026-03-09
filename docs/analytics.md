@@ -222,7 +222,7 @@ Analyze execution history to extract recurring patterns — concept sequences th
 | `save` | boolean | No | `false` | Write generated skills to `.claude/skills/` |
 | `skills_dir` | string | No | `.claude/skills/` | Override skills output directory |
 
-**High-confidence threshold:** patterns with ≥10 occurrences and ≥80% success rate are classified as high-confidence and generate richer skill templates.
+**High-confidence threshold:** patterns with ≥10 occurrences and ≥80% success rate are classified as high-confidence and generate richer skill templates. High-confidence patterns also trigger an `evolve_hint` in the response, signalling that those concept Skills are ready for prompt optimization.
 
 **Returns:**
 
@@ -244,11 +244,16 @@ Analyze execution history to extract recurring patterns — concept sequences th
       "file": ".claude/skills/full-feature-workflow.md",
       "based_on_occurrences": 23
     }
-  ]
+  ],
+  "evolve_hint": {
+    "message": "2 high-confidence pattern(s) ready for prompt optimization.",
+    "suggested_concepts": ["implementation", "quality"],
+    "workflow": "Call evolve_start with concept_name and initial_prompt=<skill content>. Set use_memory_test_cases:true to include accumulated repair events as training data."
+  }
 }
 ```
 
-`generated_skills` is only present when `save: true`.
+`generated_skills` is only present when `save: true`. `evolve_hint` is only present when at least one high-confidence pattern exists.
 
 ---
 
@@ -333,9 +338,11 @@ Anderson's ACT-R cognitive architecture describes how declarative knowledge (fac
 
 **State module:** The Analytics module is a pure reader of the State module's `events` table. It never writes to `state.db`. The State module's event append-on-execution contract is what makes Analytics data reliable — every action is recorded regardless of whether the Analytics module is queried.
 
-**Framework module:** `dragonfly_advance_workflow` writes provenance events that `dragonfly_timeline_view` reads. The timeline view is the diagnostic tool for understanding why a specific workflow execution took longer or cost more than expected.
+**Framework module:** `dragonfly_advance_workflow` writes provenance events that `dragonfly_timeline_view` reads. When a workflow completes, `dragonfly_advance_workflow` calls `computeBenchmarks` internally and returns an `analytics_summary` field (total actions, total cost, quality approval rate, failure rate). The timeline view is the diagnostic tool for understanding why a specific workflow execution took longer or cost more than expected.
 
-**Evolve module:** `dragonfly_learn_patterns` extracts patterns that `evolve_best` can use as seed prompts. Conversely, evolved skills saved by `evolve_best` appear in `dragonfly_check_drift` comparisons as `extra` files, distinguishing evolved skills from template-derived skills.
+**Evolve module:** `dragonfly_learn_patterns` emits an `evolve_hint` when high-confidence patterns (≥10 occurrences, ≥80% success rate) are found. This signal bridges analytics and prompt optimization: once a workflow pattern is statistically proven, those concepts' Skills are candidates for `evolve_start`. Conversely, evolved skills saved by `evolve_best` appear in `dragonfly_check_drift` comparisons as `extra` files, distinguishing evolved skills from template-derived skills.
+
+**Repair module:** Repair outcomes feed the `events` table. `dragonfly_learn_patterns` can extract repair failure patterns (error types, affected concepts) alongside workflow step patterns, enabling cross-cutting analysis of where code quality issues concentrate.
 
 **Memory module:** `dragonfly_validate_config` checks `memory.db` integrity alongside `state.db`. The Analytics module reads from `memoryDbPath` for observability statistics on memory usage patterns.
 

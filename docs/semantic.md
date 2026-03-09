@@ -30,27 +30,38 @@ The module runs entirely locally. Embeddings are generated using `@huggingface/t
 Source files
      │
      ▼
-Chunker (sliding window, overlap)
+EmbeddingRefresher (incremental, concurrency=4)
+     │  file-hash change detection — skips unchanged files
+     │  Semaphore controls 4 parallel embed calls
+     │  native EmbeddingCache integration per chunk
+     ▼
+CodeChunker (sliding window, overlap)
      │  splits files into semantically coherent segments
+     ▼
+EmbeddingCache (two-tier: in-memory LRU + SQLite)
+     │  SHA-256 key on chunk content + model name
+     │  in-memory LRU (configurable cap) → SQLite fallback
+     │  TTL expiry + LRU eviction on overflow
      ▼
 Transformer encoder (ONNX / @huggingface/transformers)
      │  CodeBERT or similar code-specialized model
      │  Apple Silicon: ANE via CoreML execution provider
+     │  (only called on cache miss)
      ▼
 Embedding vectors (float32[768])
      │
      ▼
-Vector store (memoryDbPath)
+VectorStore (memoryDbPath)
      │  chunks + embeddings + metadata (file, line range, language)
      ▼
-Query layer
-     │  query → embed → cosine similarity → ranked results
+Query layer — uses CachedEmbedder (cache.wrap(model))
+     │  query → embed (with cache) → cosine similarity → ranked results
      │
      ├─ semantic_search (natural language → code)
      └─ find_similar_code (code snippet → similar code)
 ```
 
-Indexing is incremental by default. A content hash is stored with each chunk; re-embedding is skipped for chunks whose source has not changed. This keeps `embed_project` fast on large codebases after the initial run.
+Indexing is incremental via `EmbeddingRefresher`: file content hashes detect changed files; chunk content hashes feed the two-tier `EmbeddingCache` to avoid re-encoding unchanged chunks. On a large codebase, typical re-embed runs after minor changes complete in seconds with near-100% cache hit rates.
 
 ---
 
@@ -72,14 +83,17 @@ Create or update semantic embeddings for the project codebase. Chunks source fil
 
 ```json
 {
-  "files_embedded": 89,
-  "chunks_created": 412,
-  "chunks_skipped": 280,
-  "model": "Xenova/codebert-base",
-  "duration_ms": 4200,
-  "incremental": true
+  "chunksEmbedded": 89,
+  "chunksSkipped": 280,
+  "filesChanged": 12,
+  "filesUnchanged": 77,
+  "totalChunks": 412,
+  "durationMs": 4200,
+  "cacheHitRate": 0.76
 }
 ```
+
+`cacheHitRate` reflects the `EmbeddingCache` efficiency across this run. On first-run or heavily changed codebases, hit rate is low; on minor incremental runs, hit rate approaches 1.0. If errors occurred (file read failures, encoding errors), an `errors` array is included.
 
 ---
 
@@ -213,7 +227,8 @@ The embedding model is selected at build time. The default is a code-specialized
 
 | File | Purpose |
 |---|---|
-| `src/tools/semantic/embedder.ts` | Chunking, model loading, ONNX inference |
-| `src/tools/semantic/store.ts` | Vector storage and retrieval from memoryDbPath |
-| `src/tools/semantic/search.ts` | Query embedding, cosine similarity ranking |
-| `src/tools/semantic/index.ts` | MCP tool registration |
+| `src/tools/semantic/chunker.ts` | `CodeChunker` — language-aware sliding window file chunking |
+| `src/tools/semantic/store.ts` | `VectorStore` — SQLite chunk + embedding storage, cosine similarity search |
+| `src/tools/semantic/cache.ts` | `EmbeddingCache` — two-tier LRU cache (in-memory Map + SQLite), `wrap(model)` |
+| `src/tools/semantic/refresher.ts` | `EmbeddingRefresher` — file-hash change detection, parallel embed (Semaphore), cache integration |
+| `src/tools/semantic/index.ts` | MCP tool registration; wires EmbeddingCache + EmbeddingRefresher into `embed_project` |
