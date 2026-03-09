@@ -275,6 +275,18 @@ export interface AdvanceResult {
     trigger: "step_complete" | "workflow_complete";
     message: string;
   };
+  /** Repair tool guidance when a step fails */
+  repair_guidance?: string;
+  /** Aggregated analytics snapshot after workflow completion */
+  analytics_summary?: {
+    total_actions: number;
+    total_workflows: number;
+    total_cost_usd: number;
+    quality_approval_rate: number;
+    failure_rate: number;
+  };
+  /** High-confidence memories auto-exported to global bridge store on completion */
+  bridge_export?: { exported: number; project: string; categories: string[] };
 }
 
 /**

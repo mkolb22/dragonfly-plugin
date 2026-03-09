@@ -73,6 +73,7 @@ const CONCEPTS: Record<string, ConceptDef> = {
   version: { agent: "version-concept", model: "sonnet", baseCost: 0.002 },
   security: { agent: "security-concept", model: "sonnet", baseCost: 0.004 },
   spec: { agent: "spec-concept", model: "sonnet", baseCost: 0.005 },
+  repair: { agent: "repair-concept", model: "sonnet", baseCost: 0.004 },
 };
 
 /**
@@ -101,8 +102,8 @@ const DSL_TEMPLATES: Record<TaskType, Record<"small" | "medium" | "large", strin
   },
   feature: {
     small: "story | implementation | quality | version @slo:standard",
-    medium: "story | architecture | implementation | quality | version @slo:standard",
-    large: "story | parallel(architecture, security) | implementation | quality | version @slo:thorough",
+    medium: "story | spec | architecture | implementation | quality | version @slo:standard",
+    large: "story | spec | parallel(architecture, security) | implementation | quality | version @slo:thorough",
   },
 };
 
@@ -132,6 +133,7 @@ const STEP_REASONS: Record<TaskType, Partial<Record<string, string>>> = {
   },
   feature: {
     story: "Capture requirements and acceptance criteria",
+    spec: "Generate formal specification before architecture and implementation",
     architecture: "Design technical approach",
     security: "Security review for large feature",
     implementation: "Build the feature",
@@ -152,6 +154,8 @@ const DEFAULT_STEP_REASONS: Record<string, string> = {
   context: "Manage context window",
   verification: "Independent verification pass",
   retrospective: "Analyze workflow",
+  spec: "Generate formal specification",
+  repair: "Diagnose and repair failing tests or code",
 };
 
 function getStepReason(concept: string, taskType: TaskType): string {

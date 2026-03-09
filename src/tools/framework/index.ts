@@ -7,6 +7,7 @@
  * with MCP-served content and active workflow coordination.
  */
 
+import { basename } from "path";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { successResponse, errorResponse, args as a } from "../../utils/responses.js";
 import { createDispatcher, createModule } from "../../core/dispatcher.js";
@@ -16,7 +17,11 @@ import { getContentLoader } from "./content-loader.js";
 import { planWorkflow } from "./workflow-planner.js";
 import { getSessionManager, setSessionStore } from "./session.js";
 import { getSyncEvaluator } from "./sync-evaluator.js";
+import { recallSimilarWorkflows } from "./workflow-intelligence.js";
 import { StateStore } from "../state/store.js";
+import { AnalyticsStore } from "../analytics/store.js";
+import { computeBenchmarks } from "../analytics/aggregators.js";
+import { BridgeStore } from "../bridge/store.js";
 import type {
   ConceptResult,
   WorkflowResult,
@@ -526,6 +531,26 @@ dispatcher
         ({ enrichedPrompt, skills } = enrichAgentPrompt(currentStep.agent, taskContext, pipelineCtx));
       }
 
+      // Surface similar past workflows from memory to inform the user
+      let memoryContext: Record<string, unknown> | undefined;
+      if (cfg.memoryEnabled) {
+        try {
+          const insight = await recallSimilarWorkflows(task, 400);
+          if (insight.similarTasks.length > 0) {
+            memoryContext = {
+              found: insight.similarTasks.length,
+              hint: insight.reasoning || `Found ${insight.similarTasks.length} similar past workflow(s).`,
+              recent: insight.similarTasks.slice(0, 3).map((t) => ({
+                task: t.task.slice(0, 80),
+                outcome: t.outcome,
+                complexity: t.complexity,
+                similarity: Math.round(t.similarity * 100) / 100,
+              })),
+            };
+          }
+        } catch { /* graceful degradation */ }
+      }
+
       return successResponse({
         workflowId: session.id,
         task: session.task,
@@ -552,6 +577,7 @@ dispatcher
           model: s.model,
           status: s.status,
         })),
+        ...(memoryContext ? { memory_context: memoryContext } : {}),
       });
     }),
   )
@@ -601,6 +627,50 @@ dispatcher
         };
       }
 
+      // Inject testing guidance when the quality step is activated next
+      if (nextStep?.concept === "quality") {
+        const testGuidance = `## Before Code Review: Run Tests\n\nRun the test suite before reviewing:\n1. \`run_tests\` — execute the full test suite\n2. \`run_tests_with_repair\` — tests with automated repair suggestions\n3. \`analyze_coverage\` — surface coverage gaps\n4. \`find_untested_files\` — files missing test coverage\n\n---\n\n`;
+        nextStep = { ...nextStep, enrichedPrompt: nextStep.enrichedPrompt ? testGuidance + nextStep.enrichedPrompt : null };
+      }
+
+      // Repair guidance when a step fails
+      let repairGuidance: string | undefined;
+      if (outcome === "failed") {
+        repairGuidance = `Step "${completedStep}" failed. Repair options:\n• \`self_debug\` — diagnose root cause from code + error output\n• \`run_tests_with_repair\` — run tests and get per-failure fix suggestions\n• \`iterative_refine\` — apply multi-pass improvements toward stated goals`;
+      }
+
+      // Analytics snapshot on workflow completion
+      let analyticsSummary: AdvanceResult["analytics_summary"] | undefined;
+      if (updatedSession.status !== "active" && cfg.analyticsEnabled && cfg.stateEnabled) {
+        try {
+          const analyticsStore = new AnalyticsStore(cfg.stateDbPath);
+          const allActions = analyticsStore.loadProvenance({});
+          if (allActions.length > 0) {
+            const b = computeBenchmarks(allActions, { stories: 10 });
+            analyticsSummary = {
+              total_actions: b.action_count,
+              total_workflows: b.story_count,
+              total_cost_usd: Math.round(b.cost.total_spend * 1000) / 1000,
+              quality_approval_rate: Math.round(b.quality.approval_rate * 100) / 100,
+              failure_rate: Math.round(b.failures.failure_rate * 100) / 100,
+            };
+          }
+        } catch { /* graceful */ }
+      }
+
+      // Auto-export high-confidence memories to global bridge store on completion
+      let bridgeExport: AdvanceResult["bridge_export"] | undefined;
+      if (updatedSession.status !== "active" && cfg.bridgeEnabled && cfg.memoryEnabled) {
+        try {
+          const projectName = basename(cfg.projectRoot);
+          const bridgeStore = new BridgeStore(cfg.bridgeGlobalMemoryPath);
+          const exported = bridgeStore.exportMemories(cfg.memoryDbPath, projectName, "high");
+          if (exported.exported > 0) {
+            bridgeExport = { exported: exported.exported, project: projectName, categories: exported.categories };
+          }
+        } catch { /* graceful */ }
+      }
+
       // Evaluate sync rules for the completed step
       const syncRules = evaluateSyncForStep(completedStep, outcome);
 
@@ -621,8 +691,11 @@ dispatcher
         workflowComplete: updatedSession.status !== "active",
         summary,
         ...(failureHints ? { failureHints } : {}),
+        ...(repairGuidance ? { repair_guidance: repairGuidance } : {}),
         ...(syncRules ? { syncRules } : {}),
         ...(checkpointPrompt ? { checkpoint_prompt: checkpointPrompt } : {}),
+        ...(analyticsSummary ? { analytics_summary: analyticsSummary } : {}),
+        ...(bridgeExport ? { bridge_export: bridgeExport } : {}),
       };
 
       return successResponse(result);

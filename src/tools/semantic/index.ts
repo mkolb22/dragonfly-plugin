@@ -12,10 +12,15 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { getSharedEmbedder } from "../../utils/embedder.js";
 import { CodeChunker } from "./chunker.js";
 import { VectorStore } from "./store.js";
+import { EmbeddingCache } from "./cache.js";
+import { EmbeddingRefresher } from "./refresher.js";
 
-const getEmbedder = getSharedEmbedder;
 const getStore = createLazyLoader(() => new VectorStore(config().memoryDbPath));
 const getChunker = createLazyLoader(() => new CodeChunker(config().projectRoot));
+// Two-tier LRU cache backed by the same SQLite as the vector store
+const getCache = createLazyLoader(() => new EmbeddingCache({ dbPath: config().memoryDbPath }));
+// Transparent cached wrapper around the shared embedder
+const getCachedEmbedder = createLazyLoader(() => getCache().wrap(getSharedEmbedder()));
 
 export const tools: Tool[] = [
   {
@@ -105,31 +110,33 @@ const dispatcher = createDispatcher();
 
 dispatcher
   .registerVeryLong("embed_project", async (args) => {
-    const chunks = await getChunker().chunkProject({
-      paths: a.array<string>(args, "paths"),
-      languages: a.array<SupportedLanguage>(args, "languages"),
-      incremental: a.boolean(args, "incremental", true),
-      previousHashes: getStore().getFileHashes(),
+    // EmbeddingRefresher: only re-embeds changed files, runs 4 parallel embed calls,
+    // and uses EmbeddingCache to skip chunks already in the LRU cache.
+    const paths = a.array<string>(args, "paths");
+    // Pass raw model + cache separately — EmbeddingRefresher has native cache integration
+    const refresher = new EmbeddingRefresher({
+      projectRoot: config().projectRoot,
+      store: getStore(),
+      model: getSharedEmbedder(),
+      concurrency: 4,
+      cache: getCache(),
     });
 
-    const embeddings: Array<{
-      chunk: (typeof chunks)[0];
-      embedding: number[];
-    }> = [];
-    for (const chunk of chunks) {
-      const embedding = await getEmbedder().embed(chunk.content);
-      embeddings.push({ chunk, embedding });
-    }
-
-    getStore().addEmbeddings(embeddings);
+    const result = await refresher.refresh(paths?.length > 0 ? paths : undefined);
 
     return successResponse({
-      chunksEmbedded: chunks.length,
+      chunksEmbedded: result.chunksEmbedded,
+      chunksSkipped: result.chunksSkipped,
+      filesChanged: result.filesChanged,
+      filesUnchanged: result.filesUnchanged,
       totalChunks: getStore().getChunkCount(),
+      durationMs: result.durationMs,
+      cacheHitRate: getCache().metrics().hit_rate,
+      ...(result.errors.length > 0 ? { errors: result.errors } : {}),
     });
   })
   .register("semantic_search", async (args) => {
-    const queryEmbedding = await getEmbedder().embed(a.string(args, "query"));
+    const queryEmbedding = await getCachedEmbedder().embed(a.string(args, "query"));
     const results = getStore().search({
       embedding: queryEmbedding,
       limit: a.number(args, "limit", 5),
@@ -142,7 +149,7 @@ dispatcher
   .register("find_similar_code", async (args) => {
     const code = a.string(args, "code");
     const limit = a.number(args, "limit", 5);
-    const codeEmbedding = await getEmbedder().embed(code);
+    const codeEmbedding = await getCachedEmbedder().embed(code);
     const results = getStore().search({
       embedding: codeEmbedding,
       limit: limit + 1,

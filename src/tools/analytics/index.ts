@@ -275,11 +275,22 @@ dispatcher
           generatedSkills.push(entry);
         }
 
+        // Surface evolve hint for high-confidence patterns so users can optimize them
+        const highConfidence = filtered.filter((p) => p.occurrences >= 10 && p.success_rate >= 0.8);
+        const evolveHint = highConfidence.length > 0
+          ? {
+              message: `${highConfidence.length} high-confidence pattern(s) ready for prompt optimization.`,
+              suggested_concepts: [...new Set(highConfidence.map((p) => p.concept))],
+              workflow: "Call evolve_start with concept_name and initial_prompt=<skill content>, evaluate variants across generations, then call evolve_best with save_as_skill:true to replace the skill template with the optimized version.",
+            }
+          : undefined;
+
         return successResponse({
           total_patterns: allPatterns.length,
           filtered_patterns: filtered.length,
           patterns: filtered,
           generated_skills: generatedSkills,
+          ...(evolveHint ? { evolve_hint: evolveHint } : {}),
         });
       } catch (err) {
         return errorResponse(`Failed to learn patterns: ${err instanceof Error ? err.message : String(err)}`);
