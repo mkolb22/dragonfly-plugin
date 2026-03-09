@@ -1,28 +1,59 @@
 # Evolve Module
 
 **Module:** `evolve`
-**Tools:** 4
+**Tools:** 4 (`evolve_start`, `evolve_submit`, `evolve_status`, `evolve_best`)
 **Feature flag:** `DRAGONFLY_EVOLVE_ENABLED` (default: enabled)
-**Storage:** `state.db` (evolution sessions and variants)
-
----
-
-## Overview
-
-The Evolve module implements genetic algorithm-based prompt optimization. Claude drives the mutation and evaluation loop (generating and scoring variant prompts), while Dragonfly manages population state, selection pressure, and convergence detection. The design is a collaborative human-AI optimization loop — Claude's language understanding guides creative mutation, while the algorithm provides systematic selection and progress tracking.
-
-This implements a hybrid approach validated by three independent research programs: APE (automated prompt generation + scoring), OPRO (LLMs as optimizers), and EvoPrompting (evolutionary operators applied to prompts).
+**Storage:** `stateDbPath` (evolution sessions and variant history)
+**Always enabled:** No — opt-in via feature flag
 
 ---
 
 ## Quick Reference
 
-| Tool | Description |
-|---|---|
-| `evolve_start` | Create an evolution session and get initial instructions |
-| `evolve_submit` | Submit evaluated variants and get next generation instructions |
-| `evolve_status` | Check session progress and convergence |
-| `evolve_best` | Get the winning variant; optionally save as skill |
+| Tool | Description | Required Params |
+|---|---|---|
+| `evolve_start` | Initialize an evolution session for prompt optimization | `concept_name`, `initial_prompt`, `test_cases` |
+| `evolve_submit` | Submit evaluated variants to advance the evolution | `session_id`, `variants` |
+| `evolve_status` | Check session progress and convergence state | `session_id` |
+| `evolve_best` | Retrieve the winning variant, optionally saving as a skill | `session_id` |
+
+---
+
+## Overview
+
+The Evolve module implements genetic algorithm-based prompt optimization. It applies evolutionary computation — selection, crossover, mutation, and fitness evaluation — to the problem of finding the best version of a system prompt for a given task.
+
+The architecture splits responsibility between the module and Claude. Dragonfly manages state, implements selection algorithms, applies mutation operators, tracks convergence, and persists variant history. Claude generates variant content, evaluates fitness by running variants against test cases, and scores each variant. This division is principled: Dragonfly handles the combinatorial bookkeeping efficiently; Claude contributes the semantic judgment that no algorithm can replace.
+
+### Evolutionary Loop
+
+```
+evolve_start
+     │  concept_name + initial_prompt + test_cases
+     │  population_size, max_generations, mutation_rate
+     ▼
+Generation 0: seed variants (pre-mutated from initial prompt)
+     │
+Claude: evaluate each variant against test_cases → fitness_score
+     │
+evolve_submit (variants + scores)
+     │
+     ├─ Tournament selection (k=3) → select parents
+     ├─ Elite preservation (top 2 always survive)
+     ├─ Crossover (first half A + second half B)
+     ├─ Mutation at mutation_rate:
+     │   • Delete a sentence
+     │   • Insert a focusing instruction
+     │   • Reorder sentences
+     ▼
+Next generation: parent seeds + new variants
+     │
+     └─ [repeat until convergence or max_generations]
+     ▼
+evolve_best: winning variant + fitness history
+```
+
+**Convergence criterion:** Best fitness unchanged by more than 0.01 for 3 consecutive generations.
 
 ---
 
@@ -30,197 +61,246 @@ This implements a hybrid approach validated by three independent research progra
 
 ### `evolve_start`
 
-Create an evolution session. Returns instructions for Claude to generate and evaluate the first population of variant prompts.
+Initialize an evolution session. Returns generation 0 seed variants for Claude to evaluate. The seeds are pre-mutated from the initial prompt — they give Claude concrete variants to score rather than asking Claude to generate variants from scratch.
 
 **Parameters:**
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `concept_name` | string | Yes | What's being optimized (e.g., "code-review-prompt", "bug-triage") |
-| `initial_prompt` | string | Yes | Starting prompt to evolve |
-| `test_cases` | array | Yes | Fitness evaluation criteria: `[{ input: string, expected: string }]` |
-| `population_size` | number | No | Variants per generation (default: 5) |
-| `max_generations` | number | No | Maximum generations before stopping (default: 10) |
-| `mutation_rate` | number | No | Probability 0-1 of applying a mutation operator (default: 0.7) |
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `concept_name` | string | Yes | — | What is being optimized, e.g. `"code-review-prompt"`, `"architecture-agent"` |
+| `initial_prompt` | string | Yes | — | Starting prompt to evolve from |
+| `test_cases` | array | Yes | — | Evaluation cases: `[{ input: string, expected: string }]` |
+| `population_size` | number | No | `5` | Number of variants per generation |
+| `max_generations` | number | No | `10` | Maximum generations before forced completion |
+| `mutation_rate` | number (0–1) | No | `0.7` | Probability of applying a mutation operator to each variant |
 
 **Returns:**
-```
+
+```json
 {
-  session_id: string,
-  generation: 0,
-  instructions: string    // directions for Claude to generate + score population_size variants
+  "session_id": "evo_a3f7c2",
+  "generation": 0,
+  "initial_fitness": null,
+  "seed_variants": [
+    "You are a code reviewer. Focus on correctness first, then style. For each issue found...",
+    "You are an expert code reviewer. Always begin by understanding the intent before critiquing...",
+    "You are a code reviewer. Structure your feedback as: 1) Critical issues 2) Suggestions 3) Praise..."
+  ],
+  "test_cases": [
+    { "input": "Review this function: ...", "expected": "Identifies the off-by-one error" }
+  ],
+  "instructions": "Evaluate each seed variant by running it against all test cases. Score fitness 0.0–1.0 based on how well the variant achieves the expected outputs. Then call evolve_submit with your scored variants."
 }
 ```
-
-**Workflow:** After receiving this response, Claude generates `population_size` variant prompts, evaluates each against the test cases, assigns fitness scores (0.0–1.0), and calls `evolve_submit`.
 
 ---
 
 ### `evolve_submit`
 
-Submit evaluated variants and advance the evolution. Returns selection results and mutation instructions for the next generation, or a completion message if converged or max generations reached.
+Submit Claude's scored variants to advance the evolution to the next generation. Dragonfly applies selection, crossover, and mutation to produce the next generation's seed variants for Claude to evaluate.
 
 **Parameters:**
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `session_id` | string | Yes | Evolution session ID |
-| `variants` | array | Yes | Evaluated variant prompts: `[{ prompt: string, fitness_score: number (0-1), notes?: string }]` |
 
-**Returns (if active — more generations to run):**
-```
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `session_id` | string | Yes | — | Evolution session ID |
+| `variants` | array | Yes | — | Evaluated variants: `[{ prompt: string, fitness_score: number (0–1), notes?: string }]` |
+
+**Returns (if evolution is active — more generations to run):**
+
+```json
 {
-  generation: number,
-  best_fitness: number,
-  status: "active",
-  parents: [{
-    prompt: string,
-    fitness: number,
-    weaknesses: string
-  }],
-  instructions: string    // mutation instructions with seed variants for next generation
+  "status": "active",
+  "generation": 2,
+  "best_fitness_so_far": 0.84,
+  "parents": [
+    "You are a code reviewer. Always begin by understanding the intent...",
+    "You are a code reviewer. Structure feedback as: 1) Critical 2) Suggestions..."
+  ],
+  "seed_variants": [
+    "You are a code reviewer. Always begin by understanding the intent. Structure feedback as: 1) Critical...",
+    "You are a code reviewer. Structure feedback as: 1) Critical 2) Suggestions. Focus on the most impactful issues first..."
+  ],
+  "mutation_instructions": "Apply semantic mutations: try adding a constraint, removing a vague instruction, or reordering the guidance. Maintain the core meaning.",
+  "instructions": "Evaluate each seed variant against all test cases, score fitness 0.0–1.0, then call evolve_submit again."
 }
 ```
 
 **Returns (if converged or completed):**
-```
+
+```json
 {
-  generation: number,
-  best_fitness: number,
-  status: "converged" | "completed",
-  message: string         // "Call evolve_best to get the winning prompt"
+  "status": "completed",
+  "reason": "converged",
+  "generations_run": 5,
+  "best_fitness": 0.91,
+  "instructions": "Call evolve_best to retrieve the winning variant."
 }
 ```
-
-**Selection algorithm:**
-1. Tournament selection (k=3): draw 3 random candidates, select the best. Repeat `population_size` times.
-2. Elite preservation: top 2 variants always carry forward regardless of tournament results.
-3. Deduplication: combine elites + tournament winners into unique parent set.
-4. Seed variants: apply mutation operators + crossover to parents to generate concrete starting points for Claude.
 
 ---
 
 ### `evolve_status`
 
-Check evolution session progress and statistics.
+Check the current state of an evolution session without advancing it.
 
 **Parameters:**
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `session_id` | string | Yes | Evolution session ID |
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `session_id` | string | Yes | — | Evolution session ID |
 
 **Returns:**
-```
+
+```json
 {
-  session_id: string,
-  concept_name: string,
-  status: "active" | "converged" | "completed",
-  current_generation: number,
-  max_generations: number,
-  best_fitness: number,
-  improvement_pct: number,      // improvement vs. generation 1 baseline
-  variants_evaluated: number,
-  convergence_window: number[]  // best fitness for last 3 generations
+  "session_id": "evo_a3f7c2",
+  "concept_name": "code-review-prompt",
+  "status": "active",
+  "current_generation": 3,
+  "max_generations": 10,
+  "best_fitness": 0.87,
+  "initial_fitness": 0.62,
+  "improvement_pct": 40.3,
+  "variants_evaluated": 20,
+  "convergence_window": [0.84, 0.87, 0.87],
+  "converged": false
 }
 ```
+
+`convergence_window` shows the best fitness for the last 3 generations. Convergence triggers when all three values are within 0.01 of each other.
 
 ---
 
 ### `evolve_best`
 
-Get the winning variant from an evolution session. Optionally save it as a reusable skill template.
+Retrieve the winning variant from a completed or converged evolution session. Optionally save the winning prompt as a skill file in `.claude/skills/`.
 
 **Parameters:**
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `session_id` | string | Yes | Evolution session ID |
-| `save_as_skill` | boolean | No | If true, write the winning prompt as a `.claude/skills/{skill_name}.md` file (default: false) |
-| `skill_name` | string | No | Override the skill file name (default: `concept_name`, sanitized to kebab-case) |
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `session_id` | string | Yes | — | Evolution session to retrieve the winner from |
+| `save_as_skill` | boolean | No | `false` | Write the winning prompt to `.claude/skills/` as a skill template |
+| `skill_name` | string | No | `{concept_name}` | Override the skill file name |
 
 **Returns:**
-```
+
+```json
 {
-  prompt: string,               // the winning prompt text
-  fitness_score: number,        // final fitness (0-1)
-  generation: number,           // which generation produced the winner
-  improvement_pct: number,      // vs. generation 1 best
-  initial_prompt: string,       // the starting prompt for comparison
-  total_variants_evaluated: number,
-  // if save_as_skill=true:
-  skill_saved: boolean,
-  skill_path: string            // absolute path to written .md file
+  "session_id": "evo_a3f7c2",
+  "concept_name": "code-review-prompt",
+  "best_prompt": "You are an expert code reviewer. Always begin by understanding the intent before critiquing. Structure feedback as: 1) Critical issues that affect correctness 2) Suggestions for improvement 3) What is done well. Be specific and actionable.",
+  "fitness_score": 0.91,
+  "generation_found": 4,
+  "improvement_pct": 46.8,
+  "total_variants_evaluated": 25,
+  "skill_path": ".claude/skills/code-review-prompt.md"
 }
 ```
+
+`skill_path` is only present when `save_as_skill: true`.
 
 ---
 
 ## Algorithm Details
 
-### Selection: Tournament (k=3)
+### Tournament Selection
 
-Draw 3 variants at random from the current generation, select the one with the highest fitness. Repeat `population_size` times to build the parent pool. Tournament selection provides selection pressure while maintaining diversity — unlike rank selection or fitness-proportionate selection (roulette wheel), it doesn't collapse to a single dominant individual.
+For each parent slot (repeated `population_size` times): select `k=3` variants at random from the current generation, return the one with the highest `fitness_score`. This produces selection pressure without eliminating low-fitness variants entirely — they can still be selected if they happen to be in a favorable tournament draw.
 
 ### Elite Preservation
 
-Top 2 variants by fitness always survive to the next generation unchanged. This guarantees the best-found solution is never lost to random variation (the "elitism" property).
+The top 2 variants by `fitness_score` always survive to the next generation unchanged. This ensures the best solution found so far is never lost to mutation or crossover variance.
 
-### Convergence Detection
+### Crossover
 
-Evolution has converged if the best fitness hasn't improved by more than 0.01 across 3 consecutive generations. Formally: if `max(fitnessHistory[-3:]) - fitnessHistory[-4] < 0.01`.
+Take the first half of sentences from parent A and the second half from parent B. This implements single-point crossover at the sentence boundary closest to the midpoint. Crossover is applied to pairs of selected parents.
 
-### Mutation Operators (EvoPrompting, Chen et al. 2023)
+### Mutation Operators
 
-Applied at `mutation_rate` probability. Three operators, chosen uniformly:
-1. **Delete**: Remove a random non-first sentence.
-2. **Insert**: Inject a focusing instruction at a random position. Candidates: "Be concise and specific." / "Think step by step." / "Focus on the most important aspects." / "Provide concrete examples." / "Prioritize correctness over completeness."
-3. **Reorder**: Swap two random non-first sentences.
+Applied at `mutation_rate` probability to each variant. Three operators (from EvoPrompting, Chen et al. 2023):
+1. **Delete**: Remove one sentence at random
+2. **Insert**: Add a focusing instruction (e.g., "Be specific and actionable", "Think step by step")
+3. **Reorder**: Shuffle the order of two randomly selected sentences
 
-First sentence is always preserved (assumed to be the core instruction).
+### Fitness Scoring Guidance
 
-### Crossover (EvoPrompting)
+`fitness_score` should be in [0, 1] where:
+- `0.0` — variant completely fails the test cases
+- `0.5` — variant partially achieves the expected outputs
+- `1.0` — variant fully and reliably achieves all expected outputs
 
-Combines the first half of sentences from parent A with the second half from parent B. Outperforms mutation-only evolution in empirical tests (Chen et al., 2023).
-
-### Seed Variants
-
-Pre-mutated starting points provided to Claude alongside parent prompts. Gives Claude concrete variants to refine rather than starting from abstract instructions. Reduces generation variance and speeds convergence.
-
----
-
-## Usage Pattern
-
-```
-1. evolve_start → session_id + initial instructions
-2. [Claude generates + scores population_size variants]
-3. evolve_submit → next generation instructions OR completion
-4. [Repeat steps 2-3 until status != "active"]
-5. evolve_best → winning prompt (optionally save as skill)
-```
+Claude assigns scores; Dragonfly does not validate or normalize them. Consistent scoring within a session produces better selection; inconsistent scoring produces noisy evolution.
 
 ---
 
-## Research Basis
+## Academic Foundation
 
-| Work | Authors | Year | Relevance |
-|---|---|---|---|
-| **APE: Automatic Prompt Engineer** | Zhou et al., University of Toronto | ICLR 2023, arxiv.org/abs/2211.01910 | Automated prompt generation and scoring — foundational approach that Evolve extends with evolutionary operators |
-| **OPRO: Optimization by PROmpting** | Yang et al., Google DeepMind | 2023, arxiv.org/abs/2309.03409 | LLMs as optimizers via natural language: "LLMs can follow verbal optimization trajectory descriptions" |
-| **EvoPrompting** | Chen et al., NeurIPS | 2023, arxiv.org/abs/2302.14838 | Evolutionary algorithms for prompt optimization: sentence-level mutation operators + crossover — directly implemented here |
-| **PromptBreeder** | Fernando et al., Google DeepMind | 2023, arxiv.org/abs/2309.16797 | Self-referential prompt evolution: mutation instructions themselves evolve |
-| **DSPy** | Khattab et al., Stanford | 2023, arxiv.org/abs/2310.03714 | Compiling declarative LM programs via automated prompting — Evolve is the manual, interpretable variant |
-| **Genetic Algorithms** | John Holland | 1975, "Adaptation in Natural and Artificial Systems" | Foundational GA theory: selection, mutation, crossover, fitness landscapes |
-| **Tournament Selection** | Goldberg & Deb | 1991, FOGA | Tournament selection analysis: selection pressure vs. diversity tradeoff |
+### Automatic Prompt Engineer (APE)
+
+Zhou, Y., Muresanu, A. I., Han, Z., Paster, K., Pitis, S., Chan, H., & Ba, J. (2022). *Large language models are human-level prompt engineers.* ICLR 2023. arXiv:2211.01910. https://arxiv.org/abs/2211.01910
+
+APE (University of Toronto) frames prompt optimization as a program synthesis problem: generate candidate instructions, evaluate them on a dataset, select the best. APE demonstrated that LLM-generated prompts can match or exceed human-written prompts on benchmark tasks. The key contribution is the fitness evaluation protocol: measure prompt quality by running it against a standardized set of input-output pairs. The `test_cases` parameter in `evolve_start` directly implements APE's evaluation protocol — each test case is an input-output pair used to score prompt fitness.
+
+### OPRO — Optimization by PROmpting
+
+Yang, C., Wang, X., Lu, Y., Liu, H., Le, Q. V., Zhou, D., & Chen, X. (2023). *Large language models as optimizers.* arXiv:2309.03409. https://arxiv.org/abs/2309.03409
+
+OPRO (Google DeepMind) uses an LLM as an optimizer: present the LLM with the current best solutions and their scores, ask it to generate a new improved solution. The LLM acts as both the generator and the optimizer. The Evolve module adopts OPRO's insight — that LLMs can improve prompts given feedback about what worked — but structures the optimization loop with genetic algorithm operators rather than pure LLM generation, providing more systematic exploration of the search space.
+
+### EvoPrompting — Evolutionary Algorithms for Prompt Optimization
+
+Chen, S., Hou, Y., Cui, Y., Chen, B., Su, J., & Fu, J. (2023). *EvoPrompting: Language models for code-level neural architecture search.* NeurIPS 2023. arXiv:2302.14838. https://arxiv.org/abs/2302.14838
+
+EvoPrompting applies evolutionary computation to prompt optimization at the sentence level. The key contributions adopted by the Evolve module are: (1) sentence-level mutation operators (delete, insert, reorder) that preserve semantic coherence while exploring the prompt space; (2) crossover at sentence boundaries; (3) LLM-based fitness evaluation. EvoPrompting demonstrated that evolutionary operators at the sentence level outperform character-level or word-level operators for prompt optimization because sentences are the natural units of semantic meaning in instructions.
+
+### PromptBreeder — Self-Referential Prompt Evolution
+
+Fernando, C., Banarse, D., Michalewski, H., Osindero, S., & Rocktäschel, T. (2023). *PromptBreeder: Self-referential self-improvement via prompt evolution.* arXiv:2309.16797. https://arxiv.org/abs/2309.16797
+
+PromptBreeder (Google DeepMind) extends prompt evolution to be self-referential: the mutation instructions themselves are evolved alongside the task prompts. The module's `mutation_instructions` field in `evolve_submit` responses implements a simplified version of this — the mutation guidance adapts based on what kinds of changes have proven productive in prior generations.
+
+### DSPy — Compiling LM Programs via Automated Prompting
+
+Khattab, O., Singhvi, A., Maheshwari, P., Zhang, Z., Shrivastava, M., Poeta, F., Hashlamoun, B., Timbrel, K., Guu, K., Hancock, B., & Potts, C. (2023). *DSPy: Compiling declarative language model calls into self-improving pipelines.* arXiv:2310.03714. https://arxiv.org/abs/2310.03714
+
+DSPy (Stanford) frames LM pipeline optimization as a compilation problem: declare the pipeline in terms of modules and metrics, then compile it by automatically tuning the prompts for each module. The Evolve module addresses the same problem for individual prompts: given a task description (test cases) and a starting point (initial prompt), find the optimal prompt. DSPy uses gradient-free optimization with a different selection mechanism; the Evolve module uses genetic algorithms. Both validate against held-out test sets.
+
+### Genetic Algorithms — Foundational Theory
+
+Holland, J. H. (1975). *Adaptation in Natural and Artificial Systems: An Introductory Analysis with Applications to Biology, Control, and Artificial Intelligence.* University of Michigan Press. (2nd ed.: MIT Press, 1992.)
+
+Holland's foundational GA framework establishes the schema theorem: short, high-fitness, low-order schemata (building blocks) receive exponentially increasing representation in successive generations. Applied to prompt evolution: short, effective instructional sentences are the building blocks; crossover combines proven sentences from two parents; selection amplifies sentences that contribute to high fitness. The tournament selection (k=3), elite preservation (top 2), and single-point crossover at sentence boundaries in the Evolve module are direct implementations of Holland's canonical GA.
 
 ---
 
 ## Configuration
 
-| Environment Variable | Default | Description |
+| Variable | Default | Description |
 |---|---|---|
-| `DRAGONFLY_EVOLVE_ENABLED` | `true` | Enable/disable the Evolve module |
+| `DRAGONFLY_EVOLVE_ENABLED` | `true` | Enable or disable the Evolve module |
 
 ---
 
-## Integration
+## Integration with Other Modules
 
-- **State module**: Stores evolution sessions and all variant history in `state.db`
-- **Framework module**: Winning prompts can be saved as skill files and loaded by the Framework's skill system
-- **Memory module**: Evolved prompts can be stored as memories for cross-session reuse
+**Framework module:** Skills saved by `evolve_best` (with `save_as_skill: true`) are written to `.claude/skills/` and immediately available to `dragonfly_get_skills`. This is the primary feedback loop: evolved prompts become framework skills that improve all future concept executions using that prompt.
+
+**Memory module:** Evolved winning prompts are candidates for `memory_store` with `type: "procedural"` — they represent refined procedural knowledge about how to perform a task effectively. The Memory module then makes them retrievable by semantic similarity in future sessions.
+
+**Analytics module:** Evolution sessions and per-generation fitness scores are tracked in the provenance `events` table. The Analytics module can surface evolution history as part of quality trend analysis.
+
+**State module:** Evolution session state (current generation, variant history, fitness scores) is persisted in `stateDbPath`, enabling sessions to survive plugin restarts and be resumed with `evolve_submit`.
+
+---
+
+## File Reference
+
+| File | Purpose |
+|---|---|
+| `src/tools/evolve/session.ts` | Evolution session lifecycle and state management |
+| `src/tools/evolve/selection.ts` | Tournament selection and elite preservation |
+| `src/tools/evolve/operators.ts` | Crossover and mutation operator implementations |
+| `src/tools/evolve/convergence.ts` | Convergence detection and stopping criteria |
+| `src/tools/evolve/index.ts` | MCP tool registration |
