@@ -13,11 +13,15 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { requireEvolve } from "../../utils/guards.js";
 import { config } from "../../core/config.js";
 import { EvolveStore } from "./store.js";
+import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { join } from "path";
 import {
   tournamentSelect,
   getElites,
   checkConvergence,
   buildMutationInstructions,
+  applyMutation,
+  crossover,
 } from "./algorithm.js";
 import type { TestCase } from "./types.js";
 
@@ -136,13 +140,21 @@ export const tools: Tool[] = [
   {
     name: "evolve_best",
     description:
-      "Get the winning variant from an evolution session. Returns the best prompt, its fitness score, and improvement over the initial prompt.",
+      "Get the winning variant from an evolution session. Returns the best prompt, its fitness score, and improvement over the initial prompt. Set save_as_skill:true to write the winning prompt as a reusable skill template to .claude/skills/.",
     inputSchema: {
       type: "object",
       properties: {
         session_id: {
           type: "string",
           description: "Evolution session ID",
+        },
+        save_as_skill: {
+          type: "boolean",
+          description: "If true, write the winning prompt as a skill file to .claude/skills/ (default: false)",
+        },
+        skill_name: {
+          type: "string",
+          description: "Override skill file name (default: session concept_name)",
         },
       },
       required: ["session_id"],
@@ -266,10 +278,25 @@ dispatcher
       for (const p of parents) parentSet.set(p.id, p);
       const uniqueParents = Array.from(parentSet.values()).slice(0, session.config.populationSize);
 
+      // Generate deterministic seed variants via mutation + crossover (EvoPrompting, Chen et al. 2023)
+      // These give Claude concrete starting points rather than just parent prompts
+      const mutationRate = session.config.mutationRate ?? 0.7;
+      const seedVariants: string[] = [];
+      for (const parent of uniqueParents) {
+        const mutated = applyMutation(parent.prompt, mutationRate);
+        if (mutated !== parent.prompt) seedVariants.push(mutated);
+      }
+      // Add crossover variants from top-2 parents
+      if (uniqueParents.length >= 2) {
+        const cx = crossover(uniqueParents[0].prompt, uniqueParents[1].prompt);
+        if (cx !== uniqueParents[0].prompt) seedVariants.push(cx);
+      }
+
       const { parents: parentInfo, instructions } = buildMutationInstructions(
         uniqueParents,
         session.conceptName,
         session.config.populationSize,
+        seedVariants.length > 0 ? seedVariants : undefined,
       );
 
       return successResponse({
@@ -343,14 +370,50 @@ dispatcher
           ? ((bestVariant.fitnessScore! - initialBestFitness) / initialBestFitness) * 100
           : 0;
 
-      return successResponse({
+      const response: Record<string, unknown> = {
         prompt: bestVariant.prompt,
         fitness_score: bestVariant.fitnessScore,
         generation: bestVariant.generation,
         improvement_pct: Math.round(improvementPct * 10) / 10,
         initial_prompt: session.initialPrompt,
         total_variants_evaluated: variantCount,
-      });
+      };
+
+      // Save as skill file if requested
+      const saveAsSkill = a.boolean(args, "save_as_skill", false);
+      if (saveAsSkill) {
+        const rawName = a.stringOptional(args, "skill_name") ?? session.conceptName;
+        // Sanitize name: lowercase, replace spaces/special chars with hyphens
+        const skillName = rawName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        try {
+          const cfg = config();
+          const skillsDir = join(
+            cfg.frameworkContentRoot || process.cwd(),
+            "..",
+            ".claude",
+            "skills",
+          );
+          mkdirSync(skillsDir, { recursive: true });
+          const filePath = join(skillsDir, `${skillName}.md`);
+          const frontmatter = [
+            "---",
+            `name: ${skillName}`,
+            `description: "Evolved prompt for ${session.conceptName} (fitness: ${bestVariant.fitnessScore?.toFixed(2)})"`,
+            `applies_to: []`,
+            `trigger_keywords: [${session.conceptName}]`,
+            "---",
+            "",
+          ].join("\n");
+          writeFileSync(filePath, frontmatter + bestVariant.prompt, "utf-8");
+          response.skill_saved = true;
+          response.skill_path = filePath;
+        } catch (err) {
+          response.skill_saved = false;
+          response.skill_error = err instanceof Error ? err.message : String(err);
+        }
+      }
+
+      return successResponse(response);
     }),
   );
 

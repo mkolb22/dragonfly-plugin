@@ -1,9 +1,16 @@
 /**
  * Analytics Module
- * 2 MCP tools for workflow timeline visualization and configuration validation.
+ * 5 MCP tools for workflow observability: timeline visualization, configuration
+ * validation, performance benchmarks, pattern learning, and drift detection.
+ *
+ * Research basis:
+ * - W3C PROV Data Model (Moreau & Missier, 2013) — provenance tracking via events table
+ * - Google SRE Book (Beyer et al.) — p50/p90/p99 latency SLO measurement
+ * - LLMOps cost attribution patterns (2023–2025) — cost by model/concept
  */
 
-import { existsSync } from "fs";
+import { existsSync, writeFileSync, mkdirSync } from "fs";
+import { join, resolve } from "path";
 import Database from "better-sqlite3";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { successResponse, errorResponse, args as a } from "../../utils/responses.js";
@@ -12,6 +19,9 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { requireAnalytics } from "../../utils/guards.js";
 import { config } from "../../core/config.js";
 import { AnalyticsStore } from "./store.js";
+import { computeBenchmarks } from "./aggregators.js";
+import { extractPatterns, generateSkill } from "./learner.js";
+import { compareDirectories } from "./drift.js";
 import type { Concept, Model, ProvenanceFilter, TimelineEntry, TimelineView } from "./types.js";
 
 const dispatcher = createDispatcher();
@@ -36,7 +46,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_validate_config",
     description:
-      "Validate configuration files and database integrity. Checks state.db and memory.db tables and data consistency.",
+      "Validate configuration files and database integrity. Checks state.db and memory.db for required tables, WAL journal mode, and non-empty table health.",
     inputSchema: {
       type: "object",
       properties: {
@@ -47,6 +57,70 @@ export const tools: Tool[] = [
         check_memory: {
           type: "boolean",
           description: "Check memory.db integrity (default: true)",
+        },
+      },
+    },
+  },
+  {
+    name: "dragonfly_analyze_workflows",
+    description:
+      "Compute performance benchmarks across all workflow history: cost by concept/model, p50/p90/p99 latency per concept, approval rates, failure rates, and rolling cost/duration/failure trends. Based on W3C PROV provenance tracking — reads the events table written by every concept execution. Use this to understand what your workflows cost, which concepts are slow or unreliable, and whether trends are improving.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        stories: {
+          type: "number",
+          description: "Number of most recent stories for trend analysis (default: 10)",
+        },
+        concept: {
+          type: "string",
+          description: "Filter analysis to a specific concept (e.g., 'architecture', 'implementation')",
+        },
+        from: { type: "string", description: "Start date filter (ISO 8601)" },
+        to: { type: "string", description: "End date filter (ISO 8601)" },
+      },
+    },
+  },
+  {
+    name: "dragonfly_learn_patterns",
+    description:
+      "Extract recurring workflow patterns from execution history and optionally generate skill templates for high-confidence patterns. High confidence = ≥10 occurrences with ≥80% success rate. Patterns with ≥5 occurrences and ≥60% success are medium confidence. Generated skills capture observed timing, cost, and model usage — making the system self-documenting. Set save:true to write skill files directly to the .claude/skills/ directory.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        min_occurrences: {
+          type: "number",
+          description: "Minimum executions to include a pattern (default: 5)",
+        },
+        min_success_rate: {
+          type: "number",
+          description: "Minimum success rate 0.0–1.0 (default: 0.6)",
+        },
+        save: {
+          type: "boolean",
+          description: "If true, write generated skill files to .claude/skills/ (default: false)",
+        },
+        skills_dir: {
+          type: "string",
+          description: "Override path for skills directory (default: .claude/skills/ relative to project root)",
+        },
+      },
+    },
+  },
+  {
+    name: "dragonfly_check_drift",
+    description:
+      "Compare installed .claude/ files against plugin templates to detect configuration drift. Identifies: missing (templates not yet installed), modified (installed files that differ from template source), and extra (files in .claude/ with no template origin). Run after plugin updates to know exactly what changed and what needs reinstalling.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        templates_dir: {
+          type: "string",
+          description: "Override templates directory path (default: plugin's templates/ directory)",
+        },
+        claude_dir: {
+          type: "string",
+          description: "Override installed .claude/ directory path (default: .claude/ in project root)",
         },
       },
     },
@@ -128,6 +202,125 @@ dispatcher
           ...(checkMemory ? ["memory.db"] : []),
         ],
       });
+    }),
+  )
+  .registerQuick(
+    "dragonfly_analyze_workflows",
+    requireAnalytics(async (args) => {
+      try {
+        const store = getStore();
+        const filter = buildFilter(args);
+        const actions = store.loadProvenance(filter);
+
+        if (actions.length === 0) {
+          return successResponse({ message: "No workflow history found. Run some workflows first.", filter });
+        }
+
+        const stories = a.number(args, "stories", 10);
+        const benchmarks = computeBenchmarks(actions, { stories });
+        return successResponse(benchmarks);
+      } catch (err) {
+        return errorResponse(`Failed to analyze workflows: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }),
+  )
+  .registerQuick(
+    "dragonfly_learn_patterns",
+    requireAnalytics(async (args) => {
+      try {
+        const store = getStore();
+        const actions = store.loadProvenance({});
+        const minOccurrences = a.number(args, "min_occurrences", 5);
+        const minSuccessRate = a.number(args, "min_success_rate", 0.6);
+        const save = a.boolean(args, "save", false);
+
+        const allPatterns = extractPatterns(actions);
+        const filtered = allPatterns.filter(
+          (p) => p.occurrences >= minOccurrences && p.success_rate >= minSuccessRate,
+        );
+
+        const generatedSkills: Array<{ name: string; content: string; saved: boolean; path?: string }> = [];
+
+        for (const pattern of filtered) {
+          const skill = generateSkill(pattern);
+          const entry: { name: string; content: string; saved: boolean; path?: string } = {
+            name: skill.name,
+            content: skill.content,
+            saved: false,
+          };
+
+          if (save) {
+            try {
+              const skillsDir = a.stringOptional(args, "skills_dir")
+                ?? join(process.cwd(), ".claude", "skills");
+              mkdirSync(skillsDir, { recursive: true });
+              const filePath = join(skillsDir, `${skill.name}.md`);
+              const frontmatter = [
+                "---",
+                `name: ${skill.name}`,
+                `description: "${skill.description}"`,
+                `applies_to: []`,
+                `trigger_keywords: [${pattern.concept}, ${pattern.action}]`,
+                "---",
+                "",
+              ].join("\n");
+              writeFileSync(filePath, frontmatter + skill.content, "utf-8");
+              entry.saved = true;
+              entry.path = filePath;
+            } catch (writeErr) {
+              // Non-fatal — include skill in output even if save fails
+            }
+          }
+
+          generatedSkills.push(entry);
+        }
+
+        return successResponse({
+          total_patterns: allPatterns.length,
+          filtered_patterns: filtered.length,
+          patterns: filtered,
+          generated_skills: generatedSkills,
+        });
+      } catch (err) {
+        return errorResponse(`Failed to learn patterns: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }),
+  )
+  .registerQuick(
+    "dragonfly_check_drift",
+    requireAnalytics(async (args) => {
+      try {
+        const cfg = config();
+
+        // Templates dir: plugin's templates/ directory
+        const defaultTemplatesDir = resolve(
+          new URL(import.meta.url).pathname,
+          "../../../../templates",
+        );
+        const templatesDir = a.stringOptional(args, "templates_dir") ?? defaultTemplatesDir;
+
+        // Installed dir: .claude/ in project root
+        const claudeDir = a.stringOptional(args, "claude_dir")
+          ?? join(cfg.frameworkContentRoot || process.cwd(), "..", ".claude");
+
+        if (!existsSync(templatesDir)) {
+          return errorResponse(`Templates directory not found: ${templatesDir}`);
+        }
+
+        const report = compareDirectories(templatesDir, claudeDir);
+
+        return successResponse({
+          clean: report.modified.length === 0 && report.missing.length === 0,
+          missing: report.missing.map((d) => ({ path: d.relativePath, category: d.category })),
+          modified: report.modified.map((d) => ({ path: d.relativePath, category: d.category })),
+          extra: report.added.map((d) => ({ path: d.relativePath, category: d.category })),
+          scanned_at: report.scanned_at,
+          templates_dir: templatesDir,
+          claude_dir: claudeDir,
+        });
+      } catch (err) {
+        return errorResponse(`Failed to check drift: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }),
   );
 

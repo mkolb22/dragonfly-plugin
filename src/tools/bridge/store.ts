@@ -251,13 +251,17 @@ export class BridgeStore {
 
   /**
    * Export local memories to global store.
+   * @param minConfidence - Only export memories at or above this confidence level ("low"|"medium"|"high")
    */
-  exportMemories(memoryDbPath: string, projectName: string): { exported: number; skipped: number; categories: string[] } {
+  exportMemories(memoryDbPath: string, projectName: string, minConfidence?: string): { exported: number; skipped: number; categories: string[] } {
     this.ensureGlobalDir();
     const local = this.loadLocalMemories(memoryDbPath);
     let exported = 0;
     let skipped = 0;
     const categories: string[] = [];
+
+    const confidenceOrder: Record<string, number> = { low: 0, medium: 1, high: 2 };
+    const minLevel = confidenceOrder[minConfidence ?? "low"] ?? 0;
 
     for (const [category, memories] of local) {
       const targetPath = join(this.globalDir, category, `${projectName}.yaml`);
@@ -265,7 +269,7 @@ export class BridgeStore {
       const existingIds = new Set(existing?.memories.map((m) => m.id) || []);
 
       const toExport = memories
-        .filter((m) => !existingIds.has(m.id))
+        .filter((m) => !existingIds.has(m.id) && (confidenceOrder[m.confidence] ?? 0) >= minLevel)
         .map((m) => ({ ...m, project: projectName }));
 
       skipped += memories.length - toExport.length;
