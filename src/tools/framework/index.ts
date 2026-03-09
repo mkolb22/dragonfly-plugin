@@ -27,16 +27,30 @@ import type {
 
 const dispatcher = createDispatcher();
 
-/** Enrich an agent prompt with task context and skill summaries. */
+/**
+ * Enrich an agent prompt with task context, pipeline position, and skill summaries.
+ *
+ * Pipeline context injection: if the calling workflow has a pipelineDsl, inject
+ * the full DSL and the current step so the agent understands its role in the
+ * larger sequence (WYSIWID — the agent sees the same intent as the planner).
+ */
 function enrichAgentPrompt(
   agentName: string,
   taskContext?: string,
+  pipelineContext?: { dsl: string; stepLabel: string },
 ): { enrichedPrompt: string | null; skills: Array<{ name: string; description?: string }> } {
   const loader = getContentLoader();
   const agent = loader.get("agent", agentName);
   if (!agent) return { enrichedPrompt: null, skills: [] };
 
   let body = agent.body;
+
+  // Inject pipeline context so agent understands its position in the workflow
+  if (pipelineContext) {
+    const pipelineSection = `## Workflow Pipeline\n\n\`${pipelineContext.dsl}\`\n\n**Current step**: ${pipelineContext.stepLabel}`;
+    body = `${pipelineSection}\n\n---\n\n${body}`;
+  }
+
   if (taskContext) {
     body = `## Task Context\n\n${taskContext}\n\n---\n\n${body}`;
   }
@@ -193,7 +207,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_plan_workflow",
     description:
-      "Analyze a task and recommend an optimal workflow with ordered steps, model assignments, and cost estimates. Classifies task type (feature/bugfix/refactor/docs) and complexity.",
+      "Analyze a task and recommend an optimal workflow using the Pipeline DSL (WYSIWID — Meng & Jackson, MIT CSAIL). Classifies task type (feature/bugfix/refactor/docs) and complexity, selects a declarative Pipeline DSL (e.g. 'story | parallel(architecture, security) | implementation | quality | version @slo:thorough'), validates it, and returns ordered steps with model assignments, cost estimates, and estimated duration. The pipelineDsl field in the response shows the readable intent behind the plan.",
     inputSchema: {
       type: "object",
       properties: {
@@ -212,7 +226,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_start_workflow",
     description:
-      "Start a tracked workflow session. Plans the workflow, creates an in-memory session, and returns the enriched first step with agent prompt and skills.",
+      "Start a tracked workflow session using WYSIWID Pipeline planning. Plans the workflow via Pipeline DSL, creates an in-memory session, and returns the enriched first step with agent prompt (including pipeline position context), skills, and the full pipeline DSL for transparency.",
     inputSchema: {
       type: "object",
       properties: {
@@ -499,14 +513,17 @@ dispatcher
       const manager = getSessionManager();
       const session = manager.startWorkflow(task, plan, context);
 
-      // Enrich the first step with agent prompt + skills
+      // Enrich the first step with agent prompt, pipeline position, and skills
       const currentStep = manager.getCurrentStep(session);
       let enrichedPrompt: string | null = null;
       let skills: Array<{ name: string; description?: string }> = [];
 
       if (currentStep) {
         const taskContext = `${task}${context ? `\n\n${context}` : ""}`;
-        ({ enrichedPrompt, skills } = enrichAgentPrompt(currentStep.agent, taskContext));
+        const pipelineCtx = plan.pipelineDsl
+          ? { dsl: plan.pipelineDsl, stepLabel: `${currentStep.concept} (step 1 of ${plan.steps.length})` }
+          : undefined;
+        ({ enrichedPrompt, skills } = enrichAgentPrompt(currentStep.agent, taskContext, pipelineCtx));
       }
 
       return successResponse({
@@ -517,6 +534,8 @@ dispatcher
           complexity: plan.complexity,
           totalSteps: plan.steps.length,
           reasoning: plan.reasoning,
+          pipelineDsl: plan.pipelineDsl,
+          estimatedDurationMs: plan.estimatedDurationMs,
         },
         firstStep: currentStep
           ? {
@@ -562,12 +581,16 @@ dispatcher
       const updatedSession = manager.getSession(workflowId)!;
       const summary = manager.getSummary(updatedSession);
 
-      // If there's a next step, enrich it
+      // If there's a next step, enrich it with pipeline position context
       let nextStep: AdvanceResult["nextStep"] = null;
       if (nextIndex >= 0) {
         const step = updatedSession.steps[nextIndex];
         const taskContext = `${updatedSession.task}${updatedSession.context ? `\n\n${updatedSession.context}` : ""}`;
-        const { enrichedPrompt, skills } = enrichAgentPrompt(step.agent, taskContext);
+        const pipelineDsl = updatedSession.plan.pipelineDsl;
+        const pipelineCtx = pipelineDsl
+          ? { dsl: pipelineDsl, stepLabel: `${step.concept} (step ${nextIndex + 1} of ${updatedSession.steps.length})` }
+          : undefined;
+        const { enrichedPrompt, skills } = enrichAgentPrompt(step.agent, taskContext, pipelineCtx);
 
         nextStep = {
           concept: step.concept,

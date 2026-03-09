@@ -11,6 +11,7 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { requireMemory } from "../../utils/guards.js";
 import { getSharedEmbedder } from "../../utils/embedder.js";
 import { MemoryStore } from "./store.js";
+import { KnowledgeStore } from "../knowledge/store.js";
 import { evolveMemory, autoLink } from "./evolution.js";
 import type {
   StoreInput,
@@ -24,6 +25,7 @@ import type {
 const dispatcher = createDispatcher();
 
 const getStore = createLazyLoader(() => new MemoryStore(config().memoryDbPath));
+const getKgStore = createLazyLoader(() => new KnowledgeStore(config().memoryDbPath));
 const getEmbedder = getSharedEmbedder;
 
 export const tools: Tool[] = [
@@ -93,7 +95,7 @@ export const tools: Tool[] = [
         },
         traverse_depth: {
           type: "number",
-          description: "Graph traversal depth (default: 0, max: 3)",
+          description: "Graph traversal depth (default: 1, max: 3). Depth 1 includes directly linked memories for richer context per HippoRAG research. Set to 0 for point queries only.",
         },
       },
       required: ["query"],
@@ -179,10 +181,25 @@ dispatcher
       config().memoryAutoLinkThreshold
     );
 
+    // Link to related KG entities if KG is enabled (non-fatal)
+    let kgLinksCreated = 0;
+    if (config().kgEnabled) {
+      try {
+        const related = getKgStore().searchSemantic(embedding, { limit: 3, threshold: 0.6 });
+        for (const result of related) {
+          getKgStore().linkEntityToMemory(result.entity.id, memoryId, "related_memory");
+          kgLinksCreated++;
+        }
+      } catch {
+        // KG linking is best-effort — never breaks memory storage
+      }
+    }
+
     return successResponse({
       id: memoryId,
       linksCreated,
-      message: `Memory stored with ${linksCreated} auto-links`,
+      kgLinksCreated,
+      message: `Memory stored with ${linksCreated} auto-links${kgLinksCreated > 0 ? ` and ${kgLinksCreated} KG entity links` : ""}`,
     });
   }))
   .registerQuick("memory_recall", requireMemory(async (args) => {
@@ -198,7 +215,7 @@ dispatcher
       threshold: a.number(args, "threshold", 0.4),
       type: a.stringOptional(args, "type") as MemoryType | undefined,
       category: a.stringOptional(args, "category"),
-      traverseDepth: Math.min(a.number(args, "traverse_depth", 0), 3),
+      traverseDepth: Math.min(a.number(args, "traverse_depth", 1), 3),
     });
 
     return successResponse({

@@ -7,13 +7,15 @@ import type { KnowledgeStore } from "./store.js";
 import type { QueryResult, QueryOptions } from "./types.js";
 
 /**
- * Default weights for signal fusion
+ * Default weights for signal fusion.
+ * Tuned for code intelligence: keyword and graph weighted higher than for NL documents.
+ * Override via DRAGONFLY_KG_*_WEIGHT environment variables.
  */
 export const DEFAULT_WEIGHTS = {
-  semantic: 0.4,
-  keyword: 0.3,
-  graph: 0.2,
-  community: 0.1,
+  semantic: 0.35,
+  keyword: 0.35,
+  graph: 0.25,
+  community: 0.05,
 };
 
 /**
@@ -163,8 +165,9 @@ export function hybridSearch(
     }
   }
 
-  // 3. Graph proximity scores
-  const semanticIds = semanticResults.slice(0, 5).map(r => r.entity.id);
+  // 3. Graph proximity scores — seed from top 8 semantic results for broader BFS
+  // coverage in dense code call graphs (vs 5 for NL entity graphs)
+  const semanticIds = semanticResults.slice(0, 8).map(r => r.entity.id);
   const graphScores = computeGraphScores(store, semanticIds);
 
   for (const [id, score] of graphScores) {

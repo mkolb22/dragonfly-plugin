@@ -79,6 +79,7 @@ export interface TraversalNode {
  */
 export interface QueryOptions {
   limit?: number;
+  threshold?: number;
   entityType?: EntityType;
   mode?: "semantic" | "keyword" | "hybrid";
   weights?: {

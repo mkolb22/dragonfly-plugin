@@ -176,11 +176,17 @@ export function getConfig(): DragonflyConfig {
     repairHistoryLimit: envInt("DRAGONFLY_REPAIR_HISTORY", 100),
 
     // Knowledge Graph
+    // Weights tuned for code intelligence per AST-derived KG RAG research (2026):
+    // - Keyword increased (exact symbol name matching critical for code)
+    // - Graph increased (structural proximity is the key differentiator for code)
+    // - Semantic slightly reduced (code relies more on exact names than semantic similarity)
+    // - Community reduced (validated for NL docs, unvalidated for code)
+    // All weights are overridable via environment variables.
     kgEnabled: envBool("DRAGONFLY_KG_ENABLED", true),
-    kgSemanticWeight: envFloat("DRAGONFLY_KG_SEMANTIC_WEIGHT", 0.4),
-    kgKeywordWeight: envFloat("DRAGONFLY_KG_KEYWORD_WEIGHT", 0.3),
-    kgGraphWeight: envFloat("DRAGONFLY_KG_GRAPH_WEIGHT", 0.2),
-    kgCommunityWeight: envFloat("DRAGONFLY_KG_COMMUNITY_WEIGHT", 0.1),
+    kgSemanticWeight: envFloat("DRAGONFLY_KG_SEMANTIC_WEIGHT", 0.35),
+    kgKeywordWeight: envFloat("DRAGONFLY_KG_KEYWORD_WEIGHT", 0.35),
+    kgGraphWeight: envFloat("DRAGONFLY_KG_GRAPH_WEIGHT", 0.25),
+    kgCommunityWeight: envFloat("DRAGONFLY_KG_COMMUNITY_WEIGHT", 0.05),
 
     // Analytics
     analyticsEnabled: envBool("DRAGONFLY_ANALYTICS_ENABLED", true),

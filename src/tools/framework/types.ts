@@ -126,6 +126,10 @@ export interface WorkflowPlan {
   skippedSteps: Array<{ concept: string; reason: string }>;
   totalEstimatedCost: number;
   reasoning: string;
+  /** Pipeline DSL string that generated this plan (WYSIWID — readable intent) */
+  pipelineDsl?: string;
+  /** Estimated wall-clock duration in milliseconds from Pipeline planner */
+  estimatedDurationMs?: number;
 }
 
 /**

@@ -303,8 +303,8 @@ export class KnowledgeStore extends BaseStore {
    * Priority: vec0 KNN index (O(log n)) → vec_distance_cosine O(n) → JS cosine O(n)
    */
   searchSemantic(queryEmbedding: number[], options: QueryOptions = {}): QueryResult[] {
-    const { limit = 20, entityType } = options;
-    const threshold = 0.3;
+    const { limit = 20, entityType, threshold: optThreshold } = options;
+    const threshold = optThreshold ?? 0.3;
     const queryBuf = float32ToBytes(new Float32Array(queryEmbedding));
     const overFetch = Math.min(limit * 4, 200);
 
@@ -684,6 +684,17 @@ export class KnowledgeStore extends BaseStore {
       byRelationType,
       avgRelationsPerEntity: totalEntities > 0 ? totalRelations / totalEntities : 0,
     };
+  }
+
+  /**
+   * Link a KG entity to a memory ID in kg_entity_memory_links.
+   * Idempotent — silently ignores duplicate (entity_id, memory_id) pairs.
+   */
+  linkEntityToMemory(entityId: string, memoryId: string, relationship: string = "related_memory"): void {
+    this.db.prepare(`
+      INSERT OR IGNORE INTO kg_entity_memory_links (entity_id, memory_id, relationship, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(entityId, memoryId, relationship, new Date().toISOString());
   }
 
   /**

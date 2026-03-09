@@ -1,12 +1,19 @@
 /**
  * Workflow Planner
- * Task classification, complexity estimation, and workflow step recommendations
+ * Task classification, complexity estimation, and workflow step recommendations.
+ *
+ * Uses the Pipeline module (WYSIWID — Meng & Jackson, MIT CSAIL, ACM Onward! '25)
+ * to compose, validate, and plan workflows from DSL strings. The switch-statement
+ * per task type is replaced by a declarative DSL lookup table — the DSL is the
+ * single source of truth for what each workflow does.
  */
 
 import type { WorkflowPlan, WorkflowStep } from "./types.js";
 import { getContentLoader } from "./content-loader.js";
 import { config } from "../../core/config.js";
 import { recallSimilarWorkflows } from "./workflow-intelligence.js";
+import { parsePipeline, validatePipeline } from "../pipeline/composer.js";
+import { generatePlan } from "../pipeline/planner.js";
 
 /**
  * Task types with classification keywords
@@ -67,6 +74,99 @@ const CONCEPTS: Record<string, ConceptDef> = {
   security: { agent: "security-concept", model: "sonnet", baseCost: 0.004 },
   spec: { agent: "spec-concept", model: "sonnet", baseCost: 0.005 },
 };
+
+/**
+ * Pipeline DSL templates — the declarative source of truth for each workflow shape.
+ * These strings are parsed by the Pipeline module (parsePipeline → validatePipeline
+ * → generatePlan), which produces execution-ready step sequences with duration and
+ * cost estimates. Edit here to change what any workflow does — no switch statements.
+ *
+ * DSL syntax: concept | concept | parallel(a, b) @slo:profile @errors:policy
+ */
+const DSL_TEMPLATES: Record<TaskType, Record<"small" | "medium" | "large", string>> = {
+  bugfix: {
+    small: "implementation | quality @slo:fast @errors:graceful",
+    medium: "implementation | quality | version @slo:standard",
+    large: "story | parallel(architecture, code-analysis) | implementation | quality | version @slo:standard",
+  },
+  docs: {
+    small: "documentation @slo:fast",
+    medium: "documentation @slo:standard",
+    large: "documentation @slo:standard",
+  },
+  refactor: {
+    small: "implementation | quality | version @slo:fast",
+    medium: "architecture | implementation | quality | version @slo:standard",
+    large: "story | architecture | implementation | quality | version @slo:thorough",
+  },
+  feature: {
+    small: "story | implementation | quality | version @slo:standard",
+    medium: "story | architecture | implementation | quality | version @slo:standard",
+    large: "story | parallel(architecture, security) | implementation | quality | version @slo:thorough",
+  },
+};
+
+/**
+ * Human-readable reasons for each step by task type.
+ * Used in WorkflowStep.reason for LLM-facing context.
+ */
+const STEP_REASONS: Record<TaskType, Partial<Record<string, string>>> = {
+  bugfix: {
+    story: "Capture bug report details and reproduction steps",
+    architecture: "Analyze root cause in system context",
+    "code-analysis": "Gather codebase context for root cause analysis",
+    implementation: "Implement the fix",
+    quality: "Verify fix with tests and review",
+    version: "Commit and tag the fix",
+  },
+  docs: {
+    documentation: "Generate or update documentation",
+  },
+  refactor: {
+    story: "Capture refactoring goals and constraints",
+    architecture: "Design target structure",
+    "code-analysis": "Analyze current code structure",
+    implementation: "Execute refactoring",
+    quality: "Verify behavior preserved",
+    version: "Commit refactored code",
+  },
+  feature: {
+    story: "Capture requirements and acceptance criteria",
+    architecture: "Design technical approach",
+    security: "Security review for large feature",
+    implementation: "Build the feature",
+    quality: "Review and test",
+    version: "Commit and version",
+  },
+};
+
+const DEFAULT_STEP_REASONS: Record<string, string> = {
+  story: "Capture requirements",
+  architecture: "Design technical approach",
+  implementation: "Build the solution",
+  quality: "Review and test",
+  version: "Commit and version",
+  security: "Security review",
+  "code-analysis": "Gather codebase context",
+  documentation: "Generate documentation",
+  context: "Manage context window",
+  verification: "Independent verification pass",
+  retrospective: "Analyze workflow",
+};
+
+function getStepReason(concept: string, taskType: TaskType): string {
+  return STEP_REASONS[taskType][concept] || DEFAULT_STEP_REASONS[concept] || `Execute ${concept}`;
+}
+
+function getSkipReason(concept: string, taskType: TaskType): string {
+  if (taskType === "docs") return `Documentation task — ${concept} not required`;
+  if (taskType === "bugfix" && concept === "story") return "Simple bugfix — requirements are clear";
+  if (taskType === "bugfix" && concept === "architecture") return "No architectural changes needed for bugfix";
+  if (taskType === "bugfix" && concept === "security") return "Standard bugfix — no security review needed";
+  if (taskType === "refactor" && concept === "story") return "Refactoring scope is clear";
+  if (taskType === "refactor" && concept === "security") return "Refactor — no new security surface";
+  return `Skipped for ${taskType} workflow efficiency`;
+}
 
 /**
  * Classify a task description into a task type
@@ -131,7 +231,12 @@ function buildStep(order: number, conceptName: string, reason: string): Workflow
 }
 
 /**
- * Plan a workflow for a given task
+ * Plan a workflow for a given task.
+ *
+ * Classifies the task, selects a Pipeline DSL string, then routes through
+ * parsePipeline → validatePipeline → generatePlan (Pipeline module) to produce
+ * a structured, validated execution sequence. The DSL is surfaced in the result
+ * as `pipelineDsl` — readable intent, no hidden switch statements.
  */
 export async function planWorkflow(task: string, context?: string): Promise<WorkflowPlan> {
   const taskType = classifyTask(task);
@@ -150,75 +255,44 @@ export async function planWorkflow(task: string, context?: string): Promise<Work
     } catch { /* graceful degradation */ }
   }
 
+  // Resolve Pipeline DSL for this task type + complexity
+  const dsl = DSL_TEMPLATES[taskType][complexity];
+
+  // Parse, validate, and plan through the Pipeline module
+  const pipeline = parsePipeline(dsl);
+  const validation = validatePipeline(pipeline);
+  const executionPlan = generatePlan(pipeline, validation);
+
+  // Map Pipeline execution steps to WorkflowSteps
   const steps: WorkflowStep[] = [];
-  const skippedSteps: Array<{ concept: string; reason: string }> = [];
+  const includedConcepts = new Set<string>();
   let stepOrder = 1;
 
-  // Build pipeline based on task type and complexity
-  switch (taskType) {
-    case "bugfix":
-      if (complexity === "large") {
-        steps.push(buildStep(stepOrder++, "story", "Capture bug report details and reproduction steps"));
-        steps.push(buildStep(stepOrder++, "architecture", "Analyze root cause in system context"));
-      } else {
-        skippedSteps.push({ concept: "story", reason: "Simple bugfix - requirements are clear" });
-        skippedSteps.push({ concept: "architecture", reason: "No architectural changes needed for bugfix" });
-      }
-      steps.push(buildStep(stepOrder++, "implementation", "Implement the fix"));
-      steps.push(buildStep(stepOrder++, "quality", "Verify fix with tests and review"));
-      if (complexity !== "small") {
-        steps.push(buildStep(stepOrder++, "version", "Commit and tag the fix"));
-      } else {
-        skippedSteps.push({ concept: "version", reason: "Small fix - manual commit sufficient" });
-      }
-      break;
-
-    case "docs":
-      steps.push(buildStep(stepOrder++, "documentation", "Generate or update documentation"));
-      skippedSteps.push({ concept: "story", reason: "Documentation task - no story needed" });
-      skippedSteps.push({ concept: "architecture", reason: "Documentation task - no design needed" });
-      skippedSteps.push({ concept: "implementation", reason: "Documentation task - no code changes" });
-      skippedSteps.push({ concept: "quality", reason: "Documentation task - review inline" });
-      break;
-
-    case "refactor":
-      if (complexity === "large") {
-        steps.push(buildStep(stepOrder++, "story", "Capture refactoring goals and constraints"));
-        steps.push(buildStep(stepOrder++, "architecture", "Design target structure"));
-      } else {
-        skippedSteps.push({ concept: "story", reason: "Refactoring scope is clear" });
-        if (complexity === "small") {
-          skippedSteps.push({ concept: "architecture", reason: "Small refactor - no redesign needed" });
-        } else {
-          steps.push(buildStep(stepOrder++, "architecture", "Plan refactoring approach"));
-        }
-      }
-      steps.push(buildStep(stepOrder++, "implementation", "Execute refactoring"));
-      steps.push(buildStep(stepOrder++, "quality", "Verify behavior preserved"));
-      steps.push(buildStep(stepOrder++, "version", "Commit refactored code"));
-      break;
-
-    case "feature":
-    default:
-      steps.push(buildStep(stepOrder++, "story", "Capture requirements and acceptance criteria"));
-      if (complexity !== "small") {
-        steps.push(buildStep(stepOrder++, "architecture", "Design technical approach"));
-      } else {
-        skippedSteps.push({ concept: "architecture", reason: "Small feature - straightforward implementation" });
-      }
-      steps.push(buildStep(stepOrder++, "implementation", "Build the feature"));
-      steps.push(buildStep(stepOrder++, "quality", "Review and test"));
-      if (complexity === "large") {
-        steps.push(buildStep(stepOrder++, "security", "Security review for large feature"));
-      }
-      steps.push(buildStep(stepOrder++, "version", "Commit and version"));
-      break;
+  for (const pipelineStep of pipeline.steps) {
+    for (const ref of pipelineStep.conceptRefs) {
+      const reason = pipelineStep.type === "parallel"
+        ? `Parallel with ${pipelineStep.conceptRefs.filter(r => r.concept !== ref.concept).map(r => r.concept).join(", ")} — ${getStepReason(ref.concept, taskType)}`
+        : getStepReason(ref.concept, taskType);
+      steps.push(buildStep(stepOrder++, ref.concept, reason));
+      includedConcepts.add(ref.concept);
+    }
   }
+
+  // Compute skipped steps = concepts not in this pipeline
+  const skippedSteps = Object.keys(CONCEPTS)
+    .filter((c) => !includedConcepts.has(c))
+    .map((c) => ({ concept: c, reason: getSkipReason(c, taskType) }));
 
   const totalEstimatedCost = steps.reduce((sum, s) => sum + s.estimatedCost, 0);
 
+  const validationNote = validation.warnings.length > 0
+    ? ` Warnings: ${validation.warnings.join("; ")}.`
+    : "";
+
   const reasoning = [
     `Classified as "${taskType}" task with ${complexity} complexity.`,
+    `Pipeline: ${dsl}.`,
+    validationNote,
     steps.length > 0
       ? `Recommending ${steps.length}-step workflow.`
       : "No steps recommended.",
@@ -238,5 +312,7 @@ export async function planWorkflow(task: string, context?: string): Promise<Work
     skippedSteps,
     totalEstimatedCost: Math.round(totalEstimatedCost * 1000) / 1000,
     reasoning,
+    pipelineDsl: dsl,
+    estimatedDurationMs: executionPlan.estimated_duration_ms,
   };
 }
