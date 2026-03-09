@@ -209,13 +209,24 @@ export class BridgeStore {
 
   /**
    * Load all global memories from YAML files.
+   * Scans all subdirectories (not just the hardcoded CATEGORIES list).
    */
   loadGlobalMemories(): Map<string, BridgeMemory[]> {
     const result = new Map<string, BridgeMemory[]>();
 
-    for (const cat of CATEGORIES) {
+    if (!existsSync(this.globalDir)) return result;
+
+    let subdirs: string[];
+    try {
+      subdirs = readdirSync(this.globalDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name);
+    } catch {
+      return result;
+    }
+
+    for (const cat of subdirs) {
       const catDir = join(this.globalDir, cat);
-      if (!existsSync(catDir)) continue;
 
       let entries: string[];
       try {

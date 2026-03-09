@@ -17,7 +17,7 @@ const getStore = createLazyLoader(() => new BridgeStore(config().bridgeGlobalMem
 export const tools: Tool[] = [
   {
     name: "dragonfly_bridge_export",
-    description: "Export project memories to the global memory store (~/.zen/global-memory/). Deduplicates by memory ID.",
+    description: "Export project memories to the global memory store (~/.dragonfly/global-memory/). Deduplicates by memory ID.",
     inputSchema: {
       type: "object",
       properties: {
