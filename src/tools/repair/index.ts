@@ -18,6 +18,7 @@ import {
   hashCode,
   REPAIR_STRATEGIES,
 } from "./repairer.js";
+import { captureEvolveTestCase } from "./memory-capture.js";
 
 const getStore = createLazyLoader(() => new RepairStore(config().stateDbPath));
 
@@ -234,6 +235,18 @@ dispatcher
           }
         }
 
+        // If we succeeded after prior failures, capture the fix as a resolved evolve test case
+        if (i > 0 && iterations[0].repairSuggestion) {
+          captureEvolveTestCase({
+            input: `${language} execution error:\n${iterations[0].result.stderr.slice(0, 600)}`,
+            expected: iterations[0].repairSuggestion.slice(0, 1000),
+            language,
+            errorType: "execution_error",
+            conceptHint: "implementation",
+            resolved: true,
+          }).catch(() => {});
+        }
+
         finalResult = result;
         break;
       }
@@ -321,6 +334,16 @@ dispatcher
     );
 
     const pastRepairs = getStore().findSimilarRepairs(errorInfo.errorType, 5);
+
+    // Capture diagnosis as a potential evolve test case (resolved:false — fix not yet confirmed)
+    captureEvolveTestCase({
+      input: `${language} error in code:\n${code.slice(0, 600)}\nError: ${error.slice(0, 400)}`,
+      expected: suggestion.slice(0, 1000),
+      language,
+      errorType: errorInfo.errorType,
+      conceptHint: "implementation",
+      resolved: false,
+    }).catch(() => {});
 
     return successResponse({
       diagnosis: {
@@ -450,6 +473,16 @@ ${targetFiles.length > 0 ? `### Files to Check\n${targetFiles.map((f) => `- ${f}
 `;
 
         repairSuggestions.push(suggestion);
+
+        // Capture test failure + repair approach as an evolve test case for the quality concept
+        captureEvolveTestCase({
+          input: `Test failures (${testResult.testsFailed} failed):\n${testResult.result.stderr.slice(0, 600)}`,
+          expected: suggestion.slice(0, 1000),
+          language: "test",
+          errorType: "test_failure",
+          conceptHint: "quality",
+          resolved: testResult.testsFailed === 0,
+        }).catch(() => {});
       }
 
       attempts.push({

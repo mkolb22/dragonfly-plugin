@@ -534,6 +534,18 @@ export class MemoryStore extends BaseStore {
   /**
    * Convert database row to Memory object
    */
+  /**
+   * List memories by category without requiring an embedding (direct SQL filter).
+   * Used by evolve_start to load accumulated repair test cases.
+   */
+  listByCategory(category: string, limit = 20): Memory[] {
+    const rows = this.query<Record<string, unknown>>(
+      `SELECT * FROM memories WHERE category = ? AND archived = 0 ORDER BY created_at DESC LIMIT ?`,
+      [category, limit],
+    );
+    return rows.map((r) => this.rowToMemory(r));
+  }
+
   private rowToMemory(row: Record<string, unknown>): Memory {
     return {
       id: row.id as string,

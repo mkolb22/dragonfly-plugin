@@ -13,6 +13,7 @@ import { createLazyLoader } from "../../utils/lazy.js";
 import { requireEvolve } from "../../utils/guards.js";
 import { config } from "../../core/config.js";
 import { EvolveStore } from "./store.js";
+import { MemoryStore } from "../memory/store.js";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import {
@@ -84,6 +85,10 @@ export const tools: Tool[] = [
         mutation_rate: {
           type: "number",
           description: "Mutation rate 0-1 (default: 0.7)",
+        },
+        use_memory_test_cases: {
+          type: "boolean",
+          description: "Append accumulated repair events from memory (category: evolve-test-case) to the provided test_cases. Set true to use real project failures as evolution training data (default: false).",
         },
       },
       required: ["concept_name", "initial_prompt", "test_cases"],
@@ -174,13 +179,34 @@ dispatcher
       const populationSize = a.number(args, "population_size", 5);
       const maxGenerations = a.number(args, "max_generations", 10);
       const mutationRate = a.number(args, "mutation_rate", 0.7);
+      const useMemoryTestCases = a.boolean(args, "use_memory_test_cases", false);
 
       if (!conceptName) return errorResponse("concept_name is required");
       if (!initialPrompt) return errorResponse("initial_prompt is required");
       if (!testCases.length) return errorResponse("test_cases must contain at least one test case");
 
+      // Augment with accumulated repair events from memory (real project failures = best test cases)
+      const cfg = config();
+      let memoryTestCasesFound = 0;
+      const allTestCases: TestCase[] = [...testCases];
+      if (useMemoryTestCases && cfg.memoryEnabled) {
+        try {
+          const memStore = new MemoryStore(cfg.memoryDbPath);
+          const memories = memStore.listByCategory("evolve-test-case", 20);
+          for (const m of memories) {
+            try {
+              const data = JSON.parse(m.content) as { input?: string; expected?: string };
+              if (data.input && data.expected) {
+                allTestCases.push({ input: data.input.slice(0, 400), expected: data.expected.slice(0, 400) });
+                memoryTestCasesFound++;
+              }
+            } catch { /* skip malformed */ }
+          }
+        } catch { /* graceful degradation */ }
+      }
+
       const store = getStore();
-      const session = store.createSession(conceptName, initialPrompt, testCases, {
+      const session = store.createSession(conceptName, initialPrompt, allTestCases, {
         populationSize,
         maxGenerations,
         mutationRate,
@@ -190,8 +216,8 @@ dispatcher
         `Generate ${populationSize} variant prompts for "${conceptName}".`,
         `Start from this initial prompt: "${initialPrompt.slice(0, 200)}${initialPrompt.length > 200 ? "..." : ""}"`,
         ``,
-        `Evaluate each variant against these test cases:`,
-        ...testCases.map((tc, i) => `  ${i + 1}. Input: "${tc.input}" → Expected: "${tc.expected}"`),
+        `Evaluate each variant against these ${allTestCases.length} test case(s):`,
+        ...allTestCases.map((tc, i) => `  ${i + 1}. Input: "${tc.input.slice(0, 120)}" → Expected: "${tc.expected.slice(0, 120)}"`),
         ``,
         `For each variant, assign a fitness_score from 0.0 to 1.0 based on how well it meets the expected outputs.`,
         `Then call evolve_submit with the session_id and scored variants.`,
@@ -200,6 +226,8 @@ dispatcher
       return successResponse({
         session_id: session.id,
         generation: 0,
+        test_cases_total: allTestCases.length,
+        ...(memoryTestCasesFound > 0 ? { memory_test_cases_loaded: memoryTestCasesFound } : {}),
         instructions,
       });
     }),
