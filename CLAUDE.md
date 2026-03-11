@@ -1,6 +1,6 @@
 # Dragonfly Plugin
 
-Sonnet-optimized MCP plugin: 66 tools across 13 modules. Fully standalone — no `.zen/` submodule.
+Opus-powered MCP plugin: 66 tools across 13 modules. Fully standalone — no `.zen/` submodule.
 
 ## Quick Reference
 

@@ -1,6 +1,6 @@
 # Dragonfly
 
-Sonnet-optimized MCP plugin for Claude Code: 74 tools across 13 modules covering code intelligence, semantic search, persistent memory, and workflow orchestration.
+Opus-powered MCP plugin for Claude Code: 74 tools across 13 modules covering code intelligence, semantic search, persistent memory, and workflow orchestration.
 
 ## Installation
 

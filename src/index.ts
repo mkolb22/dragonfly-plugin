@@ -2,7 +2,7 @@
 
 /**
  * Dragonfly MCP Plugin
- * Sonnet-optimized server providing code intelligence, semantic search, memory, and workflow orchestration
+ * Opus-powered server providing code intelligence, semantic search, memory, and workflow orchestration
  *
  * Modules (66 tools total):
  * - AST (7 tools) - Code intelligence through AST analysis

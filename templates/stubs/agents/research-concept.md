@@ -2,7 +2,7 @@
 name: research-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: purple
 description: Research Concept - Gathers academic papers, documentation, and evidence before architecture decisions
 

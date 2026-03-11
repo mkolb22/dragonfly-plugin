@@ -2,7 +2,7 @@
 name: compete-treatment
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: green
 description: Competitive Treatment Arm - Generates code from spec WITH full zen MCP tools for maximum quality
 

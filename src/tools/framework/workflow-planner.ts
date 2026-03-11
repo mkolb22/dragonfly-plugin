@@ -65,15 +65,15 @@ interface ConceptDef {
 }
 
 const CONCEPTS: Record<string, ConceptDef> = {
-  story: { agent: "story-concept", model: "sonnet", baseCost: 0.003 },
+  story: { agent: "story-concept", model: "opus", baseCost: 0.003 },
   architecture: { agent: "architecture-concept", model: "opus", baseCost: 0.015 },
-  implementation: { agent: "implementation-concept", model: "sonnet", baseCost: 0.008 },
-  quality: { agent: "quality-concept", model: "sonnet", baseCost: 0.005 },
-  documentation: { agent: "documentation-concept", model: "sonnet", baseCost: 0.003 },
-  version: { agent: "version-concept", model: "sonnet", baseCost: 0.002 },
-  security: { agent: "security-concept", model: "sonnet", baseCost: 0.004 },
-  spec: { agent: "spec-concept", model: "sonnet", baseCost: 0.005 },
-  repair: { agent: "repair-concept", model: "sonnet", baseCost: 0.004 },
+  implementation: { agent: "implementation-concept", model: "opus", baseCost: 0.008 },
+  quality: { agent: "quality-concept", model: "opus", baseCost: 0.005 },
+  documentation: { agent: "documentation-concept", model: "opus", baseCost: 0.003 },
+  version: { agent: "version-concept", model: "opus", baseCost: 0.002 },
+  security: { agent: "security-concept", model: "opus", baseCost: 0.004 },
+  spec: { agent: "spec-concept", model: "opus", baseCost: 0.005 },
+  repair: { agent: "repair-concept", model: "opus", baseCost: 0.004 },
 };
 
 /**
@@ -212,7 +212,7 @@ function buildStep(order: number, conceptName: string, reason: string): Workflow
       order,
       concept: conceptName,
       agent: `${conceptName}-concept`,
-      model: "sonnet",
+      model: "opus",
       skills: [],
       estimatedCost: 0.005,
       reason,

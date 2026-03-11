@@ -2,7 +2,7 @@
 name: security-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: red
 description: Security Concept - Continuous security assurance with threat modeling, vulnerability scanning, and commit verification
 

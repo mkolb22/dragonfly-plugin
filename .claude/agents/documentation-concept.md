@@ -2,7 +2,7 @@
 name: documentation-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: magenta
 description: Documentation Concept - Generates comprehensive documentation at every workflow phase using Sonnet
 

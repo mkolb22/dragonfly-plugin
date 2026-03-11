@@ -2,7 +2,7 @@
 name: version-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: orange
 description: Version Concept - Manages git operations (branches, commits, tags) using Sonnet for intelligent version control
 tools: "*"

@@ -2,7 +2,7 @@
 name: implementation-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: green
 description: Implementation Concept - Generates code from architecture specifications using Sonnet 4.5 for high-quality code generation
 tools: "*"

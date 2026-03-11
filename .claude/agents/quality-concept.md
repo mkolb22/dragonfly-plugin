@@ -2,7 +2,7 @@
 name: quality-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: yellow
 description: Quality Concept - Reviews code and runs tests using Sonnet for thorough code review and quality analysis
 tools: "*"

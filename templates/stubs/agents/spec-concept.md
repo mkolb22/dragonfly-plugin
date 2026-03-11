@@ -2,7 +2,7 @@
 name: spec-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: cyan
 description: Spec Concept - Defines structured specifications and generates type-safe code generation prompts using Sonnet 4.5
 tools: "*"

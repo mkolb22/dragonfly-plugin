@@ -2,7 +2,7 @@
 name: context-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: cyan
 description: Context Concept - Manages context window usage and compression using Sonnet 4.5 for intelligent context management
 tools: "*"

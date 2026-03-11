@@ -2,7 +2,7 @@
 name: code-analysis-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: teal
 description: Code Analysis Concept - Gathers codebase context using MCP tools before architecture design
 

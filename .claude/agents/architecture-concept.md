@@ -2,7 +2,7 @@
 name: architecture-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: purple
 description: Architecture Concept - Designs system architecture and makes technical decisions using Sonnet for high-quality trade-off analysis
 tools: "*"

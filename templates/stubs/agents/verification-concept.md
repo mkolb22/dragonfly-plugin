@@ -2,7 +2,7 @@
 name: verification-concept
 type: workflow
 execution: task-tool
-model: sonnet
+model: opus
 color: indigo
 description: Verification Concept - Multi-pass verification of architecture and implementation for 39.7% accuracy improvement
 
