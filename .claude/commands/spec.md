@@ -48,10 +48,10 @@ d) **Define properties**: Invariants that should hold for all inputs
 
 ### 3. Save the specification
 
-Call `zen_spec_save` with the assembled SpecData:
+Call `dragonfly_spec_save` with the assembled SpecData:
 
 ```
-zen_spec_save({
+dragonfly_spec_save({
   name: "string-utils",
   data: {
     name: "string-utils",
@@ -89,10 +89,10 @@ Show the user a summary of the saved spec.
 
 ### 4. Generate code prompt
 
-Call `zen_spec_generate` with the spec ID:
+Call `dragonfly_spec_generate` with the spec ID:
 
 ```
-zen_spec_generate({ id: "<spec-id>" })
+dragonfly_spec_generate({ id: "<spec-id>" })
 ```
 
 The returned `prompt` field contains a structured code generation prompt with:
@@ -109,14 +109,14 @@ Use this prompt to generate the actual code. After generating:
 
 ### 5. List specs
 
-Call `zen_spec_list` with optional filters:
+Call `dragonfly_spec_list` with optional filters:
 - `status`: draft, ready, generating, generated, verified
 - `target_language`: go, swift, rust, typescript, python
 - `limit`: max results (default 20)
 
 ### 6. Get a spec
 
-Call `zen_spec_get` with:
+Call `dragonfly_spec_get` with:
 - `id`: specific spec ID
 - `name`: latest spec with that name
 - `latest: true`: most recent spec
@@ -125,7 +125,7 @@ Display the full spec with types, functions, properties, and status.
 
 ### 7. Export specs
 
-Call `zen_spec_export` with:
+Call `dragonfly_spec_export` with:
 - `id`: export a single spec by ID
 - `name`: export a single spec by name
 - `all: true`: export all specs
@@ -135,7 +135,7 @@ The exported file uses a portable JSON format (array of specs) that strips inter
 
 ### 8. Import specs
 
-Call `zen_spec_import` with:
+Call `dragonfly_spec_import` with:
 - `file_path`: path to the `.zenspec.json` file
 - `overwrite`: set to `true` to replace existing specs with the same name (default: skip)
 

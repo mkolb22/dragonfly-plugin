@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: cyan
-description: Spec Concept - Defines structured specifications and generates type-safe code generation prompts using Sonnet 4.5
+description: Spec Concept - Defines structured specifications and generates type-safe code generation prompts using Opus 4.5
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -31,5 +31,5 @@ skills:
   - output-caching
 ---
 
-Call zen_get_agent_prompt with agent="spec-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="spec-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

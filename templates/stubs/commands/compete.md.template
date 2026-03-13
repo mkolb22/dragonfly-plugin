@@ -1,2 +1,2 @@
-Run a competitive evaluation comparing Zen-assisted vs vanilla Claude Code. Call zen_get_workflow with command="compete" and args="${ARGUMENTS}".
+Run a competitive evaluation comparing Dragonfly-assisted vs vanilla Claude Code. Call dragonfly_get_workflow with command="compete" and args="${ARGUMENTS}".
 Follow the returned instructions exactly.

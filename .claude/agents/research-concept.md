@@ -162,7 +162,7 @@ For implementation:
 
 ---
 
-**Model Assignment**: Sonnet
+**Model Assignment**: Opus
 **Cost Tier**: Medium (~$0.02-0.06)
 **Purpose**: Evidence-based decision support
 **Integration**: Triggers after story, before architecture (for non-trivial)

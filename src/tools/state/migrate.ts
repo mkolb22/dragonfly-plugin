@@ -1,6 +1,6 @@
 /**
  * YAML→SQLite migrator.
- * Reads legacy YAML state files from koan/ and inserts into state.db.
+ * Reads legacy YAML state files from data/ and inserts into state.db.
  * Also supports exporting state.db back to YAML for debugging.
  */
 
@@ -67,9 +67,9 @@ function listYamlFiles(dir: string, pattern?: string): string[] {
 
 // ─── Migration ───────────────────────────────────────────────
 
-function migrateHealth(db: Database.Database, koanDir: string): MigrateResult["health"] {
+function migrateHealth(db: Database.Database, legacyDir: string): MigrateResult["health"] {
   const result = { migrated: 0, skipped: 0, errors: [] as string[] };
-  const healthPath = path.join(koanDir, "health", "status.yaml");
+  const healthPath = path.join(legacyDir, "health", "status.yaml");
 
   if (!fs.existsSync(healthPath)) return result;
 
@@ -95,9 +95,9 @@ function migrateHealth(db: Database.Database, koanDir: string): MigrateResult["h
   return result;
 }
 
-function migrateEvents(db: Database.Database, koanDir: string): MigrateResult["events"] {
+function migrateEvents(db: Database.Database, legacyDir: string): MigrateResult["events"] {
   const result = { migrated: 0, skipped: 0, errors: [] as string[] };
-  const eventsDir = path.join(koanDir, "events", "processed");
+  const eventsDir = path.join(legacyDir, "events", "processed");
   const files = listYamlFiles(eventsDir);
 
   if (files.length === 0) return result;
@@ -136,9 +136,9 @@ function migrateEvents(db: Database.Database, koanDir: string): MigrateResult["e
   return result;
 }
 
-function migrateCheckpoints(db: Database.Database, koanDir: string): MigrateResult["checkpoints"] {
+function migrateCheckpoints(db: Database.Database, legacyDir: string): MigrateResult["checkpoints"] {
   const result = { migrated: 0, skipped: 0, errors: [] as string[] };
-  const checkpointsDir = path.join(koanDir, "session-state");
+  const checkpointsDir = path.join(legacyDir, "session-state");
   const files = listYamlFiles(checkpointsDir, "^checkpoint-");
 
   if (files.length === 0) return result;
@@ -192,22 +192,22 @@ function inferCheckpointType(filename: string): string {
   return "manual";
 }
 
-function archiveFiles(koanDir: string, dryRun: boolean): string[] {
+function archiveFiles(legacyDir: string, dryRun: boolean): string[] {
   const archived: string[] = [];
-  const archiveDir = path.join(koanDir, ".archive");
+  const archiveDir = path.join(legacyDir, ".archive");
 
   const toArchive: Array<{ src: string; dest: string }> = [];
 
-  const healthPath = path.join(koanDir, "health", "status.yaml");
+  const healthPath = path.join(legacyDir, "health", "status.yaml");
   if (fs.existsSync(healthPath)) {
     toArchive.push({ src: healthPath, dest: "health/status.yaml" });
   }
 
-  for (const f of listYamlFiles(path.join(koanDir, "events", "processed"))) {
+  for (const f of listYamlFiles(path.join(legacyDir, "events", "processed"))) {
     toArchive.push({ src: f, dest: `events/processed/${path.basename(f)}` });
   }
 
-  for (const f of listYamlFiles(path.join(koanDir, "session-state"), "^checkpoint-")) {
+  for (const f of listYamlFiles(path.join(legacyDir, "session-state"), "^checkpoint-")) {
     toArchive.push({ src: f, dest: `session-state/${path.basename(f)}` });
   }
 
@@ -226,7 +226,7 @@ function archiveFiles(koanDir: string, dryRun: boolean): string[] {
 /**
  * Run full YAML→SQLite migration.
  */
-export function migrate(dbPath: string, koanDir: string, options: {
+export function migrate(dbPath: string, legacyDir: string, options: {
   dryRun?: boolean;
   noArchive?: boolean;
 } = {}): MigrateResult {
@@ -235,15 +235,15 @@ export function migrate(dbPath: string, koanDir: string, options: {
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
 
-  const health = migrateHealth(db, koanDir);
-  const events = migrateEvents(db, koanDir);
-  const checkpoints = migrateCheckpoints(db, koanDir);
+  const health = migrateHealth(db, legacyDir);
+  const events = migrateEvents(db, legacyDir);
+  const checkpoints = migrateCheckpoints(db, legacyDir);
 
   let archived: string[] = [];
   if (!options.dryRun && !options.noArchive) {
-    archived = archiveFiles(koanDir, false);
+    archived = archiveFiles(legacyDir, false);
   } else if (options.dryRun) {
-    archived = archiveFiles(koanDir, true);
+    archived = archiveFiles(legacyDir, true);
   }
 
   db.close();

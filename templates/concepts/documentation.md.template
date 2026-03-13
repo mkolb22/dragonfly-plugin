@@ -13,7 +13,7 @@ Ensure that every feature is fully documented from requirements through implemen
 Generates user-facing requirements documentation from a story.
 
 **Triggers**: After story.create completes
-**Model**: Sonnet
+**Model**: Opus
 
 **Inputs**:
 - `story_id`: Reference to the story
@@ -21,7 +21,7 @@ Generates user-facing requirements documentation from a story.
 - `story.description`: Full description
 - `story.acceptance_criteria`: List of acceptance criteria
 
-**Outputs** (`koan/documentation/req-{story_id}.yaml`):
+**Outputs** (`data/documentation/req-{story_id}.yaml`):
 ```yaml
 doc_id: "req-story-001"
 type: "requirements"
@@ -57,7 +57,7 @@ documents:
 
 metadata:
   generated_at: "{timestamp}"
-  model: "sonnet"
+  model: "opus"
   cost: 0.0003
 ```
 
@@ -66,7 +66,7 @@ metadata:
 Generates Architecture Decision Records (ADRs) and technical documentation.
 
 **Triggers**: After architecture.design completes
-**Model**: Sonnet
+**Model**: Opus
 
 **Inputs**:
 - `arch_id`: Reference to the architecture
@@ -75,7 +75,7 @@ Generates Architecture Decision Records (ADRs) and technical documentation.
 - `architecture.technical_design`: Component structure
 - `architecture.risks`: Identified risks
 
-**Outputs** (`koan/documentation/arch-{arch_id}.yaml`):
+**Outputs** (`data/documentation/arch-{arch_id}.yaml`):
 ```yaml
 doc_id: "arch-doc-001"
 type: "architecture"
@@ -139,7 +139,7 @@ documents:
 
 metadata:
   generated_at: "{timestamp}"
-  model: "sonnet"
+  model: "opus"
   cost: 0.0005
 ```
 
@@ -148,7 +148,7 @@ metadata:
 Generates API documentation, code comments, and usage examples.
 
 **Triggers**: After implementation.generate completes
-**Model**: Sonnet
+**Model**: Opus
 
 **Inputs**:
 - `impl_id`: Reference to the implementation
@@ -156,7 +156,7 @@ Generates API documentation, code comments, and usage examples.
 - `implementation.files_modified`: Changed files
 - `architecture.technical_spec`: API specifications
 
-**Outputs** (`koan/documentation/api-{impl_id}.yaml`):
+**Outputs** (`data/documentation/api-{impl_id}.yaml`):
 ```yaml
 doc_id: "api-doc-001"
 type: "api"
@@ -229,7 +229,7 @@ coverage:
 
 metadata:
   generated_at: "{timestamp}"
-  model: "sonnet"
+  model: "opus"
   cost: 0.0005
 ```
 
@@ -238,14 +238,14 @@ metadata:
 Generates test documentation and coverage reports.
 
 **Triggers**: After quality.test completes
-**Model**: Sonnet
+**Model**: Opus
 
 **Inputs**:
 - `test_id`: Reference to the test run
 - `test.results`: Test results
 - `test.coverage`: Coverage data
 
-**Outputs** (`koan/documentation/test-{test_id}.yaml`):
+**Outputs** (`data/documentation/test-{test_id}.yaml`):
 ```yaml
 doc_id: "test-doc-001"
 type: "testing"
@@ -278,7 +278,7 @@ documents:
 
 metadata:
   generated_at: "{timestamp}"
-  model: "sonnet"
+  model: "opus"
   cost: 0.0003
 ```
 
@@ -287,14 +287,14 @@ metadata:
 Validates that all required documentation exists and is complete.
 
 **Triggers**: Before version.commit
-**Model**: Sonnet
+**Model**: Opus
 
 **Inputs**:
 - `doc_ids`: List of documentation IDs to validate
 - `story_id`: Story reference
 - `impl_id`: Implementation reference
 
-**Outputs** (`koan/documentation/validation-{flow_id}.yaml`):
+**Outputs** (`data/documentation/validation-{flow_id}.yaml`):
 ```yaml
 validation_id: "val-001"
 status: "passed|failed"
@@ -336,7 +336,7 @@ recommendations:
 
 metadata:
   validated_at: "{timestamp}"
-  model: "sonnet"
+  model: "opus"
   cost: 0.0002
 ```
 
@@ -345,7 +345,7 @@ metadata:
 Updates documentation index and navigation.
 
 **Triggers**: After all documentation generated
-**Model**: Sonnet
+**Model**: Opus
 
 **Outputs**:
 - Updates `docs/README.md` with new entries
@@ -354,10 +354,10 @@ Updates documentation index and navigation.
 
 ## State Location
 
-All documentation state is stored in: `koan/documentation/`
+All documentation state is stored in: `data/documentation/`
 
 ```
-koan/documentation/
+data/documentation/
 ├── req-{story_id}.yaml      # Requirements docs
 ├── arch-{arch_id}.yaml      # Architecture docs
 ├── api-{impl_id}.yaml       # API docs

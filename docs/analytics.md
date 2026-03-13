@@ -50,7 +50,7 @@ stateDbPath (events table)
      │   └─ generateSkill()         — produces markdown skill templates
      │
      ├─ observe.ts — session/prompt statistics from observability log
-     │   └─ reads koan/observability/prompts.jsonl
+     │   └─ reads data/observability/prompts.jsonl
      │
      └─ drift.ts — configuration drift detection
          └─ compareDirectories()    — file-level diff templates vs .claude/

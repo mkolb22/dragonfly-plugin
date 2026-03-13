@@ -1,5 +1,5 @@
 /**
- * Shared types for Zen MCP Server
+ * Shared types for Dragonfly MCP Server
  */
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";

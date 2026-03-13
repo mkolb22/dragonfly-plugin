@@ -8,5 +8,5 @@ description: Advocate Agent - Proposes and defends architectural approach in mul
 tools: "*"
 ---
 
-Call zen_get_agent_prompt with agent="debate-advocate" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="debate-advocate" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

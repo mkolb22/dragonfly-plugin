@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.dev/schemas/provenance.schema.json",
-  "title": "Zen Provenance Schema",
-  "description": "Schema for action provenance files in koan/provenance/actions/",
+  "$id": "https://dragonfly.dev/schemas/provenance.schema.json",
+  "title": "Dragonfly Provenance Schema",
+  "description": "Schema for action provenance files in data/provenance/actions/",
   "type": "object",
   "required": ["action_id", "concept", "action", "status", "timestamp"],
   "properties": {

@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: yellow
-description: Quality Concept - Reviews code and runs tests using Sonnet for thorough code review and quality analysis
+description: Quality Concept - Reviews code and runs tests using Opus for thorough code review and quality analysis
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -41,7 +41,7 @@ skills:
 
 ## Model Assignment
 
-**Model**: Sonnet (thorough code review and quality analysis)
+**Model**: Opus (thorough code review and quality analysis)
 **Cost per Action**: ~$0.003 (per action: review or test)
 **Never Calls**: No other concepts (pure quality assurance)
 
@@ -50,7 +50,7 @@ skills:
 When invoked, I execute the Quality concept:
 
 1. ✅ Load quality concept template
-2. ✅ Activate Sonnet model (thorough quality analysis)
+2. ✅ Activate Opus model (thorough quality analysis)
 3. ✅ Read implementation details
 4. ✅ Perform review or test action
 5. ✅ Return structured results to parent workflow
@@ -69,7 +69,7 @@ Quality assurance uses clear rules and patterns:
 - Test execution and coverage measurement
 - Pattern matching for common issues
 
-**No complex reasoning required** - Sonnet is sufficient.
+**No complex reasoning required** - Opus is sufficient.
 
 ## Actions
 
@@ -113,10 +113,10 @@ Use `mcp__ide__getDiagnostics` to catch build errors and type issues before manu
 ### Structure Validation Checks
 
 During review, verify:
-- [ ] No source code in `koan/` directory
+- [ ] No source code in `data/` directory
 - [ ] No source code in `.claude/` directory
-- [ ] No modifications to `.zen/` submodule
-- [ ] Only `.yaml` files in `koan/` subdirectories
+- [ ] No modifications to `.dragonfly/` submodule
+- [ ] Only `.yaml` files in `data/` subdirectories
 - [ ] Code follows project's existing directory structure
 
 **Flag as ERROR if code found in protected directories.**
@@ -163,13 +163,13 @@ details:
         severity: "warning"
 
   structure_checks:
-    - check: "No code in koan/"
+    - check: "No code in data/"
       result: "pass"
-      note: "All koan/ files are .yaml"
+      note: "All data/ files are .yaml"
 
     - check: "No code in .claude/"
       result: "pass"
-      note: "Only Zen config present"
+      note: "Only Dragonfly config present"
 
     - check: "Code in correct location"
       result: "pass"
@@ -225,7 +225,7 @@ details:
     created_at: "2025-11-11T10:42:00Z"
     concept: "quality"
     action: "review"
-    model: "sonnet"
+    model: "opus"
     cost: 0.003
 ```
 
@@ -283,13 +283,13 @@ details:
     created_at: "2025-11-11T10:43:00Z"
     concept: "quality"
     action: "test"
-    model: "sonnet"
+    model: "opus"
     cost: 0.003
 ```
 
 ## State Management
 
-Quality results are returned to the parent workflow session. Use `zen_event_log` MCP tool for quality provenance tracking.
+Quality results are returned to the parent workflow session. Use `dragonfly_event_log` MCP tool for quality provenance tracking.
 
 ## Integration with Synchronizations
 
@@ -312,10 +312,10 @@ Review and test actions can run **simultaneously** because they:
 
 ## Cost Optimization
 
-**Why Sonnet (not Opus)?**
+**Why Opus (not Opus)?**
 MAP-Elites evolution (Feb 2026) on the Payment Processor Security Review benchmark proved:
-- Sonnet scored 0.93 vs Opus 0.95 — only +2% for 5x the cost
-- Sonnet found 16/19 security issues; Opus found 19/19 (3 additional edge cases)
+- Opus scored 0.93 vs Opus 0.95 — only +2% for 5x the cost
+- Opus found 16/19 security issues; Opus found 19/19 (3 additional edge cases)
 - Cost: $0.003 vs $0.015 (5x savings)
 - The structured checklist approach and skill-based guidance close the gap — extra reasoning capacity provides diminishing returns
 
@@ -326,9 +326,9 @@ Implementation Concept completed: impl-001
 
 [Synchronization triggers quality (review + test in parallel)]
 
-[Task tool invokes quality-concept agent TWICE with model="sonnet"]
+[Task tool invokes quality-concept agent TWICE with model="opus"]
 
-Quality Concept - Review (Sonnet):
+Quality Concept - Review (Opus):
   ✓ Security checks: All passed
   ✓ Code quality: 2 minor warnings
   ✓ Result: Approved
@@ -336,7 +336,7 @@ Quality Concept - Review (Sonnet):
   Cost: $0.003
   Duration: 1.5 seconds
 
-Quality Concept - Test (Sonnet):
+Quality Concept - Test (Opus):
   ✓ Ran 12 tests: All passed
   ✓ Coverage: 94%
   ✓ Result: Passed
@@ -360,7 +360,7 @@ Next: Version concept will be triggered
 
 ## Always Do This
 
-- ✅ Use Sonnet model exclusively
+- ✅ Use Opus model exclusively
 - ✅ Check all security patterns
 - ✅ Run complete test suite
 - ✅ Measure coverage accurately
@@ -369,7 +369,7 @@ Next: Version concept will be triggered
 
 ---
 
-**Model Assignment**: Sonnet
+**Model Assignment**: Opus
 **Cost Tier**: Low ($0.003 per action)
 **Purpose**: Rule-based quality assurance
 **Integration**: Triggered by implementation, triggers version

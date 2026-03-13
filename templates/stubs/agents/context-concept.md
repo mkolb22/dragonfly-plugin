@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: cyan
-description: Context Concept - Manages context window usage and compression using Sonnet 4.5 for intelligent context management
+description: Context Concept - Manages context window usage and compression using Opus 4.5 for intelligent context management
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -33,5 +33,5 @@ skills:
   - workflow-replay               # Replay from checkpoints
 ---
 
-Call zen_get_agent_prompt with agent="context-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="context-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

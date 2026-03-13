@@ -1,8 +1,8 @@
 ---
 name: version
 type: concept
-model: sonnet
-state_location: "koan/versions/"
+model: opus
+state_location: "data/versions/"
 execution: task-tool
 cost_tier: low
 purpose: "Handle git operations and version control"
@@ -12,9 +12,9 @@ purpose: "Handle git operations and version control"
 
 > **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/version-concept.md`.
 
-**Model Assignment**: Sonnet 4.5 (git operations with conventional commits)
+**Model Assignment**: Opus 4.5 (git operations with conventional commits)
 **Cost per Action**: ~$0.003
-**State Location**: `koan/versions/`
+**State Location**: `data/versions/`
 **Never Calls**: No other concepts (pure git operations)
 
 ## Quick Reference
@@ -26,7 +26,7 @@ purpose: "Handle git operations and version control"
 
 ### State File Format
 ```yaml
-# koan/versions/version-{id}.yaml
+# data/versions/version-{id}.yaml
 version_id: "version-001"
 impl_id: "impl-001"
 status: "committed"  # pending, committed, pushed, tagged
@@ -40,7 +40,7 @@ details:
   metadata:
     created_at: "ISO-8601"
     concept: "version"
-    model: "sonnet"
+    model: "opus"
 ```
 
 ### Integration

@@ -4,7 +4,7 @@
  *
  * DSL syntax: "story | architecture | implementation"
  * Parallel:   "story | parallel(architecture, security) | implementation"
- * Extended:   "architecture:opus | impl:sonnet | verification[2]"
+ * Extended:   "architecture:opus | impl:opus | verification[2]"
  * Annotations: "@slo:standard @errors:graceful" (appended)
  */
 
@@ -57,7 +57,7 @@ function resolveConcept(name: string): string {
 
 /**
  * Parse an extended concept reference.
- * Formats: "arch:opus", "quality.review", "verification[2]:sonnet"
+ * Formats: "arch:opus", "quality.review", "verification[2]:opus"
  */
 export function parseConceptRef(input: string): ConceptRef {
   let remaining = input.trim();

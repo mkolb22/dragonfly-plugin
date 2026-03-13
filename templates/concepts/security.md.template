@@ -4,7 +4,7 @@ The Security concept provides continuous security assurance throughout the workf
 
 ## Model Assignment
 
-**Model**: Sonnet 4.5 (pattern-based security analysis)
+**Model**: Opus 4.5 (pattern-based security analysis)
 **Cost per Action**: ~$0.002
 **Triggers**: After story, architecture, implementation, and before commit
 
@@ -29,7 +29,7 @@ Analyzes story for security implications and generates threat model.
 2. Identify assets, threat actors, attack surfaces
 3. Generate STRIDE analysis
 4. Produce security acceptance criteria
-5. Save to `koan/security/threat-model-{story_id}.yaml`
+5. Save to `data/security/threat-model-{story_id}.yaml`
 
 **Output Format**:
 ```yaml
@@ -96,7 +96,7 @@ metadata:
   created_at: "2025-01-10T12:00:00Z"
   concept: "security"
   action: "threat_model"
-  model: "sonnet"
+  model: "opus"
   cost: 0.002
 ```
 
@@ -111,7 +111,7 @@ Validates architecture against threat model and security patterns.
 2. Verify each security requirement is addressed
 3. Check for OWASP Top 10 vulnerabilities in design
 4. Validate security patterns (auth, authz, crypto)
-5. Save to `koan/security/arch-review-{arch_id}.yaml`
+5. Save to `data/security/arch-review-{arch_id}.yaml`
 
 **Security Patterns Checked**:
 - Authentication: OAuth2/OIDC, JWT validation, session management
@@ -179,7 +179,7 @@ metadata:
   created_at: "2025-01-10T12:05:00Z"
   concept: "security"
   action: "validate_architecture"
-  model: "sonnet"
+  model: "opus"
   cost: 0.002
 ```
 
@@ -195,7 +195,7 @@ Scans implementation code for vulnerabilities.
 3. Detect hardcoded secrets
 4. Check dependency vulnerabilities (if manifest available)
 5. Verify security patterns from architecture
-6. Save to `koan/security/scan-{impl_id}.yaml`
+6. Save to `data/security/scan-{impl_id}.yaml`
 
 **Vulnerability Patterns Detected**:
 ```yaml
@@ -311,7 +311,7 @@ metadata:
   created_at: "2025-01-10T12:10:00Z"
   concept: "security"
   action: "scan_implementation"
-  model: "sonnet"
+  model: "opus"
   cost: 0.002
 ```
 
@@ -326,7 +326,7 @@ Final security verification before commit.
 2. Check secrets not in commit
 3. Validate file integrity
 4. Generate security attestation
-5. Save to `koan/security/attestation-{impl_id}.yaml`
+5. Save to `data/security/attestation-{impl_id}.yaml`
 
 **Output Format**:
 ```yaml
@@ -397,7 +397,7 @@ Quality.approved ──[before version]──> Security: verify_commit
 
 ## State Location
 
-Security artifacts: `koan/security/`
+Security artifacts: `data/security/`
 - Threat models: `threat-model-{story_id}.yaml`
 - Architecture reviews: `arch-review-{arch_id}.yaml`
 - Implementation scans: `scan-{impl_id}.yaml`
@@ -405,7 +405,7 @@ Security artifacts: `koan/security/`
 
 ## Cost Optimization
 
-**Why Sonnet?**
+**Why Opus?**
 - Pattern-based scanning doesn't need deep reasoning
 - Security patterns are well-defined rules
 - Fast execution (2-3 seconds per action)
@@ -436,7 +436,7 @@ Security artifacts: `koan/security/`
 
 ---
 
-**Model Assignment**: Sonnet
+**Model Assignment**: Opus
 **Cost Tier**: Low (~$0.002 per action)
 **Purpose**: Continuous security assurance
 **Integration**: Runs parallel to main workflow, gates commit

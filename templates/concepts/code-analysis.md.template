@@ -43,7 +43,7 @@ Gather context for a new feature or task.
 2. Use `find_symbol` to locate relevant symbols
 3. Build a context summary for downstream concepts
 
-**Output:** `koan/context/analysis-{id}.yaml`
+**Output:** `data/context/analysis-{id}.yaml`
 ```yaml
 analysis_id: "analysis-{timestamp}"
 task: "{description}"
@@ -84,7 +84,7 @@ Analyze impact of changes for refactoring.
 3. Identify all affected files and functions
 4. Assess risk level based on impact scope
 
-**Output:** `koan/context/impact-{id}.yaml`
+**Output:** `data/context/impact-{id}.yaml`
 ```yaml
 impact_id: "impact-{timestamp}"
 target_symbols: ["{symbols}"]
@@ -129,12 +129,12 @@ Gather performance-related context.
 2. Use `find_similar_code` to find existing optimizations
 3. Identify patterns and anti-patterns
 
-**Output:** `koan/context/profile-{id}.yaml`
+**Output:** `data/context/profile-{id}.yaml`
 
 ## Model Selection
 
-- **Default:** Sonnet (fast context gathering)
-- **Complex analysis:** Sonnet (when deep reasoning needed)
+- **Default:** Opus (fast context gathering)
+- **Complex analysis:** Opus (when deep reasoning needed)
 
 ## SLO Expectations
 
@@ -170,7 +170,7 @@ This concept outputs context that feeds into:
   then:
     concept: code-analysis
     action: context
-    model: sonnet
+    model: opus
     inputs:
       description: "$story.description"
       keywords: "$story.technical_keywords"

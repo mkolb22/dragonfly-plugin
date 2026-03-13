@@ -1,4 +1,4 @@
-# Zen Safety Constraints Anchor
+# Dragonfly Safety Constraints Anchor
 # Defines safety boundaries that must never be crossed
 #
 # IMMUTABLE: These constraints are non-negotiable
@@ -85,8 +85,8 @@ pre_operation_checks:
 # What to do when safety is uncertain
 uncertainty_protocol:
   steps:
-    - "Read koan/health/status.yaml to check context state"
-    - "Read koan/anchors/directory.anchor.yaml to verify location"
+    - "Read data/status.yaml to check context state"
+    - "Read data/anchors/directory.anchor.yaml to verify location"
     - "Run 'pwd' and 'git status' to ground understanding"
     - "Ask user to confirm understanding before proceeding"
 

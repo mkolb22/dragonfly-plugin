@@ -1,4 +1,4 @@
-# Zen Directory Context Anchor
+# Dragonfly Directory Context Anchor
 # Tracks current working context to prevent path confusion after compaction
 #
 # IMMUTABLE: Updated by hooks, read by Claude for grounding
@@ -44,7 +44,7 @@ recent_commands: []
 verification:
   directory_exists: true
   git_repo: true
-  koan_initialized: true
+  dragonfly_initialized: true
 
 # Recovery instructions
 recovery:

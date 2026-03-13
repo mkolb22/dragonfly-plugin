@@ -172,7 +172,7 @@ workflows:
     phases:
       - concept: story
         action: create
-        model: sonnet
+        model: opus
         config:
           focus: "bug_description"
           skip_fields: ["architecture_hints", "non_functional"]
@@ -181,24 +181,24 @@ workflows:
 
       - concept: implementation
         action: generate
-        model: sonnet
+        model: opus
         config:
           approach: "minimal_change"
           require_test: true
 
       - concept: quality
         action: review
-        model: sonnet
+        model: opus
         parallel: true
 
       - concept: quality
         action: test
-        model: sonnet
+        model: opus
         parallel: true
 
       - concept: version
         action: commit
-        model: sonnet
+        model: opus
         config:
           prefix: "fix"
 
@@ -216,14 +216,14 @@ workflows:
     phases:
       - concept: story
         action: create
-        model: sonnet
+        model: opus
         config:
           focus: "refactoring_scope"
 
       # Pre-architecture: Analyze impact
       - concept: code-analysis
         action: impact
-        model: sonnet
+        model: opus
         mcp_tools:
           - tool: ast-index.find_symbol
             input: "$story.target_symbols"
@@ -235,7 +235,7 @@ workflows:
 
       - concept: architecture
         action: design
-        model: sonnet
+        model: opus
         config:
           focus: "refactoring_strategy"
           context_includes:
@@ -244,26 +244,26 @@ workflows:
 
       - concept: implementation
         action: generate
-        model: sonnet
+        model: opus
         config:
           approach: "incremental_refactor"
           preserve_behavior: true
 
       - concept: quality
         action: review
-        model: sonnet
+        model: opus
         parallel: true
 
       - concept: quality
         action: test
-        model: sonnet
+        model: opus
         parallel: true
         config:
           require_no_regression: true
 
       - concept: version
         action: commit
-        model: sonnet
+        model: opus
         config:
           prefix: "refactor"
 
@@ -280,19 +280,19 @@ workflows:
     phases:
       - concept: story
         action: create
-        model: sonnet
+        model: opus
         config:
           minimal: true
 
       - concept: implementation
         action: generate
-        model: sonnet
+        model: opus
         config:
           type: "documentation"
 
       - concept: version
         action: commit
-        model: sonnet
+        model: opus
         config:
           prefix: "docs"
 
@@ -309,27 +309,27 @@ workflows:
     phases:
       - concept: story
         action: create
-        model: sonnet
+        model: opus
         config:
           focus: "test_requirements"
 
       - concept: implementation
         action: generate
-        model: sonnet
+        model: opus
         config:
           type: "tests"
           use_semantic_search: true  # Find similar test patterns
 
       - concept: quality
         action: test
-        model: sonnet
+        model: opus
         config:
           run_new_tests: true
           check_coverage: true
 
       - concept: version
         action: commit
-        model: sonnet
+        model: opus
         config:
           prefix: "test"
 
@@ -346,20 +346,20 @@ workflows:
     phases:
       - concept: story
         action: create
-        model: sonnet
+        model: opus
         config:
           require_baseline: true
 
       - concept: code-analysis
         action: profile
-        model: sonnet
+        model: opus
         mcp_tools:
           - tool: semantic-rag.find_similar
             input: "performance optimization $story.area"
 
       - concept: architecture
         action: design
-        model: sonnet
+        model: opus
         config:
           focus: "optimization_strategy"
           context_includes:
@@ -367,23 +367,23 @@ workflows:
 
       - concept: implementation
         action: generate
-        model: sonnet
+        model: opus
         config:
           approach: "performance"
 
       - concept: quality
         action: benchmark
-        model: sonnet
+        model: opus
         config:
           compare_baseline: true
 
       - concept: quality
         action: test
-        model: sonnet
+        model: opus
 
       - concept: version
         action: commit
-        model: sonnet
+        model: opus
         config:
           prefix: "perf"
 
@@ -400,12 +400,12 @@ workflows:
     phases:
       - concept: story
         action: create
-        model: sonnet
+        model: opus
 
       # Pre-architecture: Code intelligence
       - concept: code-analysis
         action: context
-        model: sonnet
+        model: opus
         mcp_tools:
           - tool: ast-index.find_symbol
             input: "$story.technical_keywords"
@@ -415,7 +415,7 @@ workflows:
 
       - concept: architecture
         action: design
-        model: sonnet
+        model: opus
         config:
           context_includes:
             - "$code_analysis.existing_patterns"
@@ -423,21 +423,21 @@ workflows:
 
       - concept: implementation
         action: generate
-        model: sonnet
+        model: opus
 
       - concept: quality
         action: review
-        model: sonnet
+        model: opus
         parallel: true
 
       - concept: quality
         action: test
-        model: sonnet
+        model: opus
         parallel: true
 
       - concept: version
         action: commit
-        model: sonnet
+        model: opus
         config:
           prefix: "feat"
 
@@ -462,7 +462,7 @@ sync_rules:
         - extract_keywords: "$task.description"
         - match_patterns: "$classifiers"
         - select_workflow: "$best_match.workflow"
-        - log_classification: "koan/routing/classification-{id}.yaml"
+        - log_classification: "data/routing/classification-{id}.yaml"
 
   - id: route-to-workflow
     name: "Route to selected workflow"
@@ -480,7 +480,7 @@ sync_rules:
       event: task.classified
     then:
       action: append_log
-      target: "koan/routing/history.yaml"
+      target: "data/routing/history.yaml"
       data:
         timestamp: "$now"
         task: "$task.description"

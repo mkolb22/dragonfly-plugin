@@ -1,7 +1,7 @@
 /**
  * State Store
  * SQLite-backed operational state for health, events, and checkpoints.
- * Replaces YAML files in koan/health/, koan/events/, koan/session-state/.
+ * Replaces YAML files in data/, data/, data/session-state/.
  */
 
 import { BaseStore } from "../../core/store.js";

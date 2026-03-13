@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.dev/schemas/slo.schema.json",
-  "title": "Zen SLO Schema",
+  "$id": "https://dragonfly.dev/schemas/slo.schema.json",
+  "title": "Dragonfly SLO Schema",
   "description": "Schema for Service Level Objectives configuration, metrics, violations, and reports",
   "definitions": {
     "slo-config": {

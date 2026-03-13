@@ -42,7 +42,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "generate_requirements"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # Runs in parallel with architecture
         inputs:
           story_id: "${story.id}"
@@ -87,7 +87,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "generate_architecture"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # Runs in parallel with implementation
         inputs:
           arch_id: "${architecture.id}"
@@ -134,7 +134,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "generate_api"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # Runs in parallel with quality review/test
         inputs:
           impl_id: "${implementation.id}"
@@ -179,7 +179,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "generate_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           test_id: "${test.id}"
           impl_id: "${implementation.id}"
@@ -251,7 +251,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "validate"
-        model: "sonnet"
+        model: "opus"
         inputs:
           flow_id: "${flow.id}"
           story_id: "${story.id}"
@@ -295,7 +295,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "update_index"
-        model: "sonnet"
+        model: "opus"
         inputs:
           flow_id: "${flow.id}"
           docs_generated:
@@ -339,7 +339,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "generate_changelog_entry"
-        model: "sonnet"
+        model: "opus"
         inputs:
           commit_sha: "${commit.sha}"
           commit_message: "${commit.message}"
@@ -382,7 +382,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "append_changelog"
-        model: "sonnet"
+        model: "opus"
         inputs:
           entry: "${changelog_entry.content}"
           version: "${project.version}"
@@ -423,7 +423,7 @@ synchronizations:
     then:
       - concept: "documentation"
         action: "consolidate_changelog"
-        model: "sonnet"
+        model: "opus"
         inputs:
           pending_entries: "${changelog.pending_entries}"
           consolidation_strategy: "group_by_type"
@@ -476,7 +476,7 @@ synchronizations:
           "Generate missing docs":
             - concept: "documentation"
               action: "generate_missing"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 missing: "${validation.missing}"
                 flow_id: "${flow.id}"
@@ -487,7 +487,7 @@ synchronizations:
               value: true
             - concept: "version"
               action: "commit"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 skip_doc_validation: true
 

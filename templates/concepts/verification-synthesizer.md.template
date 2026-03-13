@@ -1,7 +1,7 @@
 ---
 name: verification-synthesizer
 type: concept
-model: sonnet
+model: opus
 purpose: "Synthesize results from multiple verification agents into unified decision"
 ---
 
@@ -276,4 +276,4 @@ Track verification effectiveness:
 - Post-synthesis issue discovery rate
 - Agent accuracy over time
 
-Stored in: `koan/metrics/verification.yaml`
+Stored in: `data/metrics/verification.yaml`

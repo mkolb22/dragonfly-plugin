@@ -38,7 +38,7 @@ synchronizations:
       workflow_type: ["full-feature-flow", "refactor-flow"]
     then:
       - action: "learning.retrieve"
-        model: "sonnet"
+        model: "opus"
         inputs:
           context: "${task.description}"
           categories: ["story-capture", "requirements", "scope-creep"]
@@ -75,7 +75,7 @@ synchronizations:
       status: "completed"
     then:
       - action: "learning.retrieve"
-        model: "sonnet"
+        model: "opus"
         inputs:
           context: "${story.description}"
           categories: ["architecture", "design-decisions", "patterns"]
@@ -113,7 +113,7 @@ synchronizations:
       status: "completed"
     then:
       - action: "learning.retrieve"
-        model: "sonnet"
+        model: "opus"
         inputs:
           context: "${architecture.approach}"
           categories: ["implementation", "coding-patterns", "testing"]
@@ -151,7 +151,7 @@ synchronizations:
       status: "completed"
     then:
       - action: "learning.retrieve"
-        model: "sonnet"
+        model: "opus"
         inputs:
           context: "${implementation.summary}"
           categories: ["code-review", "testing", "quality"]
@@ -195,7 +195,7 @@ synchronizations:
       query: "retrospective.outcome == 'success' AND retrospective.learnings.length > 0"
     then:
       - action: "learning.store"
-        model: "sonnet"
+        model: "opus"
         inputs:
           learnings: "${retrospective.learnings}"
           outcome: "success"
@@ -204,7 +204,7 @@ synchronizations:
             technologies: "${architecture.technologies}"
             complexity: "${story.complexity}"
           confidence: 0.8  # High confidence for successful outcomes
-        target: "koan/learnings/successes/${timestamp}.yaml"
+        target: "data/learnings/successes/${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 1000
@@ -236,7 +236,7 @@ synchronizations:
       query: "retrospective.outcome == 'failure' OR retrospective.outcome == 'partial'"
     then:
       - action: "learning.store"
-        model: "sonnet"
+        model: "opus"
         inputs:
           learnings: "${retrospective.learnings}"
           outcome: "${retrospective.outcome}"
@@ -248,7 +248,7 @@ synchronizations:
             task_type: "${classification.type}"
             technologies: "${architecture.technologies}"
           confidence: 0.9  # Very high confidence for failure prevention
-        target: "koan/learnings/failures/${timestamp}.yaml"
+        target: "data/learnings/failures/${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 1500
@@ -280,7 +280,7 @@ synchronizations:
       query: "learning.confidence >= 0.85 AND learning.applicable_globally == true"
     then:
       - action: "global-memory.store"
-        model: "sonnet"
+        model: "opus"
         inputs:
           category: "${learning.category}"
           content: "${learning.content}"
@@ -288,7 +288,7 @@ synchronizations:
           source_task: "${story.id}"
           confidence: "${learning.confidence}"
           tags: "${learning.technologies}"
-        target: "~/.zen/global-memory/learnings/${category}/${timestamp}.yaml"
+        target: "~/.dragonfly/global-memory/learnings/${category}/${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 1000
@@ -324,7 +324,7 @@ synchronizations:
       query: "learnings.length > 0"
     then:
       - action: "prompt.augment"
-        model: "sonnet"
+        model: "opus"
         inputs:
           target_concept: "${inject_to.concept}"
           augmentation_type: "context_injection"
@@ -376,7 +376,7 @@ synchronizations:
       status: "completed"
     then:
       - action: "log.append"
-        target: "koan/learnings/application-log.yaml"
+        target: "data/learnings/application-log.yaml"
         data:
           timestamp: "${now}"
           flow_id: "${flow.id}"
@@ -414,7 +414,7 @@ synchronizations:
       query: "flow.learnings_applied.length > 0"
     then:
       - action: "learning.evaluate"
-        model: "sonnet"
+        model: "opus"
         inputs:
           learnings_applied: "${flow.learnings_applied}"
           workflow_outcome: "${flow.outcome}"

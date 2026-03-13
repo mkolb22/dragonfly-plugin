@@ -22,7 +22,7 @@ const CATEGORY_DIRS: Record<ContentCategory, string> = {
 
 /**
  * Parse YAML frontmatter from a markdown file.
- * Minimal parser handling the bounded patterns in zen templates:
+ * Minimal parser handling the bounded patterns in dragonfly templates:
  * key-value pairs, block arrays (- item), one-level nesting.
  * No js-yaml dependency needed.
  */

@@ -1,18 +1,18 @@
-# Bug: zen_bridge_search Returns 0 Results for Non-Standard Categories
+# Bug: dragonfly_bridge_search Returns 0 Results for Non-Standard Categories
 
 **Severity**: High
 **Component**: Bridge module — `src/tools/bridge/store.ts`
-**Affects**: `zen_bridge_search`, `zen_bridge_list`, `zen_bridge_import`
-**Status**: Fixed in dragonfly-plugin (fix also applied to zen repo)
+**Affects**: `dragonfly_bridge_search`, `dragonfly_bridge_list`, `dragonfly_bridge_import`
+**Status**: Fixed in dragonfly-plugin (fix also applied to dragonfly repo)
 
 ---
 
 ## Symptom
 
-`zen_bridge_search` returns 0 results even when YAML files exist in `~/.dragonfly/global-memory/` with content that should match the query.
+`dragonfly_bridge_search` returns 0 results even when YAML files exist in `~/.dragonfly/global-memory/` with content that should match the query.
 
 ```
-zen_bridge_search(query: "competitive test opus") → { total: 0, results: [] }
+dragonfly_bridge_search(query: "competitive test opus") → { total: 0, results: [] }
 ```
 
 Files were confirmed to exist at `~/.dragonfly/global-memory/competitive-evaluation/bodhi.yaml` with matching content.
@@ -91,10 +91,10 @@ No schema changes, no API changes, no behavior change for the 6 original categor
 
 ## Verification
 
-After fix, `zen_bridge_search` should find memories in any category:
+After fix, `dragonfly_bridge_search` should find memories in any category:
 
 ```
-zen_bridge_search(query: "competitive test opus")
+dragonfly_bridge_search(query: "competitive test opus")
 → { total: 2, results: [...memories from competitive-evaluation/bodhi.yaml] }
 ```
 
@@ -102,16 +102,16 @@ zen_bridge_search(query: "competitive test opus")
 
 ## Impact
 
-- **zen_bridge_export**: Unaffected — exports to correct path based on memory category
-- **zen_bridge_search**: Fixed — now searches all category subdirectories
-- **zen_bridge_list**: Fixed — now lists all category subdirectories
-- **zen_bridge_import**: Fixed — now imports from all category subdirectories
+- **dragonfly_bridge_export**: Unaffected — exports to correct path based on memory category
+- **dragonfly_bridge_search**: Fixed — now searches all category subdirectories
+- **dragonfly_bridge_list**: Fixed — now lists all category subdirectories
+- **dragonfly_bridge_import**: Fixed — now imports from all category subdirectories
 
 ---
 
 ## Discovery
 
-Found while using `zen_bridge_search query:"competitive test opus"` to retrieve competitive evaluation results that had just been exported via `zen_bridge_export project_name:"bodhi"`. The export reported success (19 memories exported), but subsequent search returned 0 results. Traced to `loadGlobalMemories()` never reading the `competitive-evaluation/` subdirectory.
+Found while using `dragonfly_bridge_search query:"competitive test opus"` to retrieve competitive evaluation results that had just been exported via `dragonfly_bridge_export project_name:"bodhi"`. The export reported success (19 memories exported), but subsequent search returned 0 results. Traced to `loadGlobalMemories()` never reading the `competitive-evaluation/` subdirectory.
 
 **Date**: 2026-03-04
-**Fixed in**: dragonfly-plugin commit (this fix) + zen repo (same patch applied in parallel)
+**Fixed in**: dragonfly-plugin commit (this fix) + dragonfly repo (same patch applied in parallel)

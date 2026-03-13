@@ -1,8 +1,8 @@
 ---
 name: implementation
 type: concept
-model: sonnet
-state_location: "koan/implementations/"
+model: opus
+state_location: "data/implementations/"
 execution: task-tool
 cost_tier: medium
 purpose: "Generate code from architectural specifications"
@@ -12,9 +12,9 @@ purpose: "Generate code from architectural specifications"
 
 > **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/implementation-concept.md`.
 
-**Model Assignment**: Sonnet 4.5 (code generation with quality focus)
+**Model Assignment**: Opus 4.5 (code generation with quality focus)
 **Cost per Action**: ~$0.003
-**State Location**: `koan/implementations/`
+**State Location**: `data/implementations/`
 **Never Calls**: No other concepts (pure code generation)
 
 ## Quick Reference
@@ -26,7 +26,7 @@ purpose: "Generate code from architectural specifications"
 
 ### State File Format
 ```yaml
-# koan/implementations/impl-{id}.yaml
+# data/implementations/impl-{id}.yaml
 impl_id: "impl-001"
 arch_id: "arch-001"
 status: "completed"  # in_progress, completed, needs_review
@@ -41,7 +41,7 @@ details:
   metadata:
     created_at: "ISO-8601"
     concept: "implementation"
-    model: "sonnet"
+    model: "opus"
 ```
 
 ### Integration

@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 function writeJsonl(entries: PromptLogEntry[]): void {
-  const logDir = path.join(tmpDir, "koan", "observability");
+  const logDir = path.join(tmpDir, "legacy", "observability");
   fs.mkdirSync(logDir, { recursive: true });
   const lines = entries.map((e) => JSON.stringify(e)).join("\n");
   fs.writeFileSync(path.join(logDir, "prompts.jsonl"), lines);
@@ -38,7 +38,7 @@ describe("loadPromptLogs", () => {
   });
 
   it("skips malformed lines", () => {
-    const logDir = path.join(tmpDir, "koan", "observability");
+    const logDir = path.join(tmpDir, "legacy", "observability");
     fs.mkdirSync(logDir, { recursive: true });
     fs.writeFileSync(
       path.join(logDir, "prompts.jsonl"),

@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: orange
-description: Version Concept - Manages git operations (branches, commits, tags) using Sonnet 4.5 for intelligent version control
+description: Version Concept - Manages git operations (branches, commits, tags) using Opus 4.5 for intelligent version control
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -33,5 +33,5 @@ skills:
   - synchronization-patterns
 ---
 
-Call zen_get_agent_prompt with agent="version-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="version-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

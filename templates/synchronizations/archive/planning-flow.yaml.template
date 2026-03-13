@@ -19,21 +19,21 @@ synchronizations:
     then:
       concept: planning
       action: create
-      model: sonnet
+      model: opus
       inputs:
         context: "{{story.context}}"
         objective: "{{story.title}}"
         constraints: "{{story.constraints}}"
         learnings: "{{active_learnings.architecture}}"
     outputs:
-      path: "koan/plans/plan-{{id}}.yaml"
+      path: "data/plans/plan-{{id}}.yaml"
     priority: high
 
     # SLO Expectations for planning.create
     slo_expectations:
       expected_duration_ms: 15000      # 15 seconds for structured planning
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for deep reasoning
+      expected_cost_usd: 0.003         # Opus for deep reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 1500    # Story + constraints + learnings
       max_context_tokens: 8000         # Warning threshold
@@ -73,7 +73,7 @@ synchronizations:
         constraints: "{{planning.step_2_constraints}}"
         success_criteria: "{{planning.step_6_success_criteria}}"
     outputs:
-      path: "koan/architecture/arch-{{id}}.yaml"
+      path: "data/architecture/arch-{{id}}.yaml"
     priority: high
 
     # SLO Expectations for architecture.design (with Opus)
@@ -112,18 +112,18 @@ synchronizations:
     then:
       concept: architecture
       action: design
-      model: sonnet
+      model: opus
       inputs:
         story: "{{story}}"
     outputs:
-      path: "koan/architecture/arch-{{id}}.yaml"
+      path: "data/architecture/arch-{{id}}.yaml"
     priority: medium
 
-    # SLO Expectations for architecture.design (with Sonnet)
+    # SLO Expectations for architecture.design (with Opus)
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds for simple stories
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for standard architecture
+      expected_cost_usd: 0.003         # Opus for standard architecture
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 1100    # Story context only
       max_context_tokens: 10000        # Warning threshold
@@ -155,20 +155,20 @@ synchronizations:
     then:
       concept: story
       action: clarify
-      model: sonnet
+      model: opus
       inputs:
         original_story: "{{story}}"
         blockers: "{{planning.blockers}}"
         clarifications_needed: "{{planning.step_3_unknowns.clarifications_needed}}"
     outputs:
-      path: "koan/stories/story-{{id}}-clarification.yaml"
+      path: "data/stories/story-{{id}}-clarification.yaml"
     priority: high
 
     # SLO Expectations for story.clarify
     slo_expectations:
       expected_duration_ms: 3000       # 3 seconds for clarification request
       max_duration_ms: 20000           # 20 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet for simple task
+      expected_cost_usd: 0.000175      # Opus for simple task
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 800     # Story + blockers
       max_context_tokens: 3000         # Warning threshold
@@ -219,7 +219,7 @@ synchronizations:
         alternative_approaches: "{{story.alternative_approaches}}"
         risk_factors: "{{story.risk_factors}}"
       outputs:
-        path: "koan/tot/tot-{{id}}.yaml"
+        path: "data/tot/tot-{{id}}.yaml"
       priority: high
       slo_expectations:
         expected_duration_ms: 45000  # Tree exploration can take 30-45 seconds
@@ -253,7 +253,7 @@ synchronizations:
         uncertainties: "{{tot.uncertainties}}"
         constraints: "{{story.constraints}}"
       outputs:
-        path: "koan/architecture/arch-{{id}}.yaml"
+        path: "data/architecture/arch-{{id}}.yaml"
       priority: high
 
     # SLO Expectations for architecture.design (with Opus + ToT)

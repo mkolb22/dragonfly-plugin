@@ -1,8 +1,8 @@
 ---
 name: context
 type: concept
-model: sonnet
-state_location: "koan/context/"
+model: opus
+state_location: "data/context/"
 execution: task-tool
 cost_tier: low
 purpose: "Manage context window usage and compression"
@@ -12,9 +12,9 @@ purpose: "Manage context window usage and compression"
 
 > **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/context-concept.md`.
 
-**Model Assignment**: Sonnet 4.5 (context management and compression)
+**Model Assignment**: Opus 4.5 (context management and compression)
 **Cost per Action**: ~$0.003
-**State Location**: `koan/context/`
+**State Location**: `data/context/`
 **Never Calls**: No other concepts (pure context management)
 
 ## Quick Reference
@@ -27,7 +27,7 @@ purpose: "Manage context window usage and compression"
 
 ### State File Format
 ```yaml
-# koan/context/context-{id}.yaml
+# data/context/context-{id}.yaml
 context_id: "ctx-001"
 status: "healthy"  # healthy, warning, critical
 summary: "One-line summary"
@@ -41,7 +41,7 @@ details:
   metadata:
     created_at: "ISO-8601"
     concept: "context"
-    model: "sonnet"
+    model: "opus"
 ```
 
 ### Integration

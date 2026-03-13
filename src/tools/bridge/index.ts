@@ -22,7 +22,7 @@ export const tools: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        project_name: { type: "string", description: "Project name for grouping (e.g., 'bodhi', 'zen')" },
+        project_name: { type: "string", description: "Project name for grouping (e.g., 'bodhi', 'dragonfly')" },
         min_confidence: {
           type: "string",
           enum: ["low", "medium", "high"],

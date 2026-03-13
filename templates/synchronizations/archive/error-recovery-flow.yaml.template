@@ -218,16 +218,16 @@ synchronizations:
           "Simplify requirements":
             - concept: "story"
               action: "simplify"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 story_id: "${story.id}"
                 constraint: "Reduce complexity for simpler architecture"
 
           "Manual architecture":
             - action: "notify"
-              message: "Please create architecture file at koan/architecture/arch-${story.id}.yaml"
+              message: "Please create architecture file at data/architecture/arch-${story.id}.yaml"
             - action: "wait_for_file"
-              path: "koan/architecture/arch-${story.id}.yaml"
+              path: "data/architecture/arch-${story.id}.yaml"
               timeout_ms: 300000  # 5 minutes
 
           "Cancel feature":
@@ -280,7 +280,7 @@ synchronizations:
               value: true
             - concept: "implementation"
               action: "generate"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 architecture_id: "${original_architecture.id}"
                 story_id: "${story.id}"
@@ -358,7 +358,7 @@ synchronizations:
           "Retry verification":
             - concept: "verification"
               action: "${verification.action}"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 target: "${verification.target}"
                 retry: true
@@ -518,7 +518,7 @@ synchronizations:
                       description: "Test fixtures/data incorrect"
             - concept: "implementation"
               action: "fix"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 failing_tests: "${test.failures}"
                 hint: "${answer}"
@@ -592,7 +592,7 @@ synchronizations:
           "Retry review":
             - concept: "quality"
               action: "review"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 implementation_id: "${implementation.id}"
 
@@ -671,7 +671,7 @@ synchronizations:
           "Retry tests":
             - concept: "quality"
               action: "test"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 implementation_id: "${implementation.id}"
 
@@ -793,12 +793,12 @@ synchronizations:
           "Fix hook issues":
             - concept: "implementation"
               action: "fix_lint"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 errors: "${error.hook_output}"
             - concept: "version"
               action: "commit"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 implementation_id: "${implementation.id}"
                 retry: true
@@ -806,7 +806,7 @@ synchronizations:
           "Commit without hooks":
             - concept: "version"
               action: "commit"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 implementation_id: "${implementation.id}"
                 skip_hooks: true
@@ -876,7 +876,7 @@ synchronizations:
         condition: "${retry_count >= 1}"
         concept: "context"
         action: "snapshot"
-        model: "sonnet"
+        model: "opus"
         inputs:
           strategy: "emergency_snapshot"
           reset_to: "minimal"
@@ -925,7 +925,7 @@ synchronizations:
           Recommended actions:
           1. Save important state manually
           2. Start new session with /restore
-          3. Review koan/session-state/ for recovery data
+          3. Review data/session-state/ for recovery data
 
     slo_expectations:
       expected_duration_ms: 2000

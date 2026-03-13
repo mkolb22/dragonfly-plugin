@@ -72,7 +72,7 @@ synchronizations:
     then:
       - concept: "architecture"
         action: "design"
-        model: "sonnet"
+        model: "opus"
         inputs:
           exploration_result: "${exploration.selected_path}"
           rejected_paths: "${exploration.rejected_paths_summary}"
@@ -146,7 +146,7 @@ synchronizations:
     then:
       - concept: "exploration"
         action: "backtrack"
-        model: "sonnet"
+        model: "opus"
         inputs:
           current_path: "${architecture.selected_approach}"
           failure_reason: "${implementation.blocker_reason}"
@@ -289,7 +289,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "extract_pattern"
-        model: "sonnet"
+        model: "opus"
         inputs:
           source: "exploration"
           data: "${exploration}"
@@ -324,7 +324,7 @@ synchronizations:
     then:
       - concept: "story"
         action: "add_note"
-        model: "sonnet"
+        model: "opus"
         inputs:
           note: |
             ## Exploration Exhausted
@@ -364,6 +364,6 @@ synchronizations:
 # - Automatic escalation when exploration exhausted
 #
 # Uses Opus for deep reasoning (exploration, evaluation)
-# Uses Sonnet for routine operations (backtrack, learning)
+# Uses Opus for routine operations (backtrack, learning)
 #
 # Expected exploration cost: $0.015-0.05 per complex decision

@@ -34,7 +34,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "select_tools"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_description: "${task.description}"
           available_tools: "${system.available_tools}"
@@ -67,7 +67,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "learn_from_outcome"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_id: "${task.id}"
           task_type: "${task.type}"
@@ -101,7 +101,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "learn_from_outcome"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_id: "${task.id}"
           task_type: "${task.type}"
@@ -135,7 +135,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "suggest_tool_for_error"
-        model: "sonnet"
+        model: "opus"
         inputs:
           failed_tool: "${tool.name}"
           error_message: "${tool.error}"
@@ -168,7 +168,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "select_tools"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_description: "Implement ${implementation.component}"
           task_type: "implementation"
@@ -195,7 +195,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "select_tools"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_description: "${search.query}"
           task_type: "code_search"
@@ -225,7 +225,7 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "select_tools"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_description: "Debug ${error.type}: ${error.message}"
           task_type: "debugging"
@@ -261,12 +261,12 @@ synchronizations:
     then:
       - concept: "tool-router"
         action: "get_tool_stats"
-        model: "sonnet"
+        model: "opus"
         inputs:
           timeframe: "24h"
       - concept: "retrospective"
         action: "analyze_tool_usage"
-        model: "sonnet"
+        model: "opus"
         inputs:
           stats: "${tool_router.stats}"
 
@@ -294,7 +294,7 @@ synchronizations:
     then:
       - concept: "task"
         action: "set_tool_preferences"
-        model: "sonnet"
+        model: "opus"
         inputs:
           recommended_tools: "${routing.recommended_tools}"
           sequence: "${routing.sequence}"

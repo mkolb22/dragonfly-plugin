@@ -12,13 +12,14 @@
  *   4. Copy commands → .claude/commands/ (strip .template suffix)
  *   5. Copy hooks → .claude/hooks/     (strip .template suffix, chmod +x *.sh)
  *   6. Copy hooks/lib → .claude/hooks/lib/
+ *   7. Copy synchronizations → .claude/synchronizations/ (strip .template suffix)
  */
 
 import { fileURLToPath } from 'url';
 import { dirname, join, basename, resolve } from 'path';
 import {
   existsSync, mkdirSync, copyFileSync, chmodSync,
-  readdirSync, cpSync, writeFileSync,
+  readdirSync, writeFileSync,
 } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -130,13 +131,44 @@ for (const file of readdirSync(hooksSrc)) {
 }
 log(`[hooks] ${hookCount} copied → .claude/hooks/`);
 
-// ── Step 6: hooks/lib ────────────────────────────────────────────────────────
+// ── Step 6: hooks/lib (strip .template suffix from files) ───────────────────
 const libSrc = join(hooksSrc, 'lib');
 const libDst = join(hooksDst, 'lib');
-if (existsSync(libSrc) && !existsSync(libDst)) {
-  cpSync(libSrc, libDst, { recursive: true });
-  log(`[hooks/lib] copied → .claude/hooks/lib/`);
+ensure(libDst);
+let libCount = 0;
+if (existsSync(libSrc)) {
+  for (const file of readdirSync(libSrc)) {
+    const srcPath = join(libSrc, file);
+    const dstName = file.endsWith('.template') ? basename(file, '.template') : file;
+    const dstPath = join(libDst, dstName);
+    if (!existsSync(dstPath)) {
+      copyFileSync(srcPath, dstPath);
+      if (dstName.endsWith('.sh')) {
+        chmodSync(dstPath, 0o755);
+      }
+      libCount++;
+    }
+  }
 }
+log(`[hooks/lib] ${libCount} copied → .claude/hooks/lib/`);
+
+// ── Step 7: Synchronizations ────────────────────────────────────────────────
+const syncsSrc = join(pkgRoot, 'templates', 'synchronizations');
+const syncsDst = join(projectRoot, '.claude', 'synchronizations');
+ensure(syncsDst);
+let syncCount = 0;
+if (existsSync(syncsSrc)) {
+  for (const file of readdirSync(syncsSrc)) {
+    if (!file.endsWith('.template')) continue;
+    const dstName = basename(file, '.template');
+    const dst = join(syncsDst, dstName);
+    if (!existsSync(dst)) {
+      copyFileSync(join(syncsSrc, file), dst);
+      syncCount++;
+    }
+  }
+}
+log(`[syncs] ${syncCount} copied → .claude/synchronizations/`);
 
 // ── Done ─────────────────────────────────────────────────────────────────────
 log(`\nDragonfly setup complete. Restart Claude Code to activate the MCP server.`);

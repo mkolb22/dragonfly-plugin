@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.wysiwid.dev/schemas/config.json",
-  "title": "Zen Configuration",
-  "description": "Schema for Zen WYSIWID config.yaml",
+  "$id": "https://dragonfly.wysiwid.dev/schemas/config.json",
+  "title": "Dragonfly Configuration",
+  "description": "Schema for Dragonfly WYSIWID config.yaml",
   "type": "object",
   "required": ["models", "storage", "synchronizations"],
   "properties": {
@@ -42,7 +42,7 @@
       "type": "object",
       "required": ["base_path", "directories"],
       "properties": {
-        "base_path": { "type": "string", "default": "koan" },
+        "base_path": { "type": "string", "default": "data" },
         "directories": {
           "type": "object",
           "additionalProperties": { "type": "string" }

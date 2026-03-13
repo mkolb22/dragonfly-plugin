@@ -1,5 +1,5 @@
-# Zen Task Tracking Schema
-# Location: koan/tasks/task-{id}.yaml
+# Dragonfly Task Tracking Schema
+# Location: data/tasks/task-{id}.yaml
 # Purpose: Track work items for GitOps-based Kanban visualization
 
 task_id: "${TASK_ID}"
@@ -20,7 +20,7 @@ type: "feature"
 created_at: "${TIMESTAMP}"
 updated_at: "${TIMESTAMP}"
 
-# Provenance - links to Zen workflow artifacts
+# Provenance - links to Dragonfly workflow artifacts
 provenance:
   story_id: null
   architecture_id: null

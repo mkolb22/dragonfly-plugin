@@ -1,15 +1,15 @@
 ---
 name: context-compactor
 type: concept
-model: sonnet
+model: opus
 purpose: "Manage context window by intelligently compacting completed work"
 ---
 
 # Context Compactor Concept
 
-The Context Compactor manages context window health by integrating Claude Code's native `/compact` command with Zen's superior retention rules. This hybrid approach provides:
+The Context Compactor manages context window health by integrating Claude Code's native `/compact` command with Dragonfly's superior retention rules. This hybrid approach provides:
 
-- Zen's research-backed retention strategies (what to keep vs summarize)
+- Dragonfly's research-backed retention strategies (what to keep vs summarize)
 - Claude Code's optimized compaction engine (fast, accurate)
 - Pre-compact checkpointing for safety
 - Context health monitoring and auto-compaction
@@ -17,7 +17,7 @@ The Context Compactor manages context window health by integrating Claude Code's
 
 ## Architecture: Native Integration with Smart Retention
 
-**Key Design Principle:** Use native `/compact` for the actual compaction, but Zen controls WHAT to compact based on workflow state and retention rules.
+**Key Design Principle:** Use native `/compact` for the actual compaction, but Dragonfly controls WHAT to compact based on workflow state and retention rules.
 
 ```
 Context Health Monitor → Retention Rules → Pre-compact Hook → Native /compact
@@ -44,7 +44,7 @@ Prepare for native `/compact` by creating checkpoint and applying retention rule
 - `workflow_state`: Current story/phase/files in progress
 
 **Process:**
-1. Load retention rules from `koan/context/retention-rules.yaml`
+1. Load retention rules from `data/context/retention-rules.yaml`
 2. Identify critical context based on rules:
    - Active story and architecture decisions
    - In-progress implementations
@@ -105,7 +105,7 @@ Apply intelligent retention rules before compaction.
 
 **Inputs:**
 - `workflow_state`: Current workflow position (story/arch/impl/quality/commit)
-- `retention_rules`: Loaded from `koan/context/retention-rules.yaml`
+- `retention_rules`: Loaded from `data/context/retention-rules.yaml`
 
 **Process:**
 1. Categorize all context items by retention policy:
@@ -260,7 +260,7 @@ function estimateTokens(text: string): number {
 
 ### Advantages of Hybrid Approach
 
-| Aspect | Zen Provides | Native Provides |
+| Aspect | Dragonfly Provides | Native Provides |
 |--------|-------------|-----------------|
 | **Retention logic** | Research-backed rules, workflow-aware | N/A |
 | **Compaction engine** | N/A | Fast, accurate, optimized |
@@ -268,7 +268,7 @@ function estimateTokens(text: string): number {
 | **Monitoring** | Proactive warnings, auto-checkpoint | Token counting |
 | **Recovery** | Workflow state preservation | Session continuity |
 
-**Result:** Best of both worlds - Zen's intelligence + Native's performance
+**Result:** Best of both worlds - Dragonfly's intelligence + Native's performance
 
 ## Integration Points
 
@@ -319,7 +319,7 @@ Track compaction effectiveness:
 - Recovery frequency
 - Session length enabled
 
-Stored in: `koan/health/context-metrics.yaml`
+Stored in: `data/context-metrics.yaml`
 
 Example metrics:
 ```yaml

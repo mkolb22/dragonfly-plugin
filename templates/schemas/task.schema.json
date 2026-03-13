@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Zen Task Schema",
-  "description": "Schema for task tracking in koan/tasks/",
+  "title": "Dragonfly Task Schema",
+  "description": "Schema for task tracking in data/tasks/",
   "type": "object",
   "required": ["task_id", "title", "status", "priority", "type", "created_at"],
   "properties": {
@@ -53,7 +53,7 @@
         "implementation_id": { "type": ["string", "null"] },
         "review_id": { "type": ["string", "null"] }
       },
-      "description": "Links to Zen workflow artifacts"
+      "description": "Links to Dragonfly workflow artifacts"
     },
     "subtasks": {
       "type": "array",

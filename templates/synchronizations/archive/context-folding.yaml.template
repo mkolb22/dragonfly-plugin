@@ -37,7 +37,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "fold_trajectory"
-        model: "sonnet"
+        model: "opus"
         inputs:
           preserve_recent: 10     # Keep last 10 turns verbatim
           summarize_window: 20    # Summarize 20 turns at a time
@@ -71,7 +71,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "fold_trajectory"
-        model: "sonnet"
+        model: "opus"
         inputs:
           preserve_recent: 5      # Keep only last 5 turns
           summarize_window: 30    # Larger summary windows
@@ -106,7 +106,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "fold_trajectory"
-        model: "sonnet"
+        model: "opus"
         inputs:
           preserve_recent: 10
           summarize_window: 15
@@ -146,7 +146,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "create_mini_checkpoint"
-        model: "sonnet"
+        model: "opus"
         inputs:
           checkpoint_type: "pre_operation"
           include_state: true
@@ -184,7 +184,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "fold_phase"
-        model: "sonnet"
+        model: "opus"
         inputs:
           completed_phase: "${concept.name}"
           preserve_outputs: true   # Keep the phase outputs
@@ -221,7 +221,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "apply_retention_policy"
-        model: "sonnet"
+        model: "opus"
         inputs:
           retention_rules:
             - type: "error_messages"
@@ -270,7 +270,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "restore_checkpoint"
-        model: "sonnet"
+        model: "opus"
         inputs:
           checkpoint_type: "latest"
           restore_mode: "full"
@@ -308,7 +308,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "fold_trajectory"
-        model: "sonnet"
+        model: "opus"
         inputs:
           preserve_recent: 5
           summarize_window: 20

@@ -21,7 +21,7 @@ synchronizations:
       actions:
         - concept: "quality"
           action: "review_security"
-          model: "sonnet"
+          model: "opus"
           inputs:
             code: "${implementation.code}"
             focus: "security"
@@ -34,7 +34,7 @@ synchronizations:
 
         - concept: "quality"
           action: "review_correctness"
-          model: "sonnet"
+          model: "opus"
           inputs:
             code: "${implementation.code}"
             focus: "correctness"
@@ -47,7 +47,7 @@ synchronizations:
 
         - concept: "quality"
           action: "review_performance"
-          model: "sonnet"
+          model: "opus"
           inputs:
             code: "${implementation.code}"
             focus: "performance"
@@ -87,7 +87,7 @@ synchronizations:
     then:
       - concept: "verification-synthesizer"
         action: "synthesize"
-        model: "sonnet"
+        model: "opus"
         inputs:
           security_review: "${parallel.review_security}"
           correctness_review: "${parallel.review_correctness}"
@@ -159,7 +159,7 @@ synchronizations:
       actions:
         - concept: "quality"
           action: "review_backwards_compatibility"
-          model: "sonnet"
+          model: "opus"
           inputs:
             code: "${implementation.code}"
             previous_api: "${implementation.previous_api}"
@@ -167,7 +167,7 @@ synchronizations:
 
         - concept: "quality"
           action: "review_api_design"
-          model: "sonnet"
+          model: "opus"
           inputs:
             code: "${implementation.code}"
             focus: "api_quality"
@@ -205,7 +205,7 @@ synchronizations:
       actions:
         - concept: "quality"
           action: "review_migration_safety"
-          model: "sonnet"
+          model: "opus"
           inputs:
             migration: "${implementation.migration}"
             focus: "data_safety"
@@ -216,7 +216,7 @@ synchronizations:
 
         - concept: "quality"
           action: "review_migration_performance"
-          model: "sonnet"
+          model: "opus"
           inputs:
             migration: "${implementation.migration}"
             focus: "performance"
@@ -286,7 +286,7 @@ synchronizations:
       actions:
         - concept: "quality"
           action: "review"
-          model: "sonnet"
+          model: "opus"
           inputs:
             code: "${implementation.code}"
             depth: "thorough"
@@ -325,7 +325,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "check_unanimous"
-        model: "sonnet"
+        model: "opus"
         inputs:
           reviews: "${synthesis.all_reviews}"
           require: "all_approved"

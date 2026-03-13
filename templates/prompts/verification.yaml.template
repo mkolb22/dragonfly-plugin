@@ -1,6 +1,6 @@
 concept: verification
 version: "1.0.0"
-recommended_model: sonnet
+recommended_model: opus
 
 description: |
   Multi-Agent Verification implements ensemble verification for critical outputs.

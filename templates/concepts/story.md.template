@@ -1,7 +1,7 @@
 ---
 name: story
 type: concept
-model: sonnet
+model: opus
 state_location: "state.db (stories table)"
 execution: task-tool
 cost_tier: low
@@ -12,9 +12,9 @@ purpose: "Capture and validate user requirements"
 
 > **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/story-concept.md`.
 
-**Model Assignment**: Sonnet 4.5 (fast, efficient for structured data capture)
+**Model Assignment**: Opus 4.5 (fast, efficient for structured data capture)
 **Cost per Action**: ~$0.003
-**State Location**: SQLite `state.db` (via `zen_story_save`/`zen_story_get`/`zen_story_list`)
+**State Location**: SQLite `state.db` (via `dragonfly_story_save`/`dragonfly_story_get`/`dragonfly_story_list`)
 **Never Calls**: No other concepts (pure input processing)
 
 ## Quick Reference
@@ -26,9 +26,9 @@ purpose: "Capture and validate user requirements"
 
 ### State Format
 Stories are stored in SQLite via MCP tools. Use:
-- `zen_story_save` — save or update a story
-- `zen_story_get` — retrieve by ID or latest
-- `zen_story_list` — list stories with optional status filter
+- `dragonfly_story_save` — save or update a story
+- `dragonfly_story_get` — retrieve by ID or latest
+- `dragonfly_story_list` — list stories with optional status filter
 
 The `data` field contains the full story content (summary, acceptance_criteria, context, metadata).
 

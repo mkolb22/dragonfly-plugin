@@ -38,7 +38,7 @@ skills:
 
 ## Model Assignment
 
-**Model**: Sonnet (pattern-based security analysis)
+**Model**: Opus (pattern-based security analysis)
 **Cost per Action**: ~$0.002
 **Never Calls**: No other concepts (pure security analysis)
 
@@ -106,7 +106,7 @@ security_requirements:
 metadata:
   concept: "security"
   action: "threat_model"
-  model: "sonnet"
+  model: "opus"
   cost: 0.002
 ```
 
@@ -225,11 +225,11 @@ Final security gate before version control.
 - Scan all implementation code
 - Verify before every commit
 - Generate attestations
-- Record all security decisions via `zen_event_log` MCP tool
+- Record all security decisions via `dragonfly_event_log` MCP tool
 
 ---
 
-**Model Assignment**: Sonnet
+**Model Assignment**: Opus
 **Cost Tier**: Low (~$0.002 per action)
 **Purpose**: Continuous security assurance
 **Integration**: Parallel with main workflow, gates commit

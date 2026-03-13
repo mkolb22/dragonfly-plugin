@@ -2,7 +2,7 @@
 name: architecture
 type: concept
 model: opus
-state_location: "koan/architecture/"
+state_location: "data/architecture/"
 execution: task-tool
 cost_tier: high
 purpose: "Design system architecture and make technical decisions"
@@ -14,7 +14,7 @@ purpose: "Design system architecture and make technical decisions"
 
 **Model Assignment**: Opus 4.5 (deep reasoning for complex design decisions)
 **Cost per Action**: ~$0.015
-**State Location**: `koan/architecture/`
+**State Location**: `data/architecture/`
 **Never Calls**: No other concepts (pure design work)
 
 ## Quick Reference
@@ -26,7 +26,7 @@ purpose: "Design system architecture and make technical decisions"
 
 ### State File Format
 ```yaml
-# koan/architecture/arch-{id}.yaml
+# data/architecture/arch-{id}.yaml
 arch_id: "arch-001"
 status: "completed"  # draft, in_review, completed, blocked
 summary: "One-line summary of approach"

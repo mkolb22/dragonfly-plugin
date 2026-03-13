@@ -1,7 +1,7 @@
 ---
 name: tool-router
 type: concept
-model: sonnet
+model: opus
 purpose: "Dynamically select optimal tools based on task context and learn from outcomes"
 ---
 
@@ -222,7 +222,7 @@ suggestion:
 Tool routing is learned and stored:
 
 ```yaml
-# koan/routing/rules.yaml
+# data/routing/rules.yaml
 routing_rules:
   - task_pattern: "find.*function|method|class"
     tools:
@@ -286,4 +286,4 @@ Track routing effectiveness:
 - Fallback frequency (how often fallbacks needed)
 - Learning velocity (improvement over time)
 
-Stored in: `koan/metrics/tool-routing.yaml`
+Stored in: `data/metrics/tool-routing.yaml`

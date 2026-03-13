@@ -65,7 +65,7 @@ Gather research for a feature or technical decision.
    - Make evidence-based recommendations
    - Document what NOT to do (with reasons)
 
-**Output:** `koan/research/{story-id}-research.yaml`
+**Output:** `data/research/{story-id}-research.yaml`
 ```yaml
 research_id: "research-{timestamp}"
 story_id: "{story_id}"
@@ -139,7 +139,7 @@ Deep comparison of specific approaches.
 3. Analyze fit with current codebase
 4. Create decision matrix
 
-**Output:** `koan/research/comparison-{id}.yaml`
+**Output:** `data/research/comparison-{id}.yaml`
 
 ### validate
 Validate a proposed approach against research.
@@ -154,11 +154,11 @@ Validate a proposed approach against research.
 3. Find counter-evidence if it exists
 4. Rate confidence in proposal
 
-**Output:** `koan/research/validation-{id}.yaml`
+**Output:** `data/research/validation-{id}.yaml`
 
 ## Model Selection
 
-- **Default:** Sonnet (efficient research and synthesis)
+- **Default:** Opus (efficient research and synthesis)
 - **Deep analysis:** Opus (for complex trade-off analysis)
 
 ## SLO Expectations

@@ -23,7 +23,7 @@ synchronizations:
     then:
       - concept: "slo"
         action: "monitor"
-        model: "sonnet"       # Fast numeric analysis, <500ms overhead
+        model: "opus"       # Fast numeric analysis, <500ms overhead
         inputs:
           action_id: "${action.id}"
           concept: "${action.concept}"
@@ -88,7 +88,7 @@ synchronizations:
           "Continue anyway":
             - concept: "slo"
               action: "alert"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 violation: "${violation}"
                 user_decision: "accepted"
@@ -96,7 +96,7 @@ synchronizations:
           "Increase timeout":
             - concept: "slo"
               action: "update_threshold"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 sync_id: "${violation.sync_id}"
                 threshold: "max_duration_ms"
@@ -110,7 +110,7 @@ synchronizations:
           "Cancel workflow":
             - concept: "story"
               action: "cancel"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 story_id: "${story.id}"
                 reason: "User cancelled due to timeout violations"
@@ -131,7 +131,7 @@ synchronizations:
     then:
       - concept: "slo"
         action: "alert"
-        model: "sonnet"
+        model: "opus"
         inputs:
           violation: "${violations.find(v => v.type == 'cost_exceeded')}"
           handler_config: "${sync_rule.slo_expectations.on_cost_exceeded}"
@@ -150,7 +150,7 @@ synchronizations:
     then:
       - concept: "slo"
         action: "alert"
-        model: "sonnet"
+        model: "opus"
         inputs:
           violation: "${violations.find(v => v.type == 'context_exceeded')}"
           handler_config: "${sync_rule.slo_expectations.on_context_exceeded}"
@@ -172,7 +172,7 @@ synchronizations:
     then:
       - concept: "slo"
         action: "alert"
-        model: "sonnet"
+        model: "opus"
         inputs:
           violation: "${violations.find(v => v.type == 'quality_below_target')}"
           handler_config: "${sync_rule.slo_expectations.on_quality_below_target}"
@@ -198,12 +198,12 @@ synchronizations:
 #   6. Record violations
 #
 # Performance:
-#   - SLO monitoring adds <500ms per action (Sonnet)
+#   - SLO monitoring adds <500ms per action (Opus)
 #   - Only runs when slo_expectations defined
 #   - No monitoring = no overhead
 #
 # Integration:
 #   - Works with all concepts (story, architecture, implementation, etc.)
 #   - Reads from provenance (no data duplication)
-#   - Writes to koan/slo/ (monthly aggregation)
+#   - Writes to data/ (monthly aggregation)
 #

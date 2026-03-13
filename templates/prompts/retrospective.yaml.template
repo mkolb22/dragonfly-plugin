@@ -1,6 +1,6 @@
 concept: retrospective
 version: "1.0.0"
-recommended_model: sonnet
+recommended_model: opus
 
 description: |
   Reflexion pattern implementation - analyze failures to extract learnings

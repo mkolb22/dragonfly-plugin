@@ -19,7 +19,7 @@ synchronizations:
     then:
       concept: retrospective
       action: analyze
-      model: sonnet
+      model: opus
       inputs:
         trigger_concept: quality
         trigger_action: review
@@ -28,14 +28,14 @@ synchronizations:
         failed_output: "{{quality.review.output}}"
         failure_details: "{{quality.review.issues | json}}"
     outputs:
-      path: "koan/retrospectives/retro-{{id}}.yaml"
+      path: "data/retrospectives/retro-{{id}}.yaml"
     priority: high
 
     # SLO Expectations for retrospective.analyze
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds typical for deep analysis
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2000    # Review context + failure details
       max_context_tokens: 8000         # Warning threshold
@@ -67,7 +67,7 @@ synchronizations:
     then:
       concept: retrospective
       action: analyze
-      model: sonnet
+      model: opus
       inputs:
         trigger_concept: quality
         trigger_action: test
@@ -76,14 +76,14 @@ synchronizations:
         failed_output: "{{quality.test.output}}"
         failure_details: "{{quality.test.failures | json}}"
     outputs:
-      path: "koan/retrospectives/retro-{{id}}.yaml"
+      path: "data/retrospectives/retro-{{id}}.yaml"
     priority: high
 
     # SLO Expectations for retrospective.analyze
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds typical for deep analysis
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2000    # Test output + failure details
       max_context_tokens: 8000         # Warning threshold
@@ -115,7 +115,7 @@ synchronizations:
     then:
       concept: retrospective
       action: analyze
-      model: sonnet
+      model: opus
       inputs:
         trigger_concept: architecture
         trigger_action: design
@@ -124,14 +124,14 @@ synchronizations:
         failed_output: "{{architecture.design.output}}"
         failure_details: "{{architecture.blockers | json}}"
     outputs:
-      path: "koan/retrospectives/retro-{{id}}.yaml"
+      path: "data/retrospectives/retro-{{id}}.yaml"
     priority: medium
 
     # SLO Expectations for retrospective.analyze
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds typical for deep analysis
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2500    # Architecture context + blockers
       max_context_tokens: 10000        # Warning threshold
@@ -163,7 +163,7 @@ synchronizations:
     then:
       concept: retrospective
       action: analyze
-      model: sonnet
+      model: opus
       inputs:
         trigger_concept: implementation
         trigger_action: generate
@@ -172,14 +172,14 @@ synchronizations:
         failed_output: "{{implementation.generate.output}}"
         failure_details: "{{implementation.blockers | json}}"
     outputs:
-      path: "koan/retrospectives/retro-{{id}}.yaml"
+      path: "data/retrospectives/retro-{{id}}.yaml"
     priority: medium
 
     # SLO Expectations for retrospective.analyze
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds typical for deep analysis
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2000    # Implementation context + blockers
       max_context_tokens: 8000         # Warning threshold
@@ -210,19 +210,19 @@ synchronizations:
       query: "retrospective.learnings.length > 0"
     then:
       action: update_learnings
-      model: sonnet
+      model: opus
       inputs:
         learnings: "{{retrospective.learnings}}"
         applies_to_concepts: "{{retrospective.learnings | map('applies_to') | unique}}"
     outputs:
-      path: "koan/learnings/active-learnings.yaml"
+      path: "data/learnings/active-learnings.yaml"
     priority: low
 
     # SLO Expectations for update_learnings
     slo_expectations:
       expected_duration_ms: 2000       # 2 seconds typical
       max_duration_ms: 20000           # 20 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet for simple update
+      expected_cost_usd: 0.000175      # Opus for simple update
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 500     # Learnings + current file
       max_context_tokens: 2000         # Warning threshold
@@ -245,7 +245,7 @@ synchronizations:
 # Learning integration
 learning_integration:
   description: |
-    Learnings from retrospectives are stored in koan/learnings/active-learnings.yaml
+    Learnings from retrospectives are stored in data/learnings/active-learnings.yaml
     and automatically included in relevant concept prompts.
 
   active_learnings_format: |

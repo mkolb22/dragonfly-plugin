@@ -1,4 +1,4 @@
-# Zen Examples Library
+# Dragonfly Examples Library
 
 This directory contains curated examples for few-shot learning. When concepts are invoked, relevant examples can be included in the prompt to improve output quality.
 

@@ -1,4 +1,4 @@
-# Zen Prompt Template: Context Concept
+# Dragonfly Prompt Template: Context Concept
 # Version: 1.0.0
 # Model: sonnet (recommended)
 #
@@ -7,7 +7,7 @@
 
 concept: context
 version: "1.0.0"
-recommended_model: sonnet
+recommended_model: opus
 
 # ============================================================================
 # PROMPTS

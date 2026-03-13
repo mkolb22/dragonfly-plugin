@@ -103,7 +103,7 @@ export async function executeCode(
   language: string,
   options: ExecutionOptions = {}
 ): Promise<ExecutionResult> {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "zen-exec-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dragonfly-exec-"));
 
   try {
     const execution = getLanguageExecution(language, code, tempDir);

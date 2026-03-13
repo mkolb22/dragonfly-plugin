@@ -60,8 +60,8 @@ rules:
   # --- Phase 1A: Story -> Parallel Analysis ---
 
   # Story ready triggers parallel code analysis and security
-  - story.create[ready]:completed -> code-analysis.context:sonnet @mcp [parallel]
-  - story.create[ready]:completed -> security.threat_model:sonnet @mcp [parallel]
+  - story.create[ready]:completed -> code-analysis.context:opus @mcp [parallel]
+  - story.create[ready]:completed -> security.threat_model: opus @mcp [parallel]
 
   # --- Phase 1B: Context Injection ---
 
@@ -78,18 +78,18 @@ rules:
   # --- Phase 2: Architecture -> Verification ---
 
   # Multi-pass verification for non-trivial architectures
-  - architecture.design:completed -> verification.verify[pass=1]:sonnet @verification [risk != low]
-  - verification.verify[pass=1]:completed -> verification.verify[pass=2]:sonnet @verification
-  - verification.verify[pass=2]:completed -> verification.consensus:sonnet @quick
+  - architecture.design:completed -> verification.verify[pass=1]:opus @verification [risk != low]
+  - verification.verify[pass=1]:completed -> verification.verify[pass=2]:opus @verification
+  - verification.verify[pass=2]:completed -> verification.consensus:opus @quick
 
   # Skip verification for low-risk changes
-  - architecture.design[risk=low]:completed -> implementation.generate:sonnet @implementation
+  - architecture.design[risk=low]:completed -> implementation.generate:opus @implementation
 
   # --- Phase 2.5: Verification Outcomes ---
 
   # Verification approved -> implementation
-  - verification.consensus[approve]:completed -> implementation.generate:sonnet @implementation
-  - verification.consensus[approve_with_notes]:completed -> implementation.generate:sonnet @implementation
+  - verification.consensus[approve]:completed -> implementation.generate:opus @implementation
+  - verification.consensus[approve_with_notes]:completed -> implementation.generate:opus @implementation
 
   # Verification blocked -> architecture revision
   - verification.consensus[block]:completed -> architecture.revise:opus @architecture
@@ -98,31 +98,31 @@ rules:
   # --- Phase 2.7: Auto Test Generation (MCP) ---
 
   # Generate tests in parallel with implementation
-  - implementation.generate:completed -> quality.generate_tests:sonnet @test_generation [parallel, mcp]
+  - implementation.generate:completed -> quality.generate_tests:opus @test_generation [parallel, mcp]
 
   # --- Phase 3: Implementation -> Quality ---
 
   # Implementation triggers parallel quality checks
-  - implementation.generate:completed -> quality.review:sonnet @quality [parallel]
-  - implementation.generate:completed -> quality.test:sonnet @quality [parallel, test_files.length > 0]
+  - implementation.generate:completed -> quality.review:opus @quality [parallel]
+  - implementation.generate:completed -> quality.test:opus @quality [parallel, test_files.length > 0]
 
   # --- Phase 3.5: Self-Repair Loop (MCP) ---
 
   # Test failures trigger self-repair
-  - quality.test:failed -> quality.self_repair:sonnet @execution_loop [repair_attempts < 3, mcp]
-  - quality.self_repair:succeeded -> quality.test:sonnet @quality
+  - quality.test:failed -> quality.self_repair:opus @execution_loop [repair_attempts < 3, mcp]
+  - quality.self_repair:succeeded -> quality.test:opus @quality
   - quality.self_repair:failed -> ask_user(repair_failed) @quick [repair_attempts >= 3]
 
   # --- Phase 4: Quality -> Version ---
 
   # Commit when both quality checks pass
-  - quality.all:completed -> version.commit:sonnet @quick [review.approved, test.passed]
-  - quality.review:approved -> version.commit:sonnet @quick [test.skipped OR test.passed]
+  - quality.all:completed -> version.commit:opus @quick [review.approved, test.passed]
+  - quality.review:approved -> version.commit:opus @quick [test.skipped OR test.passed]
 
   # --- Phase 4B: Auto-complete Story ---
 
   # Mark story complete after successful commit
-  - version.commit:completed -> story.complete:sonnet @quick [flow.completed]
+  - version.commit:completed -> story.complete:opus @quick [flow.completed]
 
 # ============================================================================
 # CONTEXT MANAGEMENT RULES
@@ -130,13 +130,13 @@ rules:
 
 context:
   # Create checkpoint before compression
-  - usage >= 70% AND last_checkpoint < 70% -> checkpoint.create:haiku @quick [name="pre-compress"]
+  - usage >= 70% AND last_checkpoint < 70% -> checkpoint.create:opus @quick [name="pre-compress"]
 
   # Compress context when approaching limit
-  - usage >= 75% -> context.compress:sonnet @context
+  - usage >= 75% -> context.compress:opus @context
 
   # Emergency snapshot at high usage
-  - usage >= 90% -> context.snapshot:sonnet @context [reset_to="5K_summary"]
+  - usage >= 90% -> context.snapshot:opus @context [reset_to="5K_summary"]
 
 # ============================================================================
 # LEARNING LOOP RULES
@@ -144,13 +144,13 @@ context:
 
 learning:
   # Extract patterns from successful zero-rework implementations
-  - quality.review[approved, rework_cycles=0]:completed -> retrospective.extract_pattern:sonnet @quick
+  - quality.review[approved, rework_cycles=0]:completed -> retrospective.extract_pattern:opus @quick
 
   # Extract learnings from implementations that needed changes
-  - quality.review[needs_changes]:completed -> retrospective.extract_learning:sonnet @quick
+  - quality.review[needs_changes]:completed -> retrospective.extract_learning:opus @quick
 
   # Analyze workflow after completion
-  - version.commit[flow.completed]:completed -> retrospective.analyze_workflow:sonnet @quick
+  - version.commit[flow.completed]:completed -> retrospective.analyze_workflow:opus @quick
 
   # Auto-remember architecture decisions
   - architecture.design:completed -> memory.store(architecture_decision) @zero
@@ -164,13 +164,13 @@ learning:
 
 checkpoints:
   # Checkpoint on git commit
-  - git.commit:completed -> checkpoint.create:haiku @quick [type="commit"]
+  - git.commit:completed -> checkpoint.create:opus @quick [type="commit"]
 
   # Checkpoint on workflow milestone completion
-  - version.commit[flow.completed]:completed -> checkpoint.create:haiku @quick [type="milestone"]
+  - version.commit[flow.completed]:completed -> checkpoint.create:opus @quick [type="milestone"]
 
   # Pre-architecture checkpoint (expensive operation coming)
-  - architecture.design:starting -> checkpoint.create:haiku @quick [type="pre-architecture"]
+  - architecture.design:starting -> checkpoint.create:opus @quick [type="pre-architecture"]
 
 # ============================================================================
 # ERROR RECOVERY RULES
@@ -187,14 +187,14 @@ recovery:
   - architecture.design:failed -> escalate(architecture_failed) @quick
 
   # Implementation errors -> retry then ask user
-  - implementation.generate:failed -> implementation.generate:sonnet @implementation [retry, attempts < 2]
+  - implementation.generate:failed -> implementation.generate:opus @implementation [retry, attempts < 2]
   - implementation.generate:failed -> ask_user(implementation_failed) @quick [attempts >= 2]
 
   # Quality errors -> self-repair via MCP
-  - quality.test:failed -> quality.self_repair:sonnet @execution_loop [mcp, attempts < 3]
+  - quality.test:failed -> quality.self_repair:opus @execution_loop [mcp, attempts < 3]
 
   # Version errors -> retry then escalate
-  - version.commit:failed -> version.commit:sonnet @quick [retry, attempts < 3]
+  - version.commit:failed -> version.commit:opus @quick [retry, attempts < 3]
   - version.commit:failed -> escalate(commit_failed) @quick [attempts >= 3]
 
 # ============================================================================
@@ -203,16 +203,16 @@ recovery:
 
 fallback:
   # Sync blocked after max retries -> trigger ReAct
-  - sync.blocked[retry_count >= 3]:triggered -> react-fallback.handle_blocked:sonnet @fallback
+  - sync.blocked[retry_count >= 3]:triggered -> react-fallback.handle_blocked:opus @fallback
 
   # Sync rule not found -> ReAct infers next step
-  - sync.no_match:detected -> react-fallback.handle_blocked:sonnet @fallback [reason="no_matching_rule"]
+  - sync.no_match:detected -> react-fallback.handle_blocked:opus @fallback [reason="no_matching_rule"]
 
   # Circular dependency -> ReAct breaks cycle
-  - sync.circular_dependency:detected -> react-fallback.handle_blocked:sonnet @fallback [reason="circular"]
+  - sync.circular_dependency:detected -> react-fallback.handle_blocked:opus @fallback [reason="circular"]
 
   # Ambiguous state -> ReAct analyzes and chooses
-  - workflow.ambiguous_state:detected -> react-fallback.handle_blocked:sonnet @fallback [reason="ambiguous"]
+  - workflow.ambiguous_state:detected -> react-fallback.handle_blocked:opus @fallback [reason="ambiguous"]
 
   # ReAct resolved -> resume workflow
   - react-fallback.handle_blocked[status=resolved]:completed -> resume_workflow @zero

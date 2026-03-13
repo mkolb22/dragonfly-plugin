@@ -14,7 +14,7 @@
 
 ## Technical Preferences
 - ESM modules throughout (no require())
-- MIT + Commons Clause license (same as Zen project)
+- MIT + Commons Clause license (same as Dragonfly project)
 - Idempotent scripts that skip existing files
 - npm scoped packages under org scope
 

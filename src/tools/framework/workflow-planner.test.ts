@@ -130,7 +130,7 @@ describe("planWorkflow", () => {
       }
       const implStep = plan.steps.find((s) => s.concept === "implementation");
       if (implStep) {
-        expect(implStep.model).toBe("sonnet");
+        expect(implStep.model).toBe("opus");
       }
     });
   });

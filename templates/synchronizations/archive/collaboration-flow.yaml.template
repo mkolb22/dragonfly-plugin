@@ -28,10 +28,10 @@ slo_defaults:
 
 synchronizations:
   # ----------------------------------------------------------------------------
-  # Auto-analyze PRs created by Zen workflows
+  # Auto-analyze PRs created by Dragonfly workflows
   # ----------------------------------------------------------------------------
-  - id: "auto-analyze-zen-pr"
-    description: "Automatically analyze PRs created by Zen version concept"
+  - id: "auto-analyze-dragonfly-pr"
+    description: "Automatically analyze PRs created by Dragonfly version concept"
     when:
       concept: "version"
       action: "create_pr"
@@ -39,7 +39,7 @@ synchronizations:
     then:
       - concept: "pr-review"
         action: "analyze"
-        model: "sonnet"
+        model: "opus"
         inputs:
           pr_url: "${version.pr_url}"
           focus_areas:
@@ -49,7 +49,7 @@ synchronizations:
       # Post analysis as PR comment (not formal review)
       - concept: "pr-review"
         action: "submit"
-        model: "sonnet"
+        model: "opus"
         inputs:
           review_type: "COMMENT"
           analysis_id: "${pr_review.analysis_id}"
@@ -67,7 +67,7 @@ synchronizations:
 
     provenance:
       flow_id: "${flow.id}"
-      reason: "Automated PR analysis for Zen-created PRs"
+      reason: "Automated PR analysis for Dragonfly-created PRs"
       category: "core"
 
   # ----------------------------------------------------------------------------
@@ -84,7 +84,7 @@ synchronizations:
     then:
       - concept: "pr-review"
         action: "analyze"
-        model: "sonnet"  # Upgrade to Sonnet for deep analysis
+        model: "opus"  # Upgrade to Opus for deep analysis
         inputs:
           pr_url: "${pr_review.pr_url}"
           deep_analysis: true
@@ -125,7 +125,7 @@ synchronizations:
       query: "architecture.decisions.length >= 2 OR architecture.estimated_risk != 'low'"
     then:
       - action: "adr.create"
-        model: "sonnet"
+        model: "opus"
         inputs:
           title: "${architecture.approach}"
           status: "proposed"
@@ -217,7 +217,7 @@ synchronizations:
             - "${profile.languages.primary}"
             - "${architecture.patterns_used}"
 
-        target: "~/.zen/global-memory/patterns/${classification.type}/${timestamp}.yaml"
+        target: "~/.dragonfly/global-memory/patterns/${classification.type}/${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 2000
@@ -266,7 +266,7 @@ synchronizations:
             - "${classification.type}"
             - "${retrospective.failure_analysis.category}"
 
-        target: "~/.zen/global-memory/learnings/failures/${timestamp}.yaml"
+        target: "~/.dragonfly/global-memory/learnings/failures/${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 2000
@@ -292,7 +292,7 @@ synchronizations:
       event: "workflow.start"
     then:
       - action: "global-memory.retrieve"
-        model: "sonnet"
+        model: "opus"
         inputs:
           categories: ["patterns", "learnings"]
           filters:
@@ -349,7 +349,7 @@ synchronizations:
           priority: "medium"
           channels:
             - type: "file"
-              path: "koan/notifications/architecture-${timestamp}.yaml"
+              path: "data/notifications/architecture-${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 1000
@@ -395,7 +395,7 @@ synchronizations:
           priority: "high"
           channels:
             - type: "file"
-              path: "koan/notifications/pr-alert-${timestamp}.yaml"
+              path: "data/notifications/pr-alert-${timestamp}.yaml"
 
     slo_expectations:
       expected_duration_ms: 1000
@@ -431,7 +431,7 @@ synchronizations:
         slo_performance.duration_saved_percent > 30
     then:
       - action: "log.append"
-        target: "koan/knowledge/skill-effectiveness.yaml"
+        target: "data/knowledge/skill-effectiveness.yaml"
         data:
           timestamp: "${now}"
           skill: "${skills_used[0]}"
@@ -468,7 +468,7 @@ synchronizations:
       query: "retrieved_patterns.length > 0"
     then:
       - action: "log.append"
-        target: "~/.zen/global-memory/usage-log.yaml"
+        target: "~/.dragonfly/global-memory/usage-log.yaml"
         data:
           timestamp: "${now}"
           project: "${project.name}"
@@ -497,7 +497,7 @@ synchronizations:
 # Collaboration Flow enables:
 #
 # 1. Automated PR Reviews
-#    - Auto-analyze Zen-created PRs
+#    - Auto-analyze Dragonfly-created PRs
 #    - Deep review for high-risk changes
 #    - Security and architecture checks
 #

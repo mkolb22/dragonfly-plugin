@@ -36,7 +36,7 @@
   },
   "permissions": {
     "allow": [
-      "mcp__zen-server__*"
+      "mcp__dragonfly-server__*"
     ],
     "deny": [
       "Bash(*rm -rf /*)",

@@ -86,7 +86,7 @@ describe("filterByCategory", () => {
 
 describe("filterByProject", () => {
   it("filters by project name", () => {
-    const mems = [makeMem("a", { project: "bodhi" }), makeMem("b", { project: "zen" }), makeMem("c")];
+    const mems = [makeMem("a", { project: "bodhi" }), makeMem("b", { project: "dragonfly" }), makeMem("c")];
     expect(filterByProject(mems, "bodhi")).toHaveLength(1);
     expect(filterByProject(mems, "bodhi")[0].id).toBe("a");
   });

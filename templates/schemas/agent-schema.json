@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.wysiwid.dev/schemas/agent.json",
-  "title": "Zen Agent Definition",
-  "description": "Schema for Zen WYSIWID agent YAML frontmatter",
+  "$id": "https://dragonfly.wysiwid.dev/schemas/agent.json",
+  "title": "Dragonfly Agent Definition",
+  "description": "Schema for Dragonfly WYSIWID agent YAML frontmatter",
   "type": "object",
   "required": ["name", "type", "model", "description"],
   "properties": {

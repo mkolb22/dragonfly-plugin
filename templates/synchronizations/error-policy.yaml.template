@@ -108,7 +108,7 @@ policies:
 # Dead Letter Queue configuration
 dlq:
   enabled: true
-  storage_path: "koan/dlq"
+  storage_path: "data/dlq"
   max_entries: 500
   max_retry_attempts: 3
   backoff_base_ms: 2000

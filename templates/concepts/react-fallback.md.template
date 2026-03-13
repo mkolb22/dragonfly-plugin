@@ -2,7 +2,7 @@
 
 ## Model Assignment
 
-**Model**: Sonnet 4.5 (adaptive reasoning)
+**Model**: Opus 4.5 (adaptive reasoning)
 **Cost per Action**: ~$0.002
 **Never Calls**: Other concepts directly (works through sync rules)
 
@@ -11,10 +11,10 @@
 When invoked, I execute the ReAct fallback concept:
 
 1. ✅ Load ReAct fallback concept template
-2. ✅ Activate Sonnet 4.5 model (adaptive reasoning)
+2. ✅ Activate Opus 4.5 model (adaptive reasoning)
 3. ✅ Analyze blocked synchronization state
 4. ✅ Execute Reason-Act-Observe loop
-5. ✅ Save state file in koan/fallback/
+5. ✅ Save state file in data/fallback/
 
 ---
 
@@ -136,13 +136,13 @@ details:
   metadata:
     created_at: "2026-01-30T16:00:00Z"
     concept: "react-fallback"
-    model: "sonnet"
+    model: "opus"
     cost: 0.000145
 ```
 
 ## State Location
 
-Fallback executions are saved to: `koan/fallback/fb-{id}.yaml`
+Fallback executions are saved to: `data/fallback/fb-{id}.yaml`
 
 ## Integration with Synchronizations
 
@@ -221,7 +221,7 @@ ReAct Loop:
 
 ## Cost Optimization
 
-**Why Sonnet?**
+**Why Opus?**
 - Adaptive reasoning required for edge cases
 - No fixed pattern to follow (unlike implementation)
 - Must analyze complex state and make decisions
@@ -253,9 +253,9 @@ Sync Failed?
 
 ## Always Do This
 
-- ✅ Use Sonnet model exclusively
+- ✅ Use Opus model exclusively
 - ✅ Document the resolution for future learning
-- ✅ Save state to koan/fallback/
+- ✅ Save state to data/fallback/
 - ✅ Resume declarative workflow when resolved
 - ✅ Use dead letter queue for truly unresolvable issues
 - ✅ Track all iterations with thought/action/observation
@@ -280,7 +280,7 @@ After successful resolution:
 
 ---
 
-**Model Assignment**: Sonnet
+**Model Assignment**: Opus
 **Cost Tier**: Low ($0.000145)
 **Purpose**: Adaptive edge case resolution
 **Integration**: Triggered by sync-blocked, triggers workflow resume or DLQ

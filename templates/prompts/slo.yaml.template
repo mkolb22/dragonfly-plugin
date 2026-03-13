@@ -1,6 +1,6 @@
 concept: slo
 version: "1.0.0"
-recommended_model: sonnet
+recommended_model: opus
 
 description: |
   Service Level Objectives (SLO) monitoring and enforcement for workflow performance.
@@ -15,7 +15,7 @@ prompts:
       ## Monitoring Process
 
       ### 1. Read Provenance Data
-      - Load action provenance from koan/provenance/actions/{action_id}.yaml
+      - Load action provenance from data/provenance/actions/{action_id}.yaml
       - Extract actual performance metrics:
         - duration_ms: Execution time
         - cost_usd: Total cost
@@ -254,13 +254,13 @@ prompts:
 
       ### 3. Realistic Value Checks
       Duration:
-      - Sonnet: min 100ms, typical 1-5s
-      - Sonnet: min 1s, typical 5-30s
+      - Opus: min 100ms, typical 1-5s
+      - Opus: min 1s, typical 5-30s
       - Warn if < reasonable minimum
 
       Cost:
-      - Sonnet: min $0.0001, typical $0.000175
-      - Sonnet: min $0.001, typical $0.003-0.015
+      - Opus: min $0.0001, typical $0.000175
+      - Opus: min $0.001, typical $0.003-0.015
       - Warn if < model minimum
 
       Context:
@@ -337,7 +337,7 @@ examples:
             result: triggered
             retry_count: 1
         metrics_updated: true
-        metrics_file: koan/slo/metrics/architecture/metrics-2025-12.yaml
+        metrics_file: data/metrics/architecture/metrics-2025-12.yaml
 
 validation:
   required_fields:

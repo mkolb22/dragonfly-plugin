@@ -1,2 +1,2 @@
-View or update the project profile. Call zen_get_workflow with command="profile" and args="${ARGUMENTS}".
+View or update the project profile. Call dragonfly_get_workflow with command="profile" and args="${ARGUMENTS}".
 Follow the returned instructions exactly.

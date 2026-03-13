@@ -21,7 +21,7 @@ You were working on publishing `@dragonflymcp/plugin` to npm and preparing it fo
 - `CLAUDE.md` — WASM flags, portable npm path, install section
 - `README.md` — install section, license updated to MIT AND Commons Clause
 - `PRIVACY.md` — created for marketplace submission
-- `LICENSE` — updated to MIT + Commons Clause (matching Zen license structure)
+- `LICENSE` — updated to MIT + Commons Clause (matching Dragonfly license structure)
 - `.claude-plugin/plugin.json` — created; **version still says 1.0.0 — needs sync to 1.0.5**
 - `src/tools/analytics/index.ts` — fixed ESM/CJS mismatch (require() → ESM imports)
 - `.gitignore` — added publishing-strategy.md, npm-account.md, marketplace-submission.md
@@ -52,7 +52,7 @@ You were working on publishing `@dragonflymcp/plugin` to npm and preparing it fo
 ## Key Decisions
 
 - **`@dragonflymcp` scope** — `@dragonfly` org was taken on npm. `dragonflymcp` was available and descriptive.
-- **MIT + Commons Clause** — matches the Zen project license. Free to use/modify/distribute; commercial use reserved to Michael Kolb. Same structure as `/zen/LICENSE`.
+- **MIT + Commons Clause** — matches the Dragonfly project license. Free to use/modify/distribute; commercial use reserved to Michael Kolb. Same structure as `/dragonfly/LICENSE`.
 - **`files` field over `.npmignore`** — `dist/` is gitignored; adding `"files": ["dist/", "templates/", "scripts/", ".claude-plugin/"]` to package.json takes precedence over .gitignore for npm pack.
 - **INIT_CWD for postinstall** — npm sets `INIT_CWD` to the consuming project root during install. Using `process.cwd()` alone would target the package's own directory in node_modules.
 - **Gitignored internal docs** — `publishing-strategy.md`, `npm-account.md`, `marketplace-submission.md` kept out of the repo. Contains tokens and internal strategy.

@@ -15,10 +15,10 @@ Fixed in this session:
 4. **`src/index.ts` comment** — Updated tool counts to match CLAUDE.md (was showing pre-refactor numbers).
 
 Issues that were in the *consuming project* (autonops), not this plugin:
-- Name mismatch (`zen-server` vs `dragonfly`) — fixed by init script writing correct .mcp.json
+- Name mismatch (`dragonfly-server` vs `dragonfly`) — fixed by init script writing correct .mcp.json
 - Absolute path reference — fixed by init script using `node_modules/` relative path
-- Dead `.zen` submodule — consumer cleanup only
-- Legacy `koan/` directory — consumer cleanup only
+- Dead `.dragonfly` submodule — consumer cleanup only
+- Legacy `data/` directory — consumer cleanup only
 
 ## Template Counts (canonical)
 - agents: 18 `.md` files (no .template suffix)

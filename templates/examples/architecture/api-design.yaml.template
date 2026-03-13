@@ -1,4 +1,4 @@
-# Zen Architecture Example: RESTful API Design
+# Dragonfly Architecture Example: RESTful API Design
 #
 # This example demonstrates architecture design for a RESTful API
 # with proper resource modeling, versioning, and error handling.

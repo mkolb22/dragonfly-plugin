@@ -127,7 +127,7 @@ story | parallel(architecture, security) | implementation | quality | version
 Override the default model for a concept using `:model` notation.
 
 ```
-architecture:opus | implementation:sonnet | verification:haiku
+architecture:opus | implementation:opus | verification:opus
 ```
 
 Valid models: `opus`, `sonnet`, `haiku`
@@ -167,7 +167,7 @@ story | architecture | implementation @slo:standard @errors:graceful
 Combine all features:
 
 ```
-story | parallel(arch:opus, sec) | impl:sonnet | verification[2]:sonnet | qa @slo:standard @errors:graceful
+story | parallel(arch:opus, sec) | impl:opus | verification[2]:opus | qa @slo:standard @errors:graceful
 ```
 
 ### Parsing Order (within a concept reference)
@@ -571,7 +571,7 @@ The Pipeline is pure synchronous JavaScript logic. The P-cores on Apple Silicon 
 | Claude integration | Direct | Via Bash tool + parsing |
 | Session sharing | Same process | Separate process |
 
-The CLI approach (`koan compose` / `koan flow` in zen) is useful for developer tooling but adds subprocess overhead and loses structured output. As an MCP tool, the Pipeline returns typed JSON that Claude can reason about directly.
+The CLI approach (`data compose` / `data flow` in dragonfly) is useful for developer tooling but adds subprocess overhead and loses structured output. As an MCP tool, the Pipeline returns typed JSON that Claude can reason about directly.
 
 ---
 

@@ -1,6 +1,6 @@
 concept: planning
 version: "1.0.0"
-recommended_model: sonnet
+recommended_model: opus
 
 description: |
   Explicit Chain-of-Thought planning phase that precedes complex concept actions.

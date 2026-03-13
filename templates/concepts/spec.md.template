@@ -1,8 +1,8 @@
 ---
 name: spec
 type: concept
-model: sonnet
-state_location: "koan/state/state.db (specs table)"
+model: opus
+state_location: "data/state.db (specs table)"
 execution: task-tool
 cost_tier: low
 purpose: "Define structured specifications and generate type-safe code generation prompts"
@@ -12,9 +12,9 @@ purpose: "Define structured specifications and generate type-safe code generatio
 
 > **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/spec-concept.md`.
 
-**Model Assignment**: Sonnet 4.5 (specification analysis and prompt generation)
+**Model Assignment**: Opus 4.5 (specification analysis and prompt generation)
 **Cost per Action**: ~$0.005
-**State Location**: `koan/state/state.db` (specs table)
+**State Location**: `data/state.db` (specs table)
 **Never Calls**: No other concepts (pure spec→prompt transformation)
 
 ## Quick Reference

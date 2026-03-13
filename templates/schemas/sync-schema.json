@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.wysiwid.dev/schemas/sync.json",
-  "title": "Zen Synchronization Rules",
-  "description": "Schema for Zen WYSIWID synchronization YAML files",
+  "$id": "https://dragonfly.wysiwid.dev/schemas/sync.json",
+  "title": "Dragonfly Synchronization Rules",
+  "description": "Schema for Dragonfly WYSIWID synchronization YAML files",
   "type": "object",
   "required": ["name", "description", "rules"],
   "properties": {

@@ -25,9 +25,9 @@ const SKIP_FILES = new Set(["slo-registry.yaml", "error-policy.yaml"]);
  * Format: `concept.action[qualifier]:status -> target_concept.target_action:model @slo [conditions]`
  *
  * Examples:
- *   - story.create[ready]:completed -> code-analysis.context:sonnet @mcp [parallel]
+ *   - story.create[ready]:completed -> code-analysis.context:opus @mcp [parallel]
  *   - architecture.design:completed -> verification.verify[pass=1]:sonnet @verification [risk != low]
- *   - quality.test:failed -> quality.self_repair:sonnet @execution_loop [repair_attempts < 3, mcp]
+ *   - quality.test:failed -> quality.self_repair:opus @execution_loop [repair_attempts < 3, mcp]
  */
 function parseDslRules(content: string, sourcePath: string): SyncRule[] {
   const rules: SyncRule[] = [];

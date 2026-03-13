@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.dev/schemas/architecture.schema.json",
-  "title": "Zen Architecture Schema",
-  "description": "Schema for architecture state files in koan/architecture/",
+  "$id": "https://dragonfly.dev/schemas/architecture.schema.json",
+  "title": "Dragonfly Architecture Schema",
+  "description": "Schema for architecture state files in data/architecture/",
   "type": "object",
   "required": ["id", "status", "summary"],
   "properties": {

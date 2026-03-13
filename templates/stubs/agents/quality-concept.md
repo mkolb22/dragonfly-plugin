@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: yellow
-description: Quality Concept - Reviews code and runs tests using Sonnet 4.5 for thorough code review and quality analysis
+description: Quality Concept - Reviews code and runs tests using Opus 4.5 for thorough code review and quality analysis
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -37,5 +37,5 @@ skills:
   - workflow-replay
 ---
 
-Call zen_get_agent_prompt with agent="quality-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="quality-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

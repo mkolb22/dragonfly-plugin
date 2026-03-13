@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: green
-description: Implementation Concept - Generates code from architecture specifications using Sonnet 4.5 for high-quality code generation
+description: Implementation Concept - Generates code from architecture specifications using Opus 4.5 for high-quality code generation
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -37,5 +37,5 @@ skills:
   - output-caching
 ---
 
-Call zen_get_agent_prompt with agent="implementation-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="implementation-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

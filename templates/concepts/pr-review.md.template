@@ -46,7 +46,7 @@ Analyze a pull request without submitting review.
 5. Identify code quality issues
 6. Generate improvement suggestions
 
-**Output:** `koan/reviews/pr-{number}-analysis.yaml`
+**Output:** `data/reviews/pr-{number}-analysis.yaml`
 ```yaml
 pr_analysis:
   pr_number: 123
@@ -197,9 +197,9 @@ review_submitted:
 
 ## Model Selection
 
-- **analyze**: Sonnet (fast initial analysis)
-- **submit: Sonnet (formatting review)
-- **complex architecture review**: Sonnet (when impact is high)
+- **analyze**: Opus (fast initial analysis)
+- **submit: Opus (formatting review)
+- **complex architecture review**: Opus (when impact is high)
 
 ## SLO Expectations
 
@@ -227,12 +227,12 @@ slo_expectations:
   then:
     - concept: "pr-review"
       action: "analyze"
-      model: "sonnet"
+      model: "opus"
       inputs:
         pr_url: "${event.pull_request.url}"
     - concept: "pr-review"
       action: "submit"
-      model: "sonnet"
+      model: "opus"
       inputs:
         review_type: "COMMENT"  # Don't auto-approve, just comment
 ```

@@ -48,7 +48,7 @@ synchronizations:
     then:
       - concept: "security"
         action: "threat_model"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # Runs in parallel with code-analysis
         inputs:
           story_id: "${story.id}"
@@ -91,7 +91,7 @@ synchronizations:
     then:
       - concept: "security"
         action: "validate_architecture"
-        model: "sonnet"
+        model: "opus"
         inputs:
           arch_id: "${architecture.id}"
           story_id: "${story.id}"
@@ -205,7 +205,7 @@ synchronizations:
     then:
       - concept: "security"
         action: "scan_implementation"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # Runs in parallel with quality.review
         inputs:
           impl_id: "${implementation.id}"
@@ -256,7 +256,7 @@ synchronizations:
 
       - concept: "implementation"
         action: "fix_security"
-        model: "sonnet"
+        model: "opus"
         inputs:
           impl_id: "${implementation.id}"
           vulnerabilities: "${security.critical_issues}"
@@ -298,7 +298,7 @@ synchronizations:
           "Fix issues (Recommended)":
             - concept: "implementation"
               action: "fix_security"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 impl_id: "${implementation.id}"
                 vulnerabilities: "${security.high_issues}"
@@ -313,7 +313,7 @@ synchronizations:
 
           "Cancel":
             - action: "notify"
-              message: "Review security issues in koan/security/scan-${implementation.id}.yaml"
+              message: "Review security issues in data/security/scan-${implementation.id}.yaml"
 
     provenance:
       flow_id: "${flow.id}"
@@ -348,7 +348,7 @@ synchronizations:
     then:
       - concept: "security"
         action: "verify_commit"
-        model: "sonnet"
+        model: "opus"
         inputs:
           impl_id: "${implementation.id}"
           scan_id: "${security.scan.id}"
@@ -381,7 +381,7 @@ synchronizations:
     then:
       - concept: "version"
         action: "commit"
-        model: "sonnet"
+        model: "opus"
         inputs:
           implementation_id: "${implementation.id}"
           story_id: "${story.id}"

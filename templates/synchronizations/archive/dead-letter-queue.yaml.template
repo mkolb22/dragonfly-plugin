@@ -29,7 +29,7 @@ slo_defaults:
 
 # Configuration
 dlq_config:
-  storage_path: "koan/dlq"
+  storage_path: "data/dlq"
   max_entries: 500
   max_retry_attempts: 3
   backoff_base_ms: 2000        # 2s, 4s, 8s for retries
@@ -285,7 +285,7 @@ synchronizations:
         inputs:
           ttl_hours: 168  # 7 days
           archive_before_delete: true
-          archive_path: "koan/dlq/archive"
+          archive_path: "data/dlq/archive"
           keep_count: 100  # Keep last 100 entries even if old
 
     slo_expectations:
@@ -316,7 +316,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "analyze_failures"
-        model: "sonnet"
+        model: "opus"
         inputs:
           entries: "${dlq.entries}"
           analysis_type: "pattern_detection"
@@ -508,7 +508,7 @@ synchronizations:
 #          └──────────────> Archive & Cleanup
 #
 # Storage Structure:
-#   koan/dlq/
+#   data/dlq/
 #   ├── pending/
 #   │   ├── entry-001.yaml
 #   │   └── entry-002.yaml

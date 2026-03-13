@@ -21,7 +21,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_health_get",
     description:
-      "Get current context health status. Replaces reading koan/health/status.yaml.",
+      "Get current context health status. Replaces reading data/status.yaml.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -98,7 +98,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_checkpoint_list",
     description:
-      "List saved checkpoints. Replaces listing koan/session-state/ directory. Returns checkpoints ordered by creation time (newest first).",
+      "List saved checkpoints. Replaces listing data/session-state/ directory. Returns checkpoints ordered by creation time (newest first).",
     inputSchema: {
       type: "object",
       properties: {
@@ -117,7 +117,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_checkpoint_get",
     description:
-      "Get a specific checkpoint by ID. Replaces reading koan/session-state/checkpoint-*.yaml. Returns full checkpoint data including restoration prompt.",
+      "Get a specific checkpoint by ID. Replaces reading data/session-state/checkpoint-*.yaml. Returns full checkpoint data including restoration prompt.",
     inputSchema: {
       type: "object",
       properties: {
@@ -163,7 +163,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_story_save",
     description:
-      "Save or update a story in state.db. Replaces writing koan/stories/story-*.yaml. Used by the story concept to persist requirements.",
+      "Save or update a story in state.db. Replaces writing data/stories/story-*.yaml. Used by the story concept to persist requirements.",
     inputSchema: {
       type: "object",
       properties: {
@@ -191,7 +191,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_story_get",
     description:
-      "Get a story by ID from state.db. Replaces reading koan/stories/story-*.yaml.",
+      "Get a story by ID from state.db. Replaces reading data/stories/story-*.yaml.",
     inputSchema: {
       type: "object",
       properties: {

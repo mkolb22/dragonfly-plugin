@@ -41,7 +41,7 @@ slos:
       action: alert
       continue: true
 
-  # Verification passes (Sonnet reasoning)
+  # Verification passes (Opus reasoning)
   verification:
     expected_duration_ms: 12000
     max_duration_ms: 60000
@@ -53,7 +53,7 @@ slos:
       action: skip
       fallback: "Proceed without verification"
 
-  # Implementation generation (Sonnet)
+  # Implementation generation (Opus)
   implementation:
     expected_duration_ms: 3000
     max_duration_ms: 30000
@@ -67,7 +67,7 @@ slos:
       backoff_ms: 1000
       on_exhausted: escalate
 
-  # Quality review/test (Sonnet)
+  # Quality review/test (Opus)
   quality:
     expected_duration_ms: 2500
     max_duration_ms: 20000

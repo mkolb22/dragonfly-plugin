@@ -15,5 +15,5 @@ expected_context_tokens: 200
 expected_duration_seconds: 1
 ---
 
-Call zen_get_agent_prompt with agent="checkpoint-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="checkpoint-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

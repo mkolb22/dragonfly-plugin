@@ -14,7 +14,7 @@ Create a project profile that:
 
 ## When to Profile
 
-- **Initial setup**: First time Zen is installed
+- **Initial setup**: First time Dragonfly is installed
 - **On demand**: User runs `/profile`
 - **Periodic refresh**: Monthly or after major changes
 
@@ -34,7 +34,7 @@ Analyze codebase and create/update profile.
 4. Identify patterns from code structure
 5. Generate optimization recommendations
 
-**Output:** `koan/profile.yaml`
+**Output:** `data/profile.yaml`
 ```yaml
 project_profile:
   generated_at: "2025-01-06T14:30:00Z"
@@ -286,9 +286,9 @@ architecture_patterns:
 
 ## Model Selection
 
-- **detect**: Sonnet (fast scanning)
-- **recommend**: Sonnet (pattern matching)
-- **complex analysis**: Sonnet (architecture inference)
+- **detect**: Opus (fast scanning)
+- **recommend**: Opus (pattern matching)
+- **complex analysis**: Opus (architecture inference)
 
 ## SLO Expectations
 
@@ -310,7 +310,7 @@ slo_expectations:
 ### Auto-Profile on Install
 ```bash
 # In install.sh
-if [ ! -f "koan/profile.yaml" ]; then
+if [ ! -f "data/profile.yaml" ]; then
     echo "Generating project profile..."
     # Trigger profile detection
 fi
@@ -344,7 +344,7 @@ fi
 /profile recommend "Add caching layer"
 
 # View current profile
-cat koan/profile.yaml
+cat data/profile.yaml
 ```
 
 ## WYSIWID Principle
@@ -355,4 +355,4 @@ Profile detection is transparent:
 - Recommendations include reasoning
 - User can override any detection
 
-Reading `koan/profile.yaml` shows exactly what was detected and why.
+Reading `data/profile.yaml` shows exactly what was detected and why.

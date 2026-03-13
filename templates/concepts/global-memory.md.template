@@ -4,7 +4,7 @@ Cross-project memory that persists user preferences, patterns, and learnings acr
 
 ## Purpose
 
-While project-level memory (`koan/memory/`) stores project-specific context, global memory stores:
+While project-level memory (`data/memory/`) stores project-specific context, global memory stores:
 - User coding style preferences
 - Common architectural patterns used
 - Technology-specific knowledge
@@ -15,7 +15,7 @@ While project-level memory (`koan/memory/`) stores project-specific context, glo
 
 Global memory is stored at:
 ```
-~/.zen/global-memory/
+~/.dragonfly/global-memory/
 ├── preferences.yaml       # User preferences
 ├── patterns/              # Common patterns library
 ├── technologies/          # Technology-specific knowledge
@@ -29,7 +29,7 @@ Global memory is stored at:
 User coding style and tool preferences.
 
 ```yaml
-# ~/.zen/global-memory/preferences.yaml
+# ~/.dragonfly/global-memory/preferences.yaml
 coding_style:
   indentation: 2 spaces
   quotes: single
@@ -57,7 +57,7 @@ git:
 Reusable architectural and code patterns.
 
 ```yaml
-# ~/.zen/global-memory/patterns/error-handling.yaml
+# ~/.dragonfly/global-memory/patterns/error-handling.yaml
 name: Error Handling Pattern
 description: Consistent error handling across projects
 language: typescript
@@ -90,7 +90,7 @@ used_in_projects:
 Technology-specific knowledge and gotchas.
 
 ```yaml
-# ~/.zen/global-memory/technologies/postgresql.yaml
+# ~/.dragonfly/global-memory/technologies/postgresql.yaml
 technology: PostgreSQL
 version_range: "14+"
 
@@ -122,7 +122,7 @@ common_queries:
 Learnings that apply beyond a single project.
 
 ```yaml
-# ~/.zen/global-memory/learnings/api-design.yaml
+# ~/.dragonfly/global-memory/learnings/api-design.yaml
 category: API Design
 source_projects:
   - project-a (2024-06)
@@ -149,7 +149,7 @@ learnings:
 Optimizations for common development workflows.
 
 ```yaml
-# ~/.zen/global-memory/workflows/debugging.yaml
+# ~/.dragonfly/global-memory/workflows/debugging.yaml
 workflow: Debugging
 optimizations:
 
@@ -206,7 +206,7 @@ Sync learnings from current project to global memory.
 3. **Conflict Resolution**: Project-specific overrides global if explicitly set
 
 ```yaml
-# In project's koan/memory/preferences.yaml
+# In project's data/memory/preferences.yaml
 # Override global preference for this project
 extends: global
 overrides:
@@ -216,7 +216,7 @@ overrides:
 
 ## Privacy
 
-- Global memory is stored locally only (~/.zen/)
+- Global memory is stored locally only (~/.dragonfly/)
 - No data is sent to external services
 - User controls what gets saved
-- Can be encrypted with `zen encrypt-memory`
+- Can be encrypted with `dragonfly encrypt-memory`

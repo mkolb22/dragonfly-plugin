@@ -87,7 +87,7 @@ Creates a new checkpoint.
 **Output Format**:
 
 ```yaml
-# Checkpoint structure (saved via zen_checkpoint_save MCP tool)
+# Checkpoint structure (saved via dragonfly_checkpoint_save MCP tool)
 checkpoint_id: "chk-{timestamp}"
 name: "commit-abc123"
 type: "commit"
@@ -149,7 +149,7 @@ Removes old checkpoints, keeping most recent N.
 - Checkpoint creation is simple summarization
 - No complex reasoning needed
 - Speed matters more than depth
-- ~40x cheaper than Sonnet ($0.00008 vs $0.003)
+- ~40x cheaper than Opus ($0.00008 vs $0.003)
 
 **Estimated Costs per Session**:
 - 5 commits @ $0.00005 = $0.00025
@@ -215,4 +215,4 @@ The `/restore` command reads checkpoint files and:
 **Cost Tier**: Minimal (~$0.00008)
 **Purpose**: Session state preservation
 **Integration**: Automatic via sync rules + Stop hook
-**Storage**: SQLite (state.db via `zen_checkpoint_save`)
+**Storage**: SQLite (state.db via `dragonfly_checkpoint_save`)

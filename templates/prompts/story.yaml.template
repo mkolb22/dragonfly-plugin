@@ -1,4 +1,4 @@
-# Zen Prompt Template: Story Concept
+# Dragonfly Prompt Template: Story Concept
 # Version: 1.0.0
 # Model: sonnet (recommended)
 #
@@ -7,7 +7,7 @@
 
 concept: story
 version: "1.0.0"
-recommended_model: sonnet
+recommended_model: opus
 
 # ============================================================================
 # PROMPTS

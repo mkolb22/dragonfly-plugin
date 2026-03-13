@@ -19,7 +19,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "generate_unit_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           specification: "${architecture.component_specs}"
           language: "${architecture.language}"
@@ -52,7 +52,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "run_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           coverage: true
           timeout: 120000
@@ -85,7 +85,7 @@ synchronizations:
     then:
       - concept: "execution-loop"
         action: "self_debug"
-        model: "sonnet"
+        model: "opus"
         inputs:
           code: "${implementation.code}"
           error: "${test_results.failures}"
@@ -120,7 +120,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "analyze_coverage"
-        model: "sonnet"
+        model: "opus"
 
     slo_expectations:
       expected_duration_ms: 3000
@@ -148,7 +148,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "suggest_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           files: "${coverage.gaps.map(g => g.file)}"
           language: "${implementation.language}"
@@ -177,7 +177,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "find_untested_files"
-        model: "sonnet"
+        model: "opus"
 
     slo_expectations:
       expected_duration_ms: 2000
@@ -205,7 +205,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "add_finding"
-        model: "sonnet"
+        model: "opus"
         inputs:
           severity: "warning"
           finding: "Main implementation file lacks test coverage"
@@ -235,7 +235,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "run_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           coverage: false  # Quick run, no coverage
           timeout: 60000   # Shorter timeout
@@ -266,7 +266,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "generate_integration_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           entryPoint: "${architecture.main_entry_point}"
           dependencies: "${architecture.external_dependencies}"

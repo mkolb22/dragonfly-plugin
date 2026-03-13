@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.dev/schemas/review.schema.json",
-  "title": "Zen Review Schema",
-  "description": "Schema for code review state files in koan/reviews/",
+  "$id": "https://dragonfly.dev/schemas/review.schema.json",
+  "title": "Dragonfly Review Schema",
+  "description": "Schema for code review state files in data/reviews/",
   "type": "object",
   "required": ["review_id", "impl_id", "status", "summary", "files_reviewed"],
   "properties": {

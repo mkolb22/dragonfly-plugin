@@ -1,7 +1,7 @@
 ---
 name: slo
 type: concept
-model: sonnet
+model: opus
 purpose: "Monitor and enforce Service Level Objectives for workflow performance"
 ---
 
@@ -21,9 +21,9 @@ This completes the WYSIWID principle: "See exactly what it does, how well it per
 
 ## Model Assignment
 
-**Model**: Sonnet (fast numeric analysis)
+**Model**: Opus (fast numeric analysis)
 **Cost per Action**: ~$0.0001
-**Justification**: SLO monitoring is template-based analysis of numeric data (compare actual vs threshold). No complex reasoning required. Sonnet provides <500ms response time, ensuring minimal overhead.
+**Justification**: SLO monitoring is template-based analysis of numeric data (compare actual vs threshold). No complex reasoning required. Opus provides <500ms response time, ensuring minimal overhead.
 
 ## Actions
 
@@ -38,13 +38,13 @@ Validate a single action against SLO expectations after it completes.
 - `slo_config`: SLO expectations from sync rule
 
 **Process**:
-1. Read provenance entry: `koan/provenance/actions/{action_id}.yaml`
+1. Read provenance entry: `data/provenance/actions/{action_id}.yaml`
 2. Extract actual values: duration_ms, cost_usd, context_tokens
 3. Compare against slo_config thresholds
 4. Determine violations (timeout, cost_exceeded, context_exceeded)
 5. Execute handlers in priority order if violations found
-6. Update monthly metrics: `koan/slo/metrics/{concept}/metrics-{YYYY-MM}.yaml`
-7. Record violations: `koan/slo/violations/viol-{id}.yaml`
+6. Update monthly metrics: `data/metrics/{concept}/metrics-{YYYY-MM}.yaml`
+7. Record violations: `data/violations/viol-{id}.yaml`
 
 **Output**:
 - Compliance status (pass/fail)
@@ -69,7 +69,7 @@ Generate SLO performance dashboard for a time period.
 5. Load violations for period
 6. Generate recommendations based on trends
 
-**Output**: `koan/slo/reports/report-{timestamp}.yaml` with:
+**Output**: `data/reports/report-{timestamp}.yaml` with:
 - Executive summary (overall compliance, violations count)
 - Per-concept breakdown (duration, cost, context stats)
 - Violations list
@@ -115,7 +115,7 @@ Validate all SLO configurations in sync rules.
 2. Extract slo_expectations blocks
 3. Validate against slo.schema.json
 4. Check realistic values:
-   - Duration not < 100ms for Sonnet
+   - Duration not < 100ms for Opus
    - Cost not < $0.0001
    - Context not > 200000 tokens
 5. Warn on missing SLOs for important rules
@@ -137,7 +137,7 @@ SLOs are defined in synchronization rules:
   then:
     - concept: "architecture"
       action: "design"
-      model: "sonnet"
+      model: "opus"
 
   slo:
     duration:
@@ -182,10 +182,10 @@ SLOs are defined in synchronization rules:
 
 ## Metrics Storage
 
-Metrics are stored in `koan/slo/`:
+Metrics are stored in `data/`:
 
 ```
-koan/slo/
+data/
   metrics.yaml           # Aggregated metrics
   violations.yaml        # Violation log
   thresholds.yaml        # Current SLO definitions

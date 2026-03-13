@@ -3,7 +3,7 @@ name: Batch Processing
 description: Process multiple similar operations together for 3x speedup and reduced overhead
 version: 1.0.0
 trigger_keywords: [batch, bulk, multiple, parallel, group, aggregate]
-author: Zen Architecture
+author: Dragonfly Architecture
 ---
 
 # Batch Processing - Expert Skill

@@ -29,7 +29,7 @@ slo_templates:
       action: "alert"
       continue: true
 
-  # Verification passes (Sonnet reasoning)
+  # Verification passes (Opus reasoning)
   verification: &SLO_VERIFICATION
     expected_duration_ms: 12000
     max_duration_ms: 60000
@@ -41,7 +41,7 @@ slo_templates:
       action: "skip"
       fallback: "Proceed without verification"
 
-  # Implementation generation (Sonnet)
+  # Implementation generation (Opus)
   implementation: &SLO_IMPLEMENTATION
     expected_duration_ms: 3000
     max_duration_ms: 30000
@@ -55,7 +55,7 @@ slo_templates:
       backoff_ms: 1000
       on_exhausted: "escalate"
 
-  # Quality review/test (Sonnet)
+  # Quality review/test (Opus)
   quality: &SLO_QUALITY
     expected_duration_ms: 2500
     max_duration_ms: 20000
@@ -239,7 +239,7 @@ synchronizations:
           # Update story with clarifications
           - concept: "story"
             action: "update"
-            model: "sonnet"
+            model: "opus"
             inputs:
               story_id: "${story.id}"
               goal_type: "${answer.primary_goal}"
@@ -275,7 +275,7 @@ synchronizations:
     then:
       - concept: "code-analysis"
         action: "context"
-        model: "sonnet"
+        model: "opus"
         mcp_tools:
           # Find existing patterns related to this feature
           - tool: "ast-index.find_symbol"
@@ -299,7 +299,7 @@ synchronizations:
           keywords: "${story.technical_keywords}"
 
         outputs:
-          target: "koan/context/analysis-${story.id}.yaml"
+          target: "data/context/analysis-${story.id}.yaml"
 
     # MCP-specific error handling for code analysis
     error_handling:
@@ -340,7 +340,7 @@ synchronizations:
     slo_expectations:
       expected_duration_ms: 2000       # 2 seconds (fast MCP calls)
       max_duration_ms: 10000           # 10 seconds timeout
-      expected_cost_usd: 0.0002        # Sonnet + MCP overhead
+      expected_cost_usd: 0.0002        # Opus + MCP overhead
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 500     # Minimal context
       max_context_tokens: 2000         # Warning threshold
@@ -368,7 +368,7 @@ synchronizations:
     then:
       - concept: "security"
         action: "threat_model"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # ← ENABLES PARALLEL EXECUTION with code-analysis
         inputs:
           story_id: "${story.id}"
@@ -447,7 +447,7 @@ synchronizations:
       query: "architecture.decisions != null AND architecture.decisions.length > 0"
     then:
       - action: "store_memory"
-        target: "koan/memory/semantic/architecture.yaml"
+        target: "data/memory/semantic/architecture.yaml"
         content:
           id: "mem-arch-${architecture.id}-${timestamp}"
           type: "auto_captured"
@@ -604,7 +604,7 @@ synchronizations:
     then:
       - concept: "verification"
         action: "verify_architecture"
-        model: "sonnet"
+        model: "opus"
         inputs:
           story: "${story}"
           architecture: "${architecture}"
@@ -639,7 +639,7 @@ synchronizations:
     then:
       - concept: "verification"
         action: "verify_architecture"
-        model: "sonnet"
+        model: "opus"
         inputs:
           story: "${story}"
           architecture: "${architecture}"
@@ -674,7 +674,7 @@ synchronizations:
     then:
       - concept: "verification"
         action: "consensus"
-        model: "sonnet"
+        model: "opus"
         inputs:
           verifications: "${all_verification_passes}"
 
@@ -706,7 +706,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "generate"
-        model: "sonnet"
+        model: "opus"
         inputs:
           architecture_id: "${architecture.id}"
           story_id: "${story.id}"
@@ -779,7 +779,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "generate"
-        model: "sonnet"
+        model: "opus"
         inputs:
           architecture_id: "${architecture.id}"
           story_id: "${story.id}"
@@ -790,7 +790,7 @@ synchronizations:
     slo_expectations:
       expected_duration_ms: 3000       # 3 seconds typical
       max_duration_ms: 30000           # 30 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet with pattern-based generation
+      expected_cost_usd: 0.000175      # Opus with pattern-based generation
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 1000    # Moderate context usage
       max_context_tokens: 5000         # Warning threshold
@@ -827,7 +827,7 @@ synchronizations:
       # NEW: Ask user for decision (human-in-the-loop)
       - action: "ask_user"
         questions:
-          - question: "Architecture has HIGH RISK. Review koan/architecture/${architecture.id}.yaml - How should we proceed?"
+          - question: "Architecture has HIGH RISK. Review data/architecture/${architecture.id}.yaml - How should we proceed?"
             header: "Risk Decision"
             multiSelect: false
             options:
@@ -843,7 +843,7 @@ synchronizations:
           "Approve and implement":
             - concept: "implementation"
               action: "generate"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 architecture_id: "${architecture.id}"
                 story_id: "${story.id}"
@@ -852,7 +852,7 @@ synchronizations:
           "Revise for lower risk":
             - concept: "architecture"
               action: "revise"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 original_architecture_id: "${architecture.id}"
                 story_id: "${story.id}"
@@ -861,7 +861,7 @@ synchronizations:
           "Cancel this feature":
             - concept: "story"
               action: "cancel"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 story_id: "${story.id}"
                 reason: "User cancelled due to high-risk architecture"
@@ -894,7 +894,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "generate_tests"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # Runs alongside code review
         mcp_tools:
           # Generate unit tests for each changed file
@@ -926,7 +926,7 @@ synchronizations:
           files_changed: "${implementation.files_changed}"
 
         outputs:
-          target: "koan/tests/test-gen-${implementation.id}.yaml"
+          target: "data/tests/test-gen-${implementation.id}.yaml"
 
     # MCP-specific error handling
     error_handling:
@@ -1018,7 +1018,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "review"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # ← ENABLES PARALLEL EXECUTION
         inputs:
           implementation_id: "${implementation.id}"
@@ -1031,7 +1031,7 @@ synchronizations:
     slo_expectations:
       expected_duration_ms: 2500       # 2.5 seconds typical
       max_duration_ms: 20000           # 20 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet pattern-based review
+      expected_cost_usd: 0.000175      # Opus pattern-based review
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 800     # Code + patterns
       max_context_tokens: 3000         # Warning threshold
@@ -1067,7 +1067,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "test"
-        model: "sonnet"
+        model: "opus"
         parallel: true  # ← RUNS SIMULTANEOUSLY WITH REVIEW
         inputs:
           implementation_id: "${implementation.id}"
@@ -1078,7 +1078,7 @@ synchronizations:
     slo_expectations:
       expected_duration_ms: 2500       # 2.5 seconds typical
       max_duration_ms: 20000           # 20 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet test execution
+      expected_cost_usd: 0.000175      # Opus test execution
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 800     # Test code + context
       max_context_tokens: 3000         # Warning threshold
@@ -1122,7 +1122,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "analyze_coverage"
-        model: "sonnet"
+        model: "opus"
         mcp_tools:
           # Analyze coverage from test run
           - tool: "test-generator.analyze_coverage"
@@ -1142,7 +1142,7 @@ synchronizations:
           test_results: "${test.results}"
 
         outputs:
-          target: "koan/coverage/coverage-${implementation.id}.yaml"
+          target: "data/coverage/coverage-${implementation.id}.yaml"
 
     # MCP-specific error handling
     error_handling:
@@ -1193,7 +1193,7 @@ synchronizations:
           "Generate additional tests (Recommended)":
             - concept: "quality"
               action: "generate_tests"
-              model: "sonnet"
+              model: "opus"
               mcp_tools:
                 - tool: "test-generator.generate_unit_tests"
                   input:
@@ -1264,7 +1264,7 @@ synchronizations:
     then:
       - concept: "version"
         action: "commit"
-        model: "sonnet"
+        model: "opus"
         inputs:
           implementation_id: "${implementation.id}"
           story_id: "${story.id}"
@@ -1275,7 +1275,7 @@ synchronizations:
     slo_expectations:
       expected_duration_ms: 1000       # 1 second typical
       max_duration_ms: 5000            # 5 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet commit message generation
+      expected_cost_usd: 0.000175      # Opus commit message generation
       max_cost_usd: 0.0005             # Alert if exceeds
       expected_context_tokens: 300     # Minimal context (files + summary)
       max_context_tokens: 1000         # Warning threshold
@@ -1320,7 +1320,7 @@ synchronizations:
     then:
       - concept: "story"
         action: "update_status"
-        model: "sonnet"
+        model: "opus"
         inputs:
           story_id: "${story.id}"
           new_status: "completed"
@@ -1349,7 +1349,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "refactor"
-        model: "sonnet"
+        model: "opus"
         inputs:
           implementation_id: "${implementation.id}"
           issues: "${review.issues}"
@@ -1382,7 +1382,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "self_repair"
-        model: "sonnet"
+        model: "opus"
         mcp_tools:
           # First: Diagnose the failure
           - tool: "execution-loop.self_debug"
@@ -1409,7 +1409,7 @@ synchronizations:
           repair_attempt: "${(repair_attempts || 0) + 1}"
 
         outputs:
-          target: "koan/repairs/repair-${implementation.id}-${repair_attempts || 1}.yaml"
+          target: "data/repairs/repair-${implementation.id}-${repair_attempts || 1}.yaml"
 
     # Track repair attempts to prevent infinite loops
     state_updates:
@@ -1454,7 +1454,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "fix"
-        model: "sonnet"
+        model: "opus"
         inputs:
           implementation_id: "${implementation.id}"
           failing_tests: "${test.failures}"
@@ -1481,7 +1481,7 @@ synchronizations:
     then:
       - concept: "quality"
         action: "test"
-        model: "sonnet"
+        model: "opus"
         inputs:
           implementation_id: "${implementation.id}"
           test_paths: "${implementation.test_files}"
@@ -1536,7 +1536,7 @@ synchronizations:
           "Try different approach":
             - concept: "implementation"
               action: "revise"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 original_implementation: "${implementation}"
                 failure_reason: "${test.failures}"
@@ -1548,7 +1548,7 @@ synchronizations:
               value: true
             - concept: "version"
               action: "commit"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 implementation_id: "${implementation.id}"
                 story_id: "${story.id}"
@@ -1595,7 +1595,7 @@ synchronizations:
           lightweight: true  # Don't include full conversation
 
         outputs:
-          target: "koan/session-state/checkpoint-commit-${commit.short_hash}.yaml"
+          target: "data/session-state/checkpoint-commit-${commit.short_hash}.yaml"
 
     slo_expectations:
       expected_duration_ms: 500
@@ -1634,7 +1634,7 @@ synchronizations:
           lightweight: false  # Full checkpoint before potential loss
 
         outputs:
-          target: "koan/session-state/checkpoint-pre-compress-${timestamp}.yaml"
+          target: "data/session-state/checkpoint-pre-compress-${timestamp}.yaml"
 
     state_updates:
       - key: "checkpoint.last_at_percent"
@@ -1680,7 +1680,7 @@ synchronizations:
           milestone: true
 
         outputs:
-          target: "koan/session-state/checkpoint-feature-${story.id}.yaml"
+          target: "data/session-state/checkpoint-feature-${story.id}.yaml"
 
     slo_expectations:
       expected_duration_ms: 800
@@ -1714,7 +1714,7 @@ synchronizations:
       query: "flow.status == 'completed'"
     then:
       - action: "store_memory"
-        target: "koan/memory/semantic/patterns.yaml"
+        target: "data/memory/semantic/patterns.yaml"
         content:
           id: "mem-workflow-${story.id}-${timestamp}"
           type: "workflow_completion"
@@ -1761,7 +1761,7 @@ synchronizations:
   #   "hooks": {
   #     "Stop": [{
   #       "type": "command",
-  #       "command": "claude -p 'Create a checkpoint for session end. Name: session-exit-$(date +%Y%m%d-%H%M%S). Include: active tasks, uncommitted work, conversation summary, next steps.' --output koan/session-state/"
+  #       "command": "claude -p 'Create a checkpoint for session end. Name: session-exit-$(date +%Y%m%d-%H%M%S). Include: active tasks, uncommitted work, conversation summary, next steps.' --output data/session-state/"
   #     }]
   #   }
   # }
@@ -1786,7 +1786,7 @@ synchronizations:
     then:
       - concept: "context"
         action: "compress"
-        model: "sonnet"
+        model: "opus"
         inputs:
           threshold: "75%"
           strategy: "smart_compression"
@@ -1797,7 +1797,7 @@ synchronizations:
     slo_expectations:
       expected_duration_ms: 1500       # 1.5 seconds typical
       max_duration_ms: 10000           # 10 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet compression
+      expected_cost_usd: 0.000175      # Opus compression
       max_cost_usd: 0.0005             # Alert if exceeds
       expected_context_tokens: 500     # Analyzing existing context
       max_context_tokens: 2000         # Warning threshold
@@ -1830,18 +1830,18 @@ synchronizations:
     then:
       - concept: "context"
         action: "snapshot"
-        model: "sonnet"
+        model: "opus"
         inputs:
           threshold: "90%"
           strategy: "full_snapshot"
-          snapshot_location: "koan/session-state/snapshot-${timestamp}.yaml"
+          snapshot_location: "data/session-state/snapshot-${timestamp}.yaml"
           reset_to: "5K_summary"
 
     # SLO Expectations for context.snapshot
     slo_expectations:
       expected_duration_ms: 1500       # 1.5 seconds typical
       max_duration_ms: 10000           # 10 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet snapshot creation
+      expected_cost_usd: 0.000175      # Opus snapshot creation
       max_cost_usd: 0.0005             # Alert if exceeds
       expected_context_tokens: 500     # Minimal (writing snapshot)
       max_context_tokens: 2000         # Warning threshold
@@ -1899,7 +1899,7 @@ synchronizations:
           "Optimize and retry":
             - concept: "context"
               action: "optimize"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 target: "reduce_cost"
                 budget_remaining: "${config.cost_budget - flow.total_cost}"
@@ -1907,7 +1907,7 @@ synchronizations:
           "Cancel workflow":
             - concept: "story"
               action: "cancel"
-              model: "sonnet"
+              model: "opus"
               inputs:
                 story_id: "${story.id}"
                 reason: "User cancelled due to budget exceeded ($${flow.total_cost} > $${config.cost_budget})"
@@ -1928,33 +1928,33 @@ synchronizations:
   # from missing prerequisites.
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  - id: "validate-koan-directories"
-    description: "Ensure koan directories exist before workflow starts"
+  - id: "validate-data-directories"
+    description: "Ensure data directories exist before workflow starts"
     when:
       event: "workflow.start"
     then:
       - action: "validate_state"
         checks:
           - type: "directory_exists"
-            path: "koan/stories"
+            path: "data/stories"
             on_missing: "create"
           - type: "directory_exists"
-            path: "koan/architecture"
+            path: "data/architecture"
             on_missing: "create"
           - type: "directory_exists"
-            path: "koan/implementations"
+            path: "data/implementations"
             on_missing: "create"
           - type: "directory_exists"
-            path: "koan/reviews"
+            path: "data/reviews"
             on_missing: "create"
           - type: "directory_exists"
-            path: "koan/provenance/actions"
+            path: "data/provenance/actions"
             on_missing: "create"
           - type: "directory_exists"
-            path: "koan/flows"
+            path: "data/flows"
             on_missing: "create"
     provenance:
-      reason: "Ensuring required koan directories exist"
+      reason: "Ensuring required data directories exist"
       category: "validation"
 
   - id: "validate-story-before-arch"
@@ -1969,11 +1969,11 @@ synchronizations:
       - action: "validate_state"
         checks:
           - type: "file_exists"
-            path: "koan/stories/story-${story.id}.yaml"
+            path: "data/stories/story-${story.id}.yaml"
             on_missing: "block"
             error_message: "Story state file not found. Run story.create first."
           - type: "field_not_empty"
-            file: "koan/stories/story-${story.id}.yaml"
+            file: "data/stories/story-${story.id}.yaml"
             field: "acceptance_criteria"
             on_empty: "warn"
             warning_message: "Story has no acceptance criteria. Architecture may be incomplete."
@@ -1993,11 +1993,11 @@ synchronizations:
       - action: "validate_state"
         checks:
           - type: "file_exists"
-            path: "koan/architecture/arch-${architecture.id}.yaml"
+            path: "data/architecture/arch-${architecture.id}.yaml"
             on_missing: "block"
             error_message: "Architecture state file not found. Run architecture.design first."
           - type: "field_not_empty"
-            file: "koan/architecture/arch-${architecture.id}.yaml"
+            file: "data/architecture/arch-${architecture.id}.yaml"
             field: "decisions"
             on_empty: "block"
             error_message: "Architecture has no decisions. Cannot proceed with implementation."
@@ -2017,11 +2017,11 @@ synchronizations:
       - action: "validate_state"
         checks:
           - type: "file_exists"
-            path: "koan/implementations/impl-${implementation.id}.yaml"
+            path: "data/implementations/impl-${implementation.id}.yaml"
             on_missing: "block"
             error_message: "Implementation state file not found. Run implementation.generate first."
           - type: "field_not_empty"
-            file: "koan/implementations/impl-${implementation.id}.yaml"
+            file: "data/implementations/impl-${implementation.id}.yaml"
             field: "files_changed"
             on_empty: "block"
             error_message: "Implementation has no files changed. Nothing to review."
@@ -2039,11 +2039,11 @@ synchronizations:
       - action: "validate_state"
         checks:
           - type: "file_exists"
-            path: "koan/reviews/review-${implementation.id}.yaml"
+            path: "data/reviews/review-${implementation.id}.yaml"
             on_missing: "block"
             error_message: "No quality review found. Run quality.review first."
           - type: "field_equals"
-            file: "koan/reviews/review-${implementation.id}.yaml"
+            file: "data/reviews/review-${implementation.id}.yaml"
             field: "status"
             value: "approved"
             on_mismatch: "block"
@@ -2115,16 +2115,16 @@ synchronizations:
 #   - Self-repair saves: ~5-10 minutes per failure cycle
 #
 # Cost (with MCP Integration):
-#   - Story (Sonnet):           $0.000175  (<1%)
+#   - Story (Opus):           $0.000175  (<1%)
 #   - Code Analysis (MCP):      $0.0002    (<1%)   ← ast-index + semantic-rag
 #   - Architecture (Opus):      $0.015     (60%)   ← Opus for deepest reasoning
-#   - Verification 2x (Sonnet): $0.006175  (25%)   ← 2 passes + consensus
+#   - Verification 2x (Opus): $0.006175  (25%)   ← 2 passes + consensus
 #   - Test Generation (MCP):    $0.0005    (2%)    ← test-generator
-#   - Implementation (Sonnet):  $0.000175  (<1%)
-#   - Quality 2x (Sonnet):      $0.000350  (1%)    ← Same cost parallel or sequential
+#   - Implementation (Opus):  $0.000175  (<1%)
+#   - Quality 2x (Opus):      $0.000350  (1%)    ← Same cost parallel or sequential
 #   - Self-Repair (MCP):        $0.001     (4%)    ← execution-loop (if needed)
 #   - Coverage Analysis (MCP):  $0.0002    (<1%)   ← test-generator
-#   - Version (Sonnet):         $0.000175  (<1%)
+#   - Version (Opus):         $0.000175  (<1%)
 #   - Total:                    $0.025 per feature (with MCP)
 #
 # MCP Graceful Degradation:

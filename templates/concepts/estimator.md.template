@@ -15,7 +15,7 @@ Prevent SLO violations by predicting:
 ## When to Estimate
 
 Run before expensive operations:
-- `architecture.design` (Sonnet - highest cost)
+- `architecture.design` (Opus - highest cost)
 - `implementation.generate` (complex features)
 - Large refactoring tasks
 - Performance optimization work
@@ -32,13 +32,13 @@ Analyze a task and predict outcomes.
 - `historical_data_path`: Path to SLO metrics
 
 **Process:**
-1. Load historical metrics from `koan/slo/metrics/`
+1. Load historical metrics from `data/metrics/`
 2. Match similar past tasks by type and complexity
 3. Calculate statistical predictions
 4. Identify risk factors
 5. Generate optimization suggestions
 
-**Output:** `koan/estimates/estimate-{id}.yaml`
+**Output:** `data/estimates/estimate-{id}.yaml`
 ```yaml
 estimate_id: "est-{timestamp}"
 task: "{description}"
@@ -91,7 +91,7 @@ slo_assessment:
 
   warnings:
     - "Cost prediction ($0.025) approaches budget limit ($0.03)"
-    - "Consider using Sonnet for initial architecture draft"
+    - "Consider using Opus for initial architecture draft"
 
 proceed_recommendation: "proceed_with_monitoring"
 # Options: proceed, proceed_with_monitoring, optimize_first, request_approval
@@ -110,7 +110,7 @@ Compare actual outcomes to predictions for learning.
 3. Update confidence models
 4. Store for future learning
 
-**Output:** Appends to `koan/estimates/accuracy-log.yaml`
+**Output:** Appends to `data/estimates/accuracy-log.yaml`
 
 ## Complexity Indicators
 
@@ -137,9 +137,9 @@ The estimator uses these signals:
 
 ## Historical Data Usage
 
-Reads from `koan/slo/metrics/`:
+Reads from `data/metrics/`:
 ```
-koan/slo/metrics/
+data/metrics/
 ├── architecture/
 │   ├── 2025-01.yaml  # Monthly aggregates
 │   └── 2025-02.yaml
@@ -160,7 +160,7 @@ metrics:
 
 ## Model Selection
 
-- **Default:** Sonnet (fast predictions, minimal overhead)
+- **Default:** Opus (fast predictions, minimal overhead)
 - **Complex analysis:** Only when historical data is sparse
 
 ## SLO Expectations
@@ -186,7 +186,7 @@ slo_expectations:
   then:
     - concept: "estimator"
       action: "predict"
-      model: "sonnet"
+      model: "opus"
       inputs:
         task_description: "${story.description}"
         task_type: "${classification.type}"

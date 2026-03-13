@@ -19,7 +19,7 @@ Automatically triggered by sync rules when:
 
 ## Output
 
-Creates `koan/retrospectives/retro-{id}.yaml` with:
+Creates `data/retrospectives/retro-{id}.yaml` with:
 
 ```yaml
 retro_id: retro-001
@@ -90,4 +90,4 @@ Manually trigger retrospective analysis for a specific flow.
 
 ## Model
 
-Uses **Sonnet** for deeper analytical reasoning about failures.
+Uses **Opus** for deeper analytical reasoning about failures.

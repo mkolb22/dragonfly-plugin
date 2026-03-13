@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: magenta
-description: Documentation Concept - Generates comprehensive documentation at every workflow phase using Sonnet 4.5
+description: Documentation Concept - Generates comprehensive documentation at every workflow phase using Opus 4.5
 
 tools: "*"
 
@@ -35,5 +35,5 @@ skills:
   - wysiwid-principles
 ---
 
-Call zen_get_agent_prompt with agent="documentation-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="documentation-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

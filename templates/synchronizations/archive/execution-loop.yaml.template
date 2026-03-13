@@ -39,7 +39,7 @@ synchronizations:
     then:
       - concept: "execution-loop"
         action: "run_with_verification"
-        model: "sonnet"
+        model: "opus"
         inputs:
           code: "${implementation.code}"
           language: "${implementation.language}"
@@ -77,7 +77,7 @@ synchronizations:
     then:
       - concept: "execution-loop"
         action: "self_debug"
-        model: "sonnet"  # Use smarter model for diagnosis
+        model: "opus"  # Use smarter model for diagnosis
         inputs:
           code: "${execution.code}"
           error: "${execution.lastError}"
@@ -108,7 +108,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "repair"
-        model: "sonnet"
+        model: "opus"
         inputs:
           original_code: "${diagnosis.code}"
           error_info: "${diagnosis.diagnosis}"
@@ -140,7 +140,7 @@ synchronizations:
     then:
       - concept: "execution-loop"
         action: "run_with_verification"
-        model: "sonnet"
+        model: "opus"
         inputs:
           code: "${implementation.repaired_code}"
           language: "${implementation.language}"
@@ -178,7 +178,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "add_note"
-        model: "sonnet"
+        model: "opus"
         inputs:
           note: |
             ## Manual Repair Required
@@ -227,7 +227,7 @@ synchronizations:
     then:
       - concept: "test-generator"
         action: "generate_unit_tests"
-        model: "sonnet"
+        model: "opus"
         inputs:
           specification: "${architecture.component_specs}"
           language: "${architecture.language}"
@@ -258,7 +258,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "generate"
-        model: "sonnet"
+        model: "opus"
         inputs:
           tests: "${test_generator.tests}"
           specification: "${test_generator.specification}"
@@ -295,7 +295,7 @@ synchronizations:
     then:
       - concept: "execution-loop"
         action: "iterative_refine"
-        model: "sonnet"
+        model: "opus"
         inputs:
           code: "${implementation.code}"
           language: "${implementation.language}"

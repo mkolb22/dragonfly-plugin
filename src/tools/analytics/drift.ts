@@ -1,6 +1,6 @@
 /**
  * Configuration drift detection between template and installed files.
- * Compares .zen/templates/ against .claude/ to detect modifications.
+ * Compares templates/ against .claude/ to detect modifications.
  */
 
 import * as fs from "fs";

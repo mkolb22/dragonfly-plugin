@@ -1,4 +1,4 @@
-# Zen Context Health Status
+# Dragonfly Context Health Status
 # This file gives Claude awareness of its own context state
 #
 # Updated by: post-concept-action hook, pre-tool-grounding hook
@@ -87,7 +87,7 @@ warnings: []
 # - type: "compression_occurred"
 #   message: "Context was compressed 2 turns ago. Verify assumptions."
 #   severity: "medium"
-#   recommendation: "Re-read koan/anchors/ before destructive operations"
+#   recommendation: "Re-read data/anchors/ before destructive operations"
 #
 # - type: "directory_mismatch"
 #   message: "Working directory may have changed"
@@ -106,7 +106,7 @@ recommendations: []
 # Example recommendations based on state:
 # - "Continue normally - context is healthy"
 # - "Consider running /checkpoint before next major operation"
-# - "Re-read koan/anchors/rules.anchor.yaml to refresh safety rules"
+# - "Re-read data/anchors/rules.anchor.yaml to refresh safety rules"
 
 # ============================================================================
 # RECOVERY INFORMATION

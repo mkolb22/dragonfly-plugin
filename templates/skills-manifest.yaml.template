@@ -1,4 +1,4 @@
-# Zen Skills Manifest
+# Dragonfly Skills Manifest
 # Central registry of all skills and their usage across agents
 #
 # This file provides:
@@ -342,7 +342,7 @@ skills:
       - context-concept
 
   # ─────────────────────────────────────────────────
-  # Meta Skills (For Zen development)
+  # Meta Skills (For Dragonfly development)
   # ─────────────────────────────────────────────────
 
   wysiwid-principles:

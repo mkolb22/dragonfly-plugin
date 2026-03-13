@@ -34,7 +34,7 @@ synchronizations:
     then:
       concept: verification
       action: verify_architecture
-      model: sonnet
+      model: opus
       inputs:
         story: "{{story}}"
         architecture: "{{architecture}}"
@@ -42,14 +42,14 @@ synchronizations:
         verification_pass: 1
         total_passes: 2
     outputs:
-      path: "koan/verifications/verify-arch-{{id}}-pass1.yaml"
+      path: "data/verifications/verify-arch-{{id}}-pass1.yaml"
     priority: high
 
     # SLO Expectations for verification.verify_architecture
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds for verification
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2500    # Story + architecture + plan
       max_context_tokens: 10000        # Warning threshold
@@ -81,7 +81,7 @@ synchronizations:
     then:
       concept: verification
       action: verify_architecture
-      model: sonnet
+      model: opus
       inputs:
         story: "{{story}}"
         architecture: "{{architecture}}"
@@ -92,14 +92,14 @@ synchronizations:
           - reviewer: "{{verification.reviewer}}"
             summary: "{{verification.summary}}"
     outputs:
-      path: "koan/verifications/verify-arch-{{id}}-pass2.yaml"
+      path: "data/verifications/verify-arch-{{id}}-pass2.yaml"
     priority: high
 
     # SLO Expectations for verification.verify_architecture
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds for verification
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2800    # Story + architecture + plan + previous review
       max_context_tokens: 10000        # Warning threshold
@@ -131,20 +131,20 @@ synchronizations:
     then:
       concept: verification
       action: consensus
-      model: sonnet
+      model: opus
       inputs:
         verifications:
           - "{{verifications[0]}}"
           - "{{verifications[1]}}"
     outputs:
-      path: "koan/verifications/verify-arch-{{id}}-consensus.yaml"
+      path: "data/verifications/verify-arch-{{id}}-consensus.yaml"
     priority: high
 
     # SLO Expectations for verification.consensus
     slo_expectations:
       expected_duration_ms: 3000       # 3 seconds for aggregation
       max_duration_ms: 20000           # 20 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet for simple aggregation
+      expected_cost_usd: 0.000175      # Opus for simple aggregation
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 1200    # Two verification reports
       max_context_tokens: 5000         # Warning threshold
@@ -176,20 +176,20 @@ synchronizations:
     then:
       concept: implementation
       action: generate
-      model: sonnet
+      model: opus
       inputs:
         story: "{{story}}"
         architecture: "{{architecture}}"
         verification_notes: "{{verification.aggregated_issues}}"
     outputs:
-      path: "koan/implementations/impl-{{id}}.yaml"
+      path: "data/implementations/impl-{{id}}.yaml"
     priority: high
 
     # SLO Expectations for implementation.generate
     slo_expectations:
       expected_duration_ms: 3000       # 3 seconds typical
       max_duration_ms: 30000           # 30 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet with pattern-based generation
+      expected_cost_usd: 0.000175      # Opus with pattern-based generation
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 1000    # Moderate context usage
       max_context_tokens: 5000         # Warning threshold
@@ -227,7 +227,7 @@ synchronizations:
         verification_issues: "{{verification.aggregated_issues}}"
         recommendation: "{{verification.rationale}}"
     outputs:
-      path: "koan/architecture/arch-{{id}}-revised.yaml"
+      path: "data/architecture/arch-{{id}}-revised.yaml"
     priority: high
 
     # SLO Expectations for architecture.revise
@@ -266,7 +266,7 @@ synchronizations:
     then:
       concept: verification
       action: verify_implementation
-      model: sonnet
+      model: opus
       inputs:
         architecture: "{{architecture}}"
         implementation: "{{implementation}}"
@@ -274,14 +274,14 @@ synchronizations:
         verification_pass: 1
         total_passes: 2
     outputs:
-      path: "koan/verifications/verify-impl-{{id}}-pass1.yaml"
+      path: "data/verifications/verify-impl-{{id}}-pass1.yaml"
     priority: high
 
     # SLO Expectations for verification.verify_implementation
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds for verification
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2500    # Architecture + implementation + files
       max_context_tokens: 10000        # Warning threshold
@@ -313,7 +313,7 @@ synchronizations:
     then:
       concept: verification
       action: verify_implementation
-      model: sonnet
+      model: opus
       inputs:
         architecture: "{{architecture}}"
         implementation: "{{implementation}}"
@@ -324,14 +324,14 @@ synchronizations:
           - reviewer: "{{verification.reviewer}}"
             summary: "{{verification.summary}}"
     outputs:
-      path: "koan/verifications/verify-impl-{{id}}-pass2.yaml"
+      path: "data/verifications/verify-impl-{{id}}-pass2.yaml"
     priority: high
 
     # SLO Expectations for verification.verify_implementation
     slo_expectations:
       expected_duration_ms: 12000      # 12 seconds for verification
       max_duration_ms: 60000           # 1 minute timeout
-      expected_cost_usd: 0.003         # Sonnet for reasoning
+      expected_cost_usd: 0.003         # Opus for reasoning
       max_cost_usd: 0.015              # Alert if exceeds
       expected_context_tokens: 2800    # Architecture + implementation + files + previous review
       max_context_tokens: 10000        # Warning threshold
@@ -363,20 +363,20 @@ synchronizations:
     then:
       concept: verification
       action: consensus
-      model: sonnet
+      model: opus
       inputs:
         verifications:
           - "{{verifications[0]}}"
           - "{{verifications[1]}}"
     outputs:
-      path: "koan/verifications/verify-impl-{{id}}-consensus.yaml"
+      path: "data/verifications/verify-impl-{{id}}-consensus.yaml"
     priority: high
 
     # SLO Expectations for verification.consensus
     slo_expectations:
       expected_duration_ms: 3000       # 3 seconds for aggregation
       max_duration_ms: 20000           # 20 seconds timeout
-      expected_cost_usd: 0.000175      # Sonnet for simple aggregation
+      expected_cost_usd: 0.000175      # Opus for simple aggregation
       max_cost_usd: 0.001              # Alert if exceeds
       expected_context_tokens: 1200    # Two verification reports
       max_context_tokens: 5000         # Warning threshold

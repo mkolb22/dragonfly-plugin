@@ -35,7 +35,7 @@ export function percentile(values: number[], p: number): number {
   return sorted[lo] * (1 - frac) + sorted[hi] * frac;
 }
 
-// ─── Cost analytics (koan-costs) ──────────────────────────────
+// ─── Cost analytics (dragonfly-costs) ──────────────────────────────
 
 function aggregateBy(
   actions: ProvenanceAction[],
@@ -88,7 +88,7 @@ export function computeCostAnalytics(actions: ProvenanceAction[]): CostAnalytics
   };
 }
 
-// ─── Benchmark aggregators (koan-bench) ───────────────────────
+// ─── Benchmark aggregators (dragonfly-bench) ───────────────────────
 
 export function aggregateCosts(actions: ProvenanceAction[]): CostMetrics {
   const total_spend = actions.reduce((sum, a) => sum + (a.cost?.cost_usd || 0), 0);

@@ -36,5 +36,5 @@ skills:
   - workflow-replay
 ---
 
-Call zen_get_agent_prompt with agent="security-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="security-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

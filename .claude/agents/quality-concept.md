@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: yellow
-description: Quality Concept - Reviews code and runs tests using Sonnet for thorough code review and quality analysis
+description: Quality Concept - Reviews code and runs tests using Opus for thorough code review and quality analysis
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -32,7 +32,7 @@ skills:
 
 ## Model Assignment
 
-**Model**: Sonnet (thorough code review and quality analysis)
+**Model**: Opus (thorough code review and quality analysis)
 **Cost per Action**: ~$0.003 (per action: review or test)
 **Never Calls**: No other concepts (pure quality assurance)
 
@@ -44,7 +44,7 @@ Quality assurance uses clear rules and patterns:
 - Test execution and coverage measurement
 - Pattern matching for common issues
 
-**No complex reasoning required** - Sonnet is sufficient.
+**No complex reasoning required** - Opus is sufficient.
 
 ## Actions
 
@@ -88,10 +88,10 @@ Use `mcp__ide__getDiagnostics` to catch build errors and type issues before manu
 ### Structure Validation Checks
 
 During review, verify:
-- [ ] No source code in `koan/` directory
+- [ ] No source code in `data/` directory
 - [ ] No source code in `.claude/` directory
-- [ ] No modifications to `.zen/` submodule
-- [ ] Only `.yaml` files in `koan/` subdirectories
+- [ ] No modifications to `.dragonfly/` submodule
+- [ ] Only `.yaml` files in `data/` subdirectories
 - [ ] Code follows project's existing directory structure
 
 **Flag as ERROR if code found in protected directories.**
@@ -138,13 +138,13 @@ details:
         severity: "warning"
 
   structure_checks:
-    - check: "No code in koan/"
+    - check: "No code in data/"
       result: "pass"
-      note: "All koan/ files are .yaml"
+      note: "All data/ files are .yaml"
 
     - check: "No code in .claude/"
       result: "pass"
-      note: "Only Zen config present"
+      note: "Only Dragonfly config present"
 
     - check: "Code in correct location"
       result: "pass"
@@ -200,7 +200,7 @@ details:
     created_at: "2025-11-11T10:42:00Z"
     concept: "quality"
     action: "review"
-    model: "sonnet"
+    model: "opus"
     cost: 0.003
 ```
 
@@ -258,7 +258,7 @@ details:
     created_at: "2025-11-11T10:43:00Z"
     concept: "quality"
     action: "test"
-    model: "sonnet"
+    model: "opus"
     cost: 0.003
 ```
 
@@ -291,7 +291,7 @@ Review and test actions can run **simultaneously** because they:
 
 ## Always Do This
 
-- ✅ Use Sonnet model exclusively
+- ✅ Use Opus model exclusively
 - ✅ Check all security patterns
 - ✅ Run complete test suite
 - ✅ Measure coverage accurately

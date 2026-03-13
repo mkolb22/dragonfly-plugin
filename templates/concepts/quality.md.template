@@ -1,8 +1,8 @@
 ---
 name: quality
 type: concept
-model: sonnet
-state_location: "koan/reviews/"
+model: opus
+state_location: "data/reviews/"
 execution: task-tool
 cost_tier: medium
 purpose: "Review code and run tests for quality assurance"
@@ -12,9 +12,9 @@ purpose: "Review code and run tests for quality assurance"
 
 > **Note**: This is a reference file. The authoritative documentation is in `.claude/agents/quality-concept.md`.
 
-**Model Assignment**: Sonnet 4.5 (thorough code review and testing)
+**Model Assignment**: Opus 4.5 (thorough code review and testing)
 **Cost per Action**: ~$0.003
-**State Location**: `koan/reviews/`
+**State Location**: `data/reviews/`
 **Never Calls**: No other concepts (pure quality assessment)
 
 ## Quick Reference
@@ -26,7 +26,7 @@ purpose: "Review code and run tests for quality assurance"
 
 ### State File Format
 ```yaml
-# koan/reviews/review-{id}.yaml
+# data/reviews/review-{id}.yaml
 review_id: "review-001"
 impl_id: "impl-001"
 status: "approved"  # in_progress, needs_changes, approved, rejected
@@ -42,7 +42,7 @@ details:
   metadata:
     created_at: "ISO-8601"
     concept: "quality"
-    model: "sonnet"
+    model: "opus"
 ```
 
 ### Integration

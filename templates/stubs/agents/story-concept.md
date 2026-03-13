@@ -4,7 +4,7 @@ type: workflow
 execution: task-tool
 model: opus
 color: blue
-description: Story Concept - Captures and validates user requirements using Sonnet 4.5 for thorough story analysis
+description: Story Concept - Captures and validates user requirements using Opus 4.5 for thorough story analysis
 tools: "*"
 
 # Enhanced Metadata (Phase 3)
@@ -32,5 +32,5 @@ skills:
   - requirement-prioritization    # MoSCoW, RICE scoring, value/effort matrices
 ---
 
-Call zen_get_agent_prompt with agent="story-concept" and taskContext from your current task.
+Call dragonfly_get_agent_prompt with agent="story-concept" and taskContext from your current task.
 Use the returned prompt as your instructions. Follow it exactly.

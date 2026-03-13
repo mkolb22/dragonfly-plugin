@@ -55,14 +55,14 @@ function createStateDb(dbPath: string): void {
 describe("migrate — health", () => {
   it("migrates health status.yaml", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
-    writeYaml(path.join(koanDir, "health", "status.yaml"), [
+    writeYaml(path.join(legacyDir, "health", "status.yaml"), [
       "context_usage_percent: 42.5",
       'zone: "yellow"',
     ].join("\n"));
 
-    const result = migrate(dbPath, koanDir, { noArchive: true });
+    const result = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result.health.migrated).toBe(1);
     expect(result.health.errors).toHaveLength(0);
 
@@ -75,10 +75,10 @@ describe("migrate — health", () => {
 
   it("skips when no health file exists", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    const result = migrate(dbPath, koanDir);
+    const result = migrate(dbPath, legacyDir);
     expect(result.health.migrated).toBe(0);
     expect(result.health.errors).toHaveLength(0);
   });
@@ -87,21 +87,21 @@ describe("migrate — health", () => {
 describe("migrate — events", () => {
   it("migrates event YAML files", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "events", "processed", "evt-001.yaml"), [
+    writeYaml(path.join(legacyDir, "events", "processed", "evt-001.yaml"), [
       "event_id: evt-001",
       "type: session_exit",
       'timestamp: "2026-02-15T10:00:00Z"',
     ].join("\n"));
-    writeYaml(path.join(koanDir, "events", "processed", "evt-002.yaml"), [
+    writeYaml(path.join(legacyDir, "events", "processed", "evt-002.yaml"), [
       "event_id: evt-002",
       "type: context.threshold",
       'timestamp: "2026-02-15T11:00:00Z"',
     ].join("\n"));
 
-    const result = migrate(dbPath, koanDir, { noArchive: true });
+    const result = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result.events.migrated).toBe(2);
 
     const db = new Database(dbPath, { readonly: true });
@@ -114,30 +114,30 @@ describe("migrate — events", () => {
 
   it("skips duplicate events on re-migrate", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "events", "processed", "evt-001.yaml"), [
+    writeYaml(path.join(legacyDir, "events", "processed", "evt-001.yaml"), [
       "event_id: evt-001",
       "type: test_event",
       'timestamp: "2026-02-15T10:00:00Z"',
     ].join("\n"));
 
-    migrate(dbPath, koanDir, { noArchive: true });
-    const result2 = migrate(dbPath, koanDir, { noArchive: true });
+    migrate(dbPath, legacyDir, { noArchive: true });
+    const result2 = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result2.events.migrated).toBe(0);
     expect(result2.events.skipped).toBe(1);
   });
 
   it("reports errors for invalid events", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
     // Missing required event_id
-    writeYaml(path.join(koanDir, "events", "processed", "bad.yaml"), "type: test\n");
+    writeYaml(path.join(legacyDir, "events", "processed", "bad.yaml"), "type: test\n");
 
-    const result = migrate(dbPath, koanDir, { noArchive: true });
+    const result = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result.events.skipped).toBe(1);
     expect(result.events.errors).toHaveLength(1);
   });
@@ -146,10 +146,10 @@ describe("migrate — events", () => {
 describe("migrate — checkpoints", () => {
   it("migrates checkpoint YAML files", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "session-state", "checkpoint-abc.yaml"), [
+    writeYaml(path.join(legacyDir, "session-state", "checkpoint-abc.yaml"), [
       "checkpoint_id: chk-abc",
       'name: "phase1-complete"',
       'type: "milestone"',
@@ -157,7 +157,7 @@ describe("migrate — checkpoints", () => {
       "extra_field: extra_value",
     ].join("\n"));
 
-    const result = migrate(dbPath, koanDir, { noArchive: true });
+    const result = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result.checkpoints.migrated).toBe(1);
 
     const db = new Database(dbPath, { readonly: true });
@@ -171,15 +171,15 @@ describe("migrate — checkpoints", () => {
 
   it("infers type from filename", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "session-state", "checkpoint-safety-001.yaml"), [
+    writeYaml(path.join(legacyDir, "session-state", "checkpoint-safety-001.yaml"), [
       "checkpoint_id: safety-001",
       'name: "auto-safety"',
     ].join("\n"));
 
-    const result = migrate(dbPath, koanDir, { noArchive: true });
+    const result = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result.checkpoints.migrated).toBe(1);
 
     const db = new Database(dbPath, { readonly: true });
@@ -190,14 +190,14 @@ describe("migrate — checkpoints", () => {
 
   it("uses filename as ID when checkpoint_id missing", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "session-state", "checkpoint-noid.yaml"), [
+    writeYaml(path.join(legacyDir, "session-state", "checkpoint-noid.yaml"), [
       'name: "no-id-checkpoint"',
     ].join("\n"));
 
-    migrate(dbPath, koanDir, { noArchive: true });
+    migrate(dbPath, legacyDir, { noArchive: true });
 
     const db = new Database(dbPath, { readonly: true });
     const row = db.prepare("SELECT * FROM checkpoints WHERE id = ?").get("checkpoint-noid") as Record<string, unknown>;
@@ -210,51 +210,51 @@ describe("migrate — checkpoints", () => {
 describe("migrate — archiving", () => {
   it("archives migrated files by default", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "health", "status.yaml"), "zone: green\ncontext_usage_percent: 10\n");
+    writeYaml(path.join(legacyDir, "health", "status.yaml"), "zone: green\ncontext_usage_percent: 10\n");
 
-    const result = migrate(dbPath, koanDir);
+    const result = migrate(dbPath, legacyDir);
     expect(result.archived).toContain("health/status.yaml");
-    expect(fs.existsSync(path.join(koanDir, "health", "status.yaml"))).toBe(false);
-    expect(fs.existsSync(path.join(koanDir, ".archive", "health", "status.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(legacyDir, "health", "status.yaml"))).toBe(false);
+    expect(fs.existsSync(path.join(legacyDir, ".archive", "health", "status.yaml"))).toBe(true);
   });
 
   it("dry run previews without archiving", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "health", "status.yaml"), "zone: green\ncontext_usage_percent: 10\n");
+    writeYaml(path.join(legacyDir, "health", "status.yaml"), "zone: green\ncontext_usage_percent: 10\n");
 
-    const result = migrate(dbPath, koanDir, { dryRun: true });
+    const result = migrate(dbPath, legacyDir, { dryRun: true });
     expect(result.archived).toContain("health/status.yaml");
     // File should still exist (dry run)
-    expect(fs.existsSync(path.join(koanDir, "health", "status.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(legacyDir, "health", "status.yaml"))).toBe(true);
   });
 
   it("noArchive skips archiving", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "koan");
+    const legacyDir = path.join(tmpDir, "legacy");
     createStateDb(dbPath);
 
-    writeYaml(path.join(koanDir, "health", "status.yaml"), "zone: green\ncontext_usage_percent: 10\n");
+    writeYaml(path.join(legacyDir, "health", "status.yaml"), "zone: green\ncontext_usage_percent: 10\n");
 
-    const result = migrate(dbPath, koanDir, { noArchive: true });
+    const result = migrate(dbPath, legacyDir, { noArchive: true });
     expect(result.archived).toHaveLength(0);
-    expect(fs.existsSync(path.join(koanDir, "health", "status.yaml"))).toBe(true);
+    expect(fs.existsSync(path.join(legacyDir, "health", "status.yaml"))).toBe(true);
   });
 });
 
-describe("migrate — empty koan dir", () => {
-  it("handles completely empty koan dir gracefully", () => {
+describe("migrate — empty legacy dir", () => {
+  it("handles completely empty legacy dir gracefully", () => {
     const dbPath = path.join(tmpDir, "state.db");
-    const koanDir = path.join(tmpDir, "empty-koan");
+    const legacyDir = path.join(tmpDir, "empty-legacy");
     createStateDb(dbPath);
-    fs.mkdirSync(koanDir, { recursive: true });
+    fs.mkdirSync(legacyDir, { recursive: true });
 
-    const result = migrate(dbPath, koanDir);
+    const result = migrate(dbPath, legacyDir);
     expect(result.health.migrated).toBe(0);
     expect(result.events.migrated).toBe(0);
     expect(result.checkpoints.migrated).toBe(0);

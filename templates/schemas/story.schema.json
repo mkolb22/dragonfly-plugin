@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://zen.dev/schemas/story.schema.json",
-  "title": "Zen Story Schema",
-  "description": "Schema for story state files in koan/stories/",
+  "$id": "https://dragonfly.dev/schemas/story.schema.json",
+  "title": "Dragonfly Story Schema",
+  "description": "Schema for story state files in data/stories/",
   "type": "object",
   "required": ["story_id", "status", "summary"],
   "properties": {

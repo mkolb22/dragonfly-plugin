@@ -62,7 +62,7 @@ dispatcher
           models: ["opus", "sonnet", "haiku"],
           syntax: {
             basic: "concept | concept | parallel(a, b) | concept",
-            model_hint: "architecture:opus | implementation:sonnet",
+            model_hint: "architecture:opus | implementation:opus",
             action: "quality.review | quality.test",
             passes: "verification[2]",
             annotation: "@slo:standard @errors:graceful",

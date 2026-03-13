@@ -15,7 +15,7 @@ import type {
  * Load prompt logs from JSONL file.
  */
 export function loadPromptLogs(projectRoot: string): PromptLogEntry[] {
-  const logPath = path.join(projectRoot, "koan", "observability", "prompts.jsonl");
+  const logPath = path.join(projectRoot, "legacy", "observability", "prompts.jsonl");
   if (!fs.existsSync(logPath)) return [];
 
   const lines = fs.readFileSync(logPath, "utf-8").split("\n").filter(Boolean);

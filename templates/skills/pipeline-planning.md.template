@@ -37,14 +37,14 @@ Apply this skill when:
 story | architecture | implementation | quality | version
 story | parallel(architecture, security) | implementation | quality | version @slo:thorough
 implementation | quality @slo:fast @errors:graceful
-story | arch:opus | impl:sonnet | verification[2] @slo:thorough
+story | arch:opus | impl:opus | verification[2] @slo:thorough
 ```
 
 **Concepts**: story, architecture, implementation, quality, version, security, documentation, code-analysis, verification, context, retrospective
 
 **Aliases**: arch, impl, verify, docs, sec, retro, qa, ship
 
-**Model hints**: `:opus`, `:sonnet`, `:haiku` — override per-step model
+**Model hints**: `:opus`, `:opus`, `:opus` — override per-step model
 
 **Pass counts**: `[N]` — run concept N times (e.g. `verification[2]`)
 

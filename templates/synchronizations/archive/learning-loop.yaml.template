@@ -40,7 +40,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "extract_pattern"
-        model: "sonnet"
+        model: "opus"
         inputs:
           source: "workflow"
           workflow_id: "${workflow.id}"
@@ -83,7 +83,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "extract_learning"
-        model: "sonnet"
+        model: "opus"
         inputs:
           source: "workflow"
           workflow_id: "${workflow.id}"
@@ -124,7 +124,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "retrieve_relevant_learnings"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_description: "${implementation.task}"
           story_type: "${story.type}"
@@ -160,7 +160,7 @@ synchronizations:
     then:
       - concept: "implementation"
         action: "augment_prompt"
-        model: "sonnet"
+        model: "opus"
         inputs:
           learnings: "${learnings.items}"
           format: |
@@ -204,7 +204,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "store_decision_pattern"
-        model: "sonnet"
+        model: "opus"
         inputs:
           exploration_id: "${exploration.id}"
           problem_type: "${exploration.problem_type}"
@@ -240,7 +240,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "update_tool_patterns"
-        model: "sonnet"
+        model: "opus"
         inputs:
           task_type: "${routing.task_type}"
           tools_effective: "${routing.tools_used}"
@@ -278,7 +278,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "consolidate_patterns"
-        model: "sonnet"
+        model: "opus"
         inputs:
           max_patterns: 100
           prune_threshold: 0.3  # Remove patterns used <30% of relevant cases
@@ -318,7 +318,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "update_learning_effectiveness"
-        model: "sonnet"
+        model: "opus"
         inputs:
           learnings_applied: "${implementation.learnings_applied}"
           outcome: "${review.status}"
@@ -353,7 +353,7 @@ synchronizations:
     then:
       - concept: "global-memory"
         action: "store"
-        model: "sonnet"
+        model: "opus"
         inputs:
           pattern: "${learning.pattern}"
           category: "${learning.category}"
@@ -425,7 +425,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "store_disagreement_pattern"
-        model: "sonnet"
+        model: "opus"
         inputs:
           issue_type: "${disagreement.issue_type}"
           positions: "${disagreement.positions}"
@@ -460,7 +460,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "analyze_context_usage"
-        model: "sonnet"
+        model: "opus"
         inputs:
           folded_content: "${fold.summary}"
           preserved_artifacts: "${fold.artifacts}"
@@ -499,7 +499,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "analyze_workflow"
-        model: "sonnet"
+        model: "opus"
         inputs:
           flow_id: "${flow.id}"
           story_id: "${story.id}"
@@ -538,7 +538,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "store_insights"
-        model: "sonnet"
+        model: "opus"
         inputs:
           insights: "${retrospective.insights}"
           workflow_metrics:
@@ -575,7 +575,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "get_relevant_insights"
-        model: "sonnet"
+        model: "opus"
         inputs:
           context: "${user.request}"
           insight_types: ["cost_optimization", "quality_improvement", "common_pitfalls"]
@@ -610,7 +610,7 @@ synchronizations:
     then:
       - concept: "retrospective"
         action: "measure_insight_impact"
-        model: "sonnet"
+        model: "opus"
         inputs:
           insights_applied: "${flow.retrospective_insights_applied}"
           predicted_improvement: "${insights.predicted_delta}"
