@@ -53,12 +53,12 @@ Cost Efficiency:
 
 Smart model assignment savings:
 - Actual cost:     $0.2475
-- All-sonnet cost: $1.4850
+- All-opus cost: $1.4850
 - Savings:         $1.2375 (83%)
 
 Average cost per feature:
 - With smart assignment: $0.0165
-- With all-sonnet:       $0.0990
+- With all-opus:       $0.0990
 - Savings per feature:   $0.0825
 
 Cost breakdown per feature:

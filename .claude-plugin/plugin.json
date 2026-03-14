@@ -2,7 +2,7 @@
   "name": "dragonfly",
   "displayName": "Dragonfly",
   "description": "Opus-powered MCP plugin: 66 tools for code intelligence, semantic search, memory, and workflow orchestration across 13 modules.",
-  "version": "1.3.7",
+  "version": "1.3.8",
   "author": {
     "name": "Michael Kolb",
     "url": "https://github.com/mkolb22"

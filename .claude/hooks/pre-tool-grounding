@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Zen Pre-Tool Grounding Hook
+# Dragonfly Pre-Tool Grounding Hook
 #
 # This hook runs BEFORE dangerous tool operations execute.
 # It provides a safety layer to prevent destructive actions
@@ -18,7 +18,7 @@ set -e
 # Configuration
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 source "$PROJECT_ROOT/.claude/hooks/lib/common.sh"
-ANCHORS_DIR="$PROJECT_ROOT/koan/anchors"
+ANCHORS_DIR="$PROJECT_ROOT/data/anchors"
 LOG_FILE="$HEALTH_DIR/grounding.log"
 
 # Ensure directories exist
@@ -94,8 +94,8 @@ check_dangerous_patterns() {
 
             # Check if we're in a degraded context state (SQLite)
             local compression_count=0
-            if zen_state_available; then
-                compression_count=$(zen_checkpoint_count_by_type "pre_compact")
+            if dragonfly_state_available; then
+                compression_count=$(dragonfly_checkpoint_count_by_type "pre_compact")
             fi
 
             if [ "$compression_count" -gt 0 ]; then
@@ -124,8 +124,8 @@ verify_working_directory() {
 
 update_health_status() {
     # Log grounding check event to SQLite
-    if zen_state_available; then
-        zen_event_log "grounding-$(date +%s)" "grounding_check" "{\"tool\":\"${TOOL_NAME}\"}" || true
+    if dragonfly_state_available; then
+        dragonfly_event_log "grounding-$(date +%s)" "grounding_check" "{\"tool\":\"${TOOL_NAME}\"}" || true
     fi
 }
 

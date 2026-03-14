@@ -73,7 +73,7 @@ Summary:
 - Model usage: 1 sonnet, 5 sonnet
 - Total cost: $0.0165
 - Opus cost: $0.015 (91% of total)
-- Cost efficiency: 83% savings vs all-sonnet
+- Cost efficiency: 83% savings vs all-opus
 
 Synchronizations triggered:
 - story-to-arch
