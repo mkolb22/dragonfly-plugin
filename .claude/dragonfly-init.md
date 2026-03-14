@@ -192,30 +192,6 @@ projects that already have a `data/` directory with different semantics.
 
 ---
 
-### Manual Step 4 — Clean up legacy zen artifacts (migration only)
-
-If migrating from the old `dragonfly-server` / `.zen` submodule setup:
-
-**Remove `.zen` submodule (3 steps, all required):**
-```bash
-git submodule deinit -f .zen
-git rm -f .zen
-rm -rf .git/modules/.zen
-```
-Skipping step 3 causes `git submodule add` to fail at that path in the future.
-
-**Archive the `data/` directory:**
-```bash
-mkdir -p .archive && mv data/ .archive/data
-echo ".archive/" >> .gitignore
-```
-
-**Remove stale `.mcp.json` server name** (if it was `dragonfly-server`):
-Init skips `.mcp.json` if it already exists. If the existing file has
-`"dragonfly-server"` as the server name, update it manually to `"dragonfly"`.
-
----
-
 ## Idempotency
 
 Init is safe to run multiple times. Every copy operation checks `existsSync`

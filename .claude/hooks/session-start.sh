@@ -57,8 +57,8 @@ fi
 
 # Set environment variables for the session
 if [ -n "$CLAUDE_ENV_FILE" ]; then
-  echo "ZEN_PROJECT_ROOT=$PROJECT_ROOT" >> "$CLAUDE_ENV_FILE"
-  echo "ZEN_SESSION_START=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$CLAUDE_ENV_FILE"
+  echo "DRAGONFLY_PROJECT_ROOT=$PROJECT_ROOT" >> "$CLAUDE_ENV_FILE"
+  echo "DRAGONFLY_SESSION_START=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$CLAUDE_ENV_FILE"
 fi
 
 echo ""

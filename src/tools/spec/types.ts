@@ -1,5 +1,5 @@
 /**
- * Types for the ZenSpec specification DSL module.
+ * Types for the Dragonfly specification DSL module.
  * Defines structured specs that transform into code generation prompts.
  */
 

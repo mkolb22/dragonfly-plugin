@@ -313,8 +313,8 @@ npm install -g ajv-cli
 ## Related Documents
 
 - **schemas/README.md** - Complete schema documentation
-- **ZEN_IMPLEMENTATION_PHASES.md** - Day 6-7 implementation
-- **ZEN_IMPROVEMENT_PROPOSALS.md** - Proposal #6
+- **DRAGONFLY_IMPLEMENTATION_PHASES.md** - Day 6-7 implementation
+- **DRAGONFLY_IMPROVEMENT_PROPOSALS.md** - Proposal #6
 
 ---
 

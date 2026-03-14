@@ -1,6 +1,6 @@
 /**
  * Spec Module
- * ZenSpec specification DSL for type-safe code generation.
+ * Dragonfly specification DSL for type-safe code generation.
  * Saves structured specs and transforms them into Claude prompts.
  *
  * 6 tools: spec_save, spec_get, spec_list, spec_generate, spec_export, spec_import
@@ -27,7 +27,7 @@ export const tools: Tool[] = [
   {
     name: "dragonfly_spec_save",
     description:
-      "Save or update a ZenSpec specification. Defines types, functions with contracts (pre/post conditions, effects), and properties for code generation.",
+      "Save or update a Dragonfly specification. Defines types, functions with contracts (pre/post conditions, effects), and properties for code generation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -208,7 +208,7 @@ export const tools: Tool[] = [
         },
         file_path: {
           type: "string",
-          description: "Output file path (relative to project root or absolute). E.g., 'specs/my-specs.zenspec.json'",
+          description: "Output file path (relative to project root or absolute). E.g., 'specs/my-specs.dfspec.json'",
         },
       },
       required: ["file_path"],

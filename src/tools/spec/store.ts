@@ -1,6 +1,6 @@
 /**
  * Spec Store
- * SQLite-backed storage for ZenSpec specifications.
+ * SQLite-backed storage for Dragonfly specifications.
  * Uses the existing state.db via shared stateDbPath config.
  */
 

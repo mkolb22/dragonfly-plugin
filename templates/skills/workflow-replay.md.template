@@ -470,8 +470,8 @@ ls data/stories/ data/architecture/
 
 - **/replay command** - Command reference
 - **/trace command** - Quick workflow overview
-- **ZEN_IMPLEMENTATION_PHASES.md** - Day 8-9 implementation
-- **ZEN_IMPROVEMENT_PROPOSALS.md** - Proposal #5
+- **DRAGONFLY_IMPLEMENTATION_PHASES.md** - Day 8-9 implementation
+- **DRAGONFLY_IMPROVEMENT_PROPOSALS.md** - Proposal #5
 
 ---
 

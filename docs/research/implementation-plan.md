@@ -71,7 +71,7 @@ Each module reviewed against research evidence and practical workflow value.
 
 ### Keep: Spec Module (6 tools)
 
-**Justification:** ZenSpec's type-safe contract DSL is a unique capability not covered elsewhere. Pre/post-conditions and effects encode correctness requirements that neither the AST module nor semantic search can derive. Language-specific prompt generation (Go, Swift, Rust, TypeScript, Python) with framework detection reduces LLM hallucination of incorrect idioms.
+**Justification:** Dragonfly's type-safe contract DSL is a unique capability not covered elsewhere. Pre/post-conditions and effects encode correctness requirements that neither the AST module nor semantic search can derive. Language-specific prompt generation (Go, Swift, Rust, TypeScript, Python) with framework detection reduces LLM hallucination of incorrect idioms.
 
 **Current state:** Well-implemented. Multi-language generator is the right design.
 

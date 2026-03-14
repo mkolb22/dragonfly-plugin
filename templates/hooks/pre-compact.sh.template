@@ -17,7 +17,7 @@ GIT_BRANCH="$(dragonfly_git_branch)"
 GIT_COMMIT="$(dragonfly_git_short_hash)"
 
 # Build checkpoint data
-JSON_DATA="{\"automatic\":true,\"description\":\"Auto-saved before context compaction\",\"context_tokens\":\"${CLAUDE_CONTEXT_TOKENS:-unknown}\",\"git_state\":{\"branch\":\"${GIT_BRANCH}\",\"commit\":\"${GIT_COMMIT}\"},\"session_start\":\"${ZEN_SESSION_START:-unknown}\"}"
+JSON_DATA="{\"automatic\":true,\"description\":\"Auto-saved before context compaction\",\"context_tokens\":\"${CLAUDE_CONTEXT_TOKENS:-unknown}\",\"git_state\":{\"branch\":\"${GIT_BRANCH}\",\"commit\":\"${GIT_COMMIT}\"},\"session_start\":\"${DRAGONFLY_SESSION_START:-unknown}\"}"
 
 # Write to SQLite
 if dragonfly_state_available; then

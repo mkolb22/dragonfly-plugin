@@ -517,7 +517,7 @@ save_and_cache("story-001", story_data, file_path)
 - **Progressive Disclosure** (Phase 1 Day 3-4) - Summary sections enable efficient caching
 - **Incremental Loading** (Phase 2 Day 1-3) - Minimal reads benefit from caching
 - **Batch Operations** (Phase 2 Day 6-7) - Batch processing with cached data
-- **ZEN_PHASE2_PROGRESS.md** - Week 1 Day 4-5 tracking
+- **DRAGONFLY_PHASE2_PROGRESS.md** - Week 1 Day 4-5 tracking
 
 ---
 

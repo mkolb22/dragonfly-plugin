@@ -129,14 +129,14 @@ Call `dragonfly_spec_export` with:
 - `id`: export a single spec by ID
 - `name`: export a single spec by name
 - `all: true`: export all specs
-- `file_path`: output path (e.g., `specs/my-specs.zenspec.json`)
+- `file_path`: output path (e.g., `specs/my-specs.dfspec.json`)
 
 The exported file uses a portable JSON format (array of specs) that strips internal fields like `id` and timestamps. Share the file across projects or check it into version control.
 
 ### 8. Import specs
 
 Call `dragonfly_spec_import` with:
-- `file_path`: path to the `.zenspec.json` file
+- `file_path`: path to the `.dfspec.json` file
 - `overwrite`: set to `true` to replace existing specs with the same name (default: skip)
 
 New IDs are generated for each imported spec. Reports imported count, skipped count, and any validation errors.

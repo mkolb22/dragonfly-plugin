@@ -669,7 +669,7 @@ if state == "HALF_OPEN":
 
 - **/replay Command** (Phase 1 Day 8-9) - Debugging failed workflows
 - **Batch Operations** (Phase 2 Day 6-7) - Batch retry strategies
-- **ZEN_PHASE2_PROGRESS.md** - Week 2 Day 8-10 tracking
+- **DRAGONFLY_PHASE2_PROGRESS.md** - Week 2 Day 8-10 tracking
 
 ---
 

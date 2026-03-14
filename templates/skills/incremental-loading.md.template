@@ -567,7 +567,7 @@ Read:
 - **MCP Integration** (Phase 1 Day 1-2) - MCP tools documentation
 - **architecture.md.template** - Updated with incremental loading
 - **implementation.md.template** - Updated with targeted symbol loading
-- **ZEN_PHASE2_PROGRESS.md** - Week 1 Day 1-3 tracking
+- **DRAGONFLY_PHASE2_PROGRESS.md** - Week 1 Day 1-3 tracking
 
 ---
 

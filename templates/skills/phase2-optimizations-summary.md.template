@@ -450,8 +450,8 @@ After migration, verify:
 - **Output Caching** - Phase 2 Day 4-5
 - **Batch Processing** - Phase 2 Day 6-7
 - **Smart Retry** - Phase 2 Day 8-10
-- **ZEN_PHASE2_PROGRESS.md** - Implementation tracking
-- **ZEN_IMPROVEMENT_PROPOSALS.md** - All 12 proposals
+- **DRAGONFLY_PHASE2_PROGRESS.md** - Implementation tracking
+- **DRAGONFLY_IMPROVEMENT_PROPOSALS.md** - All 12 proposals
 
 ---
 

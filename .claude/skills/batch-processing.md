@@ -598,7 +598,7 @@ gc.collect()
 - **Parallel Quality** (Phase 1 Day 5) - Parallel execution patterns
 - **Incremental Loading** (Phase 2 Day 1-3) - Context optimization
 - **Output Caching** (Phase 2 Day 4-5) - Cache benefits batching
-- **ZEN_PHASE2_PROGRESS.md** - Week 1 Day 6-7 tracking
+- **DRAGONFLY_PHASE2_PROGRESS.md** - Week 1 Day 6-7 tracking
 
 ---
 
