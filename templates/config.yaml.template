@@ -8,17 +8,17 @@
 models:
   concepts:
     # Core workflow concepts
-    story: "sonnet"           # Opus 4.5 for story analysis
-    architecture: "opus"      # Opus 4.5 for deep reasoning and design
-    implementation: "sonnet"  # Opus 4.5 for code generation
-    quality: "sonnet"         # Opus 4.5 for thorough review
-    version: "sonnet"         # Opus 4.5 for git operations
-    context: "sonnet"         # Opus 4.5 for context management
+    story: "opus"             # Opus for story analysis
+    architecture: "opus"      # Opus for deep reasoning and design
+    implementation: "opus"    # Opus for code generation
+    quality: "opus"           # Opus for thorough review
+    version: "opus"           # Opus for git operations
+    context: "opus"           # Opus for context management
     # Extended concepts
-    security: "sonnet"        # Opus 4.5 for security scanning
-    documentation: "sonnet"   # Opus 4.5 for doc generation
-    verification: "sonnet"    # Opus 4.5 for multi-pass review
-    code-analysis: "sonnet"   # Opus 4.5 for codebase context
+    security: "opus"          # Opus for security scanning
+    documentation: "opus"     # Opus for doc generation
+    verification: "opus"      # Opus for multi-pass review
+    code-analysis: "opus"     # Opus for codebase context
 
   # Model costs (for provenance tracking) - Claude 4.5 pricing
   costs:
@@ -296,8 +296,8 @@ optimization:
     - "architecture.revise"
     - "architecture.evaluate_tradeoffs"
 
-  # When to use Opus 4.5 (balanced quality and cost)
-  use_sonnet_for:
+  # When to use Opus (default for all concepts)
+  use_opus_for_all:
     - "story.*"          # All story actions
     - "implementation.*" # All implementation actions
     - "quality.*"        # All quality actions
